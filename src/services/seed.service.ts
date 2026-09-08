@@ -9,6 +9,7 @@ import {
   FULL_TEST_AGENT,
   MATH_SKILL_AGENT,
   SKILLS_TEST_AGENT,
+  AGENT_CREATOR,
 } from '../agents/index.js';
 
 export class SeedService {
@@ -110,6 +111,20 @@ export class SeedService {
         variables: [],
       });
       created.push(SKILLS_TEST_AGENT.name);
+    }
+
+    // Check and create Agent Creator
+    const existingCreator = await this.agentRepo.findSystemAgentByName(AGENT_CREATOR.name);
+    if (!existingCreator) {
+      await this.agentRepo.createSystemAgent({
+        userId: admin.id,
+        name: AGENT_CREATOR.name,
+        description: AGENT_CREATOR.description,
+        nodes: AGENT_CREATOR.nodes,
+        edges: AGENT_CREATOR.edges,
+        variables: [],
+      });
+      created.push(AGENT_CREATOR.name);
     }
 
     return { created };

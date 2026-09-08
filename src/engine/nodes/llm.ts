@@ -293,6 +293,56 @@ export class LlmNode extends BaseNode {
         await options.saveNotes(notes);
         return { success: true, message: 'Notes saved successfully' };
       }
+      case 'create_agent': {
+        if (!options.agentRepo) {
+          throw new Error('create_agent tool requires agentRepo in options');
+        }
+        if (!options.userId) {
+          throw new Error('create_agent tool requires userId in options');
+        }
+
+        const name = String(args.name ?? '');
+        const description = String(args.description ?? '');
+        const nodes = args.nodes as Array<Record<string, unknown>> | undefined;
+        const edges = args.edges as Array<Record<string, unknown>> | undefined;
+
+        if (!name) {
+          return { success: false, error: 'Agent name is required' };
+        }
+        if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
+          return { success: false, error: 'At least one node is required' };
+        }
+        if (!edges || !Array.isArray(edges)) {
+          return { success: false, error: 'Edges array is required' };
+        }
+
+        // Basic validation
+        const hasInput = nodes.some((n) => n.type === 'input');
+        const hasOutput = nodes.some((n) => n.type === 'output');
+        if (!hasInput) {
+          return { success: false, error: 'Workflow must have at least one input node' };
+        }
+        if (!hasOutput) {
+          return { success: false, error: 'Workflow must have at least one output node' };
+        }
+
+        // Create the agent
+        const agent = await options.agentRepo.create({
+          userId: options.userId,
+          name,
+          description,
+          nodes: nodes as unknown as import('../../domain/entities/Agent.js').WorkflowNode[],
+          edges: edges as unknown as import('../../domain/entities/Agent.js').WorkflowEdge[],
+          variables: [],
+        });
+
+        return {
+          success: true,
+          agentId: agent.id,
+          name: agent.name,
+          message: `Agent "${name}" created successfully with ID: ${agent.id}`,
+        };
+      }
       default:
         throw new Error(`Unknown builtin tool: ${toolName}`);
     }
