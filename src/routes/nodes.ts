@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { requireAuth } from '../middleware/auth.js';
 
 interface NodeOption {
   name: string;
@@ -411,6 +412,7 @@ export async function nodeRoutes(app: FastifyInstance) {
     schema: {
       tags: ['nodes'],
       summary: 'List available node types with their configuration options',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
       response: {
         200: {
           type: 'object',
@@ -421,6 +423,7 @@ export async function nodeRoutes(app: FastifyInstance) {
         },
       },
     },
+    preHandler: requireAuth,
   }, async () => ({
     success: true,
     data: NODE_DEFINITIONS,

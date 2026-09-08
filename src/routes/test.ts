@@ -55,7 +55,7 @@ export async function testRoutes(app: FastifyInstance) {
   );
 
   // Run Basic Test Agent
-  app.post('/api/system/test/basic', {
+  app.post('/api/test/basic', {
     schema: {
       tags: ['system'],
       summary: 'Run Basic Test Agent (input → js → if-else → output)',
@@ -105,7 +105,7 @@ export async function testRoutes(app: FastifyInstance) {
   });
 
   // Run Full Test Agent
-  app.post('/api/system/test/full', {
+  app.post('/api/test/full', {
     schema: {
       tags: ['system'],
       summary: 'Run Full Test Agent (input → js → if-else → http → llm → output)',
