@@ -1,5 +1,8 @@
 export type SessionStatus = 'active' | 'archived';
 
+// Max 4000 characters for agent notes
+export const AGENT_NOTES_MAX_LENGTH = 4000;
+
 export interface Session {
   id: string;
   userId: string;
@@ -7,6 +10,7 @@ export interface Session {
   title: string | null;
   status: SessionStatus;
   incognito: boolean;
+  agentNotes: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,4 +25,5 @@ export interface CreateSessionDTO {
 export interface UpdateSessionDTO {
   title?: string;
   status?: SessionStatus;
+  agentNotes?: string;
 }

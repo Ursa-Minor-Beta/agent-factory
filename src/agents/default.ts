@@ -1,4 +1,5 @@
 import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
+import { SAVE_NOTE_TOOL } from '../engine/tools/index.js';
 
 // Default workflow: Input (text) -> LLM -> Output
 export const DEFAULT_NODES: WorkflowNode[] = [
@@ -23,6 +24,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
       userPrompt: '{{text}}',
       temperature: 0.7,
       maxTokens: 1000,
+      tools: [SAVE_NOTE_TOOL],
     },
   },
   {

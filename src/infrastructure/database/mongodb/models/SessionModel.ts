@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import type { SessionStatus } from '../../../../domain/entities/Session.js';
+import { AGENT_NOTES_MAX_LENGTH } from '../../../../domain/entities/Session.js';
 
 export interface SessionDocument extends Document {
   _id: mongoose.Types.ObjectId;
@@ -8,6 +9,7 @@ export interface SessionDocument extends Document {
   title: string | null;
   status: SessionStatus;
   incognito: boolean;
+  agentNotes: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +38,11 @@ const sessionSchema = new Schema<SessionDocument>(
     incognito: {
       type: Boolean,
       default: false,
+    },
+    agentNotes: {
+      type: String,
+      default: '',
+      maxlength: AGENT_NOTES_MAX_LENGTH,
     },
   },
   {

@@ -13,6 +13,9 @@ export interface ProviderConfig {
   ollama?: { baseUrl: string };
 }
 
+// Callback for built-in tools to save agent notes
+export type SaveNotesCallback = (notes: string) => Promise<void>;
+
 export interface ExecutionOptions {
   providers: ProviderConfig;
   workflowInput: Record<string, unknown>;
@@ -21,6 +24,9 @@ export interface ExecutionOptions {
   runRepo?: IRunRepository;
   callStack?: Set<string>; // Track agent IDs to detect circular calls
   userId?: string; // Current user for permission checks
+  // For built-in tools (save_note)
+  sessionId?: string;
+  saveNotes?: SaveNotesCallback;
 }
 
 export abstract class BaseNode {

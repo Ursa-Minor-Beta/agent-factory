@@ -11,6 +11,7 @@ export class MongoSessionRepository implements ISessionRepository {
       title: doc.title,
       status: doc.status,
       incognito: doc.incognito,
+      agentNotes: doc.agentNotes ?? '',
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -95,5 +96,14 @@ export class MongoSessionRepository implements ISessionRepository {
 
   async count(userId: string): Promise<number> {
     return SessionModel.countDocuments({ userId });
+  }
+
+  async setAgentNotes(id: string, notes: string): Promise<Session | null> {
+    const doc = await SessionModel.findByIdAndUpdate(
+      id,
+      { $set: { agentNotes: notes } },
+      { new: true }
+    );
+    return doc ? this.toEntity(doc) : null;
   }
 }

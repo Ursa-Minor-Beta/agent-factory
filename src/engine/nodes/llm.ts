@@ -6,19 +6,7 @@ import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './bas
 import { NodeExecutionError } from '../../utils/errors.js';
 import { interpolate } from './utils.js';
 import { WorkflowExecutor } from '../executor.js';
-
-// Tool definition for LLM function calling
-interface ToolDefinition {
-  type: 'agent'; // For now, only agent tools. Can extend to 'function' later
-  agentId: string;
-  name: string; // Function name the LLM will call
-  description: string;
-  parameters: {
-    type: 'object';
-    properties: Record<string, { type: string; description?: string }>;
-    required?: string[];
-  };
-}
+import type { ToolDefinition } from '../tools/index.js';
 
 interface LLMNodeData {
   provider: 'openai' | 'anthropic' | 'ollama';
@@ -122,10 +110,10 @@ export class LlmNode extends BaseNode {
       },
     }));
 
-    // Create tool name -> agent ID mapping for execution
-    const toolAgentMap = new Map<string, string>();
+    // Create tool name -> tool definition mapping for execution
+    const toolMap = new Map<string, ToolDefinition>();
     data.tools?.forEach((tool) => {
-      toolAgentMap.set(tool.name, tool.agentId);
+      toolMap.set(tool.name, tool);
     });
 
     const maxIterations = data.maxToolCalls ?? 5;
@@ -166,9 +154,9 @@ export class LlmNode extends BaseNode {
         // Execute each tool call
         for (const toolCall of assistantMessage.tool_calls) {
           const toolName = toolCall.function.name;
-          const agentId = toolAgentMap.get(toolName);
+          const toolDef = toolMap.get(toolName);
 
-          if (!agentId) {
+          if (!toolDef) {
             messages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -190,9 +178,17 @@ export class LlmNode extends BaseNode {
             continue;
           }
 
-          // Execute the sub-agent
           try {
-            const result = await this.executeSubAgent(agentId, toolArgs, options);
+            let result: unknown;
+
+            if (toolDef.type === 'builtin') {
+              // Handle built-in tools
+              result = await this.executeBuiltinTool(toolName, toolArgs, options);
+            } else {
+              // Execute sub-agent
+              result = await this.executeSubAgent(toolDef.agentId!, toolArgs, options);
+            }
+
             executedToolCalls.push({ name: toolName, result });
             messages.push({
               role: 'tool',
@@ -283,6 +279,25 @@ export class LlmNode extends BaseNode {
     return run.output;
   }
 
+  private async executeBuiltinTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    options: ExecutionOptions
+  ): Promise<unknown> {
+    switch (toolName) {
+      case 'save_note': {
+        if (!options.saveNotes) {
+          throw new Error('save_note tool requires saveNotes callback in options');
+        }
+        const notes = String(args.notes ?? '');
+        await options.saveNotes(notes);
+        return { success: true, message: 'Notes saved successfully' };
+      }
+      default:
+        throw new Error(`Unknown builtin tool: ${toolName}`);
+    }
+  }
+
   private async callAnthropic(
     data: LLMNodeData,
     systemPrompt: string | undefined,
@@ -306,10 +321,10 @@ export class LlmNode extends BaseNode {
       input_schema: tool.parameters as Anthropic.Tool.InputSchema,
     }));
 
-    // Create tool name -> agent ID mapping
-    const toolAgentMap = new Map<string, string>();
+    // Create tool name -> tool definition mapping
+    const toolMap = new Map<string, ToolDefinition>();
     data.tools?.forEach((tool) => {
-      toolAgentMap.set(tool.name, tool.agentId);
+      toolMap.set(tool.name, tool);
     });
 
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: userPrompt }];
@@ -354,9 +369,9 @@ export class LlmNode extends BaseNode {
         // Execute tool calls and collect results
         const toolResults: Anthropic.ToolResultBlockParam[] = [];
         for (const toolUse of toolUses) {
-          const agentId = toolAgentMap.get(toolUse.name);
+          const toolDef = toolMap.get(toolUse.name);
 
-          if (!agentId) {
+          if (!toolDef) {
             toolResults.push({
               type: 'tool_result',
               tool_use_id: toolUse.id,
@@ -366,7 +381,16 @@ export class LlmNode extends BaseNode {
           }
 
           try {
-            const result = await this.executeSubAgent(agentId, toolUse.input as Record<string, unknown>, options);
+            let result: unknown;
+
+            if (toolDef.type === 'builtin') {
+              // Handle built-in tools
+              result = await this.executeBuiltinTool(toolUse.name, toolUse.input as Record<string, unknown>, options);
+            } else {
+              // Execute sub-agent
+              result = await this.executeSubAgent(toolDef.agentId!, toolUse.input as Record<string, unknown>, options);
+            }
+
             executedToolCalls.push({ name: toolUse.name, result });
             toolResults.push({
               type: 'tool_result',

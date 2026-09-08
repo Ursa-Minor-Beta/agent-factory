@@ -5,6 +5,7 @@ import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentR
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
+import { AGENT_NOTES_MAX_LENGTH } from '../domain/entities/Session.js';
 import type { Message } from '../domain/entities/Message.js';
 import { WorkflowExecutor } from '../engine/executor.js';
 import { ProviderConfigService } from './provider-config.service.js';
@@ -31,6 +32,7 @@ interface IncognitoSession {
   userId: string;
   agentId: string;
   messages: ChatMessage[];
+  agentNotes: string;
   createdAt: number;
   lastAccessedAt: number;
 }
@@ -91,6 +93,7 @@ export class SessionService {
     let incognitoSession: IncognitoSession | null = null;
     let isNewSession = false;
     let formattedHistory = '';
+    let agentNotes = '';
     let effectiveSessionId: string | null = null;
 
     // Check if this is an incognito session ID
@@ -111,8 +114,10 @@ export class SessionService {
       // Update last accessed time
       incognitoSession.lastAccessedAt = Date.now();
       formattedHistory = this.formatChatMessages(incognitoSession.messages);
+      agentNotes = incognitoSession.agentNotes;
       effectiveSessionId = sessionId;
-    } else if (sessionId) {
+    } 
+    else if (sessionId) {
       // Resume existing persisted session
       session = await this.sessionRepo.findById(sessionId);
       if (!session) {
@@ -127,21 +132,25 @@ export class SessionService {
       // Get existing conversation history
       const history = await this.messageRepo.findBySessionId(sessionId, { order: 'asc' });
       formattedHistory = this.formatHistoryForAgent(history);
+      agentNotes = session.agentNotes;
       effectiveSessionId = sessionId;
-    } else if (incognito) {
+    } 
+    else if (incognito) {
       // Create new incognito session (in-memory)
       const newSessionId = `incognito_${crypto.randomUUID()}`;
       incognitoSession = {
         userId,
         agentId,
         messages: [],
+        agentNotes: '',
         createdAt: Date.now(),
         lastAccessedAt: Date.now(),
       };
       incognitoSessions.set(newSessionId, incognitoSession);
       effectiveSessionId = newSessionId;
       isNewSession = true;
-    } else {
+    } 
+    else {
       // Create new persisted session
       session = await this.sessionRepo.create({
         userId,
@@ -169,13 +178,20 @@ export class SessionService {
     // Build provider config
     const providers = await this.providerConfigService.buildExecutionConfig(userId);
 
+    // Create saveNotes callback for built-in save_note tool
+    const saveNotes = effectiveSessionId
+      ? async (notes: string) => {
+          await this.setAgentNotes(userId, effectiveSessionId!, notes);
+        }
+      : undefined;
+
     // Execute agent with conversation context
     const run = await this.executor.execute(
       agent,
       {
         message,
         conversationHistory: formattedHistory,
-        isConversation: true,
+        agentNotes,
       },
       userId,
       {
@@ -184,6 +200,8 @@ export class SessionService {
         runRepo: this.runRepo,
         userId,
         callStack: new Set([agent.id]),
+        sessionId: effectiveSessionId ?? undefined,
+        saveNotes,
       }
     );
 
@@ -278,6 +296,48 @@ export class SessionService {
     // Persisted session
     await this.getById(userId, sessionId);
     return this.messageRepo.findBySessionId(sessionId, { ...options, order: 'asc' });
+  }
+
+  async setAgentNotes(userId: string, sessionId: string, notes: string): Promise<void> {
+    // Validate length
+    if (notes.length > AGENT_NOTES_MAX_LENGTH) {
+      throw new Error(`Agent notes exceed maximum length of ${AGENT_NOTES_MAX_LENGTH} characters`);
+    }
+
+    // Check if incognito session
+    if (sessionId.startsWith('incognito_')) {
+      const incognitoSession = incognitoSessions.get(sessionId);
+      if (!incognitoSession) {
+        throw new NotFoundError('Session');
+      }
+      if (incognitoSession.userId !== userId) {
+        throw new ForbiddenError('Access denied');
+      }
+      incognitoSession.agentNotes = notes;
+      return;
+    }
+
+    // Persisted session
+    const session = await this.getById(userId, sessionId);
+    await this.sessionRepo.setAgentNotes(session.id, notes);
+  }
+
+  async getAgentNotes(userId: string, sessionId: string): Promise<string> {
+    // Check if incognito session
+    if (sessionId.startsWith('incognito_')) {
+      const incognitoSession = incognitoSessions.get(sessionId);
+      if (!incognitoSession) {
+        throw new NotFoundError('Session');
+      }
+      if (incognitoSession.userId !== userId) {
+        throw new ForbiddenError('Access denied');
+      }
+      return incognitoSession.agentNotes;
+    }
+
+    // Persisted session
+    const session = await this.getById(userId, sessionId);
+    return session.agentNotes;
   }
 
   private formatHistoryForAgent(messages: Message[]): string {

@@ -14,6 +14,7 @@ import { settingsRoutes } from './routes/settings.js';
 import { nodeRoutes } from './routes/nodes.js';
 import { testRoutes } from './routes/test.js';
 import { sessionRoutes } from './routes/sessions.js';
+import { toolRoutes } from './routes/tools.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 
@@ -138,6 +139,7 @@ async function bootstrap() {
   await app.register(sessionRoutes);
   await app.register(settingsRoutes);
   await app.register(nodeRoutes);
+  await app.register(toolRoutes);
   await app.register(testRoutes);
 
   try {
