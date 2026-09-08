@@ -1,0 +1,31 @@
+import 'dotenv/config';
+
+export const config = {
+  server: {
+    port: parseInt(process.env['PORT'] ?? '3000', 10),
+    host: process.env['HOST'] ?? '0.0.0.0',
+    env: process.env['NODE_ENV'] ?? 'development',
+  },
+  mongodb: {
+    uri: process.env['MONGODB_URI'] ?? 'mongodb://localhost:27017/agent-factory',
+  },
+  jwt: {
+    secret: process.env['JWT_SECRET'] ?? 'change-me-in-production',
+    accessExpiresIn: process.env['JWT_ACCESS_EXPIRES_IN'] ?? '15m',
+    refreshExpiresIn: process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d',
+  },
+  admin: {
+    email: process.env['ADMIN_EMAIL'],
+    password: process.env['ADMIN_PASSWORD'],
+    name: process.env['ADMIN_NAME'] ?? 'Admin',
+  },
+} as const;
+
+// Validate required config
+export function validateConfig() {
+  if (!config.admin.email || !config.admin.password) {
+    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD are required environment variables');
+  }
+}
+
+export type Config = typeof config;

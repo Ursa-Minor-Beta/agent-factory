@@ -1,0 +1,74 @@
+export class AppError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number = 500,
+    public code: string = 'INTERNAL_ERROR'
+  ) {
+    super(message);
+    this.name = 'AppError';
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+export class ValidationError extends AppError {
+  constructor(message: string) {
+    super(message, 400, 'VALIDATION_ERROR');
+    this.name = 'ValidationError';
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(resource: string) {
+    super(`${resource} not found`, 404, 'NOT_FOUND');
+    this.name = 'NotFoundError';
+  }
+}
+
+export class UnauthorizedError extends AppError {
+  constructor(message: string = 'Unauthorized') {
+    super(message, 401, 'UNAUTHORIZED');
+    this.name = 'UnauthorizedError';
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message: string = 'Forbidden') {
+    super(message, 403, 'FORBIDDEN');
+    this.name = 'ForbiddenError';
+  }
+}
+
+export class ConflictError extends AppError {
+  constructor(message: string) {
+    super(message, 409, 'CONFLICT');
+    this.name = 'ConflictError';
+  }
+}
+
+export interface NodeErrorContext {
+  request?: {
+    url?: string;
+    method?: string;
+    body?: unknown;
+  };
+  response?: {
+    status?: number;
+    statusText?: string;
+    body?: string;
+  };
+}
+
+export class NodeExecutionError extends Error {
+  public context: NodeErrorContext;
+  public originalError?: Error;
+
+  constructor(message: string, context: NodeErrorContext = {}, cause?: unknown) {
+    super(message);
+    this.name = 'NodeExecutionError';
+    this.context = context;
+    if (cause instanceof Error) {
+      this.originalError = cause;
+    }
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
