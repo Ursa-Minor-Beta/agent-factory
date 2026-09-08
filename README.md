@@ -80,33 +80,80 @@ Response:
 }
 ```
 
-### 2. Create OpenAI Provider
+### 2. Create API Key (Optional)
+
+For programmatic access, create an API key instead of using JWT tokens:
 
 ```bash
-curl -X POST http://localhost:3000/api/providers \
+curl -X POST http://localhost:3000/api/auth/api-keys \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <accessToken>" \
   -d '{
-    "provider": "openai",
-    "name": "My OpenAI",
-    "isDefault": true,
-    "config": { "apiKey": "sk-..." }
+    "name": "My API Key",
+    "permissions": ["agents:read", "agents:write", "agents:run", "runs:read"]
   }'
 ```
 
-### 3. Run Default Agent
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "apiKey": { "id": "...", "name": "My API Key", "keyPrefix": "af_live_" },
+    "plainKey": "af_live_abc123..."
+  }
+}
+```
+
+**Save the `plainKey`** - it's only shown once!
+
+Now use `X-API-Key` header instead of `Authorization: Bearer`:
+```bash
+curl http://localhost:3000/api/agents \
+  -H "X-API-Key: af_live_abc123..."
+```
+
+### 3. Create OpenAI Provider
+
+Use either JWT token or API key for authentication:
+
+```bash
+# With JWT token
+curl -X POST http://localhost:3000/api/providers \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <accessToken>" \
+  -d '{"provider": "openai", "name": "My OpenAI", "isDefault": true, "config": {"apiKey": "sk-..."}}'
+
+# With API key
+curl -X POST http://localhost:3000/api/providers \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
+  -d '{"provider": "openai", "name": "My OpenAI", "isDefault": true, "config": {"apiKey": "sk-..."}}'
+```
+
+### 4. Run Default Agent
 
 Get the agent ID from server logs or list agents:
 ```bash
-curl http://localhost:3000/api/agents \
-  -H "Authorization: Bearer <accessToken>"
+# With JWT token
+curl http://localhost:3000/api/agents -H "Authorization: Bearer <accessToken>"
+
+# With API key
+curl http://localhost:3000/api/agents -H "X-API-Key: <your-api-key>"
 ```
 
 Run the agent:
 ```bash
+# With JWT token
 curl -X POST http://localhost:3000/api/agents/<agentId>/run \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <accessToken>" \
+  -d '{"input": {"text": "Hello, how are you?"}}'
+
+# With API key
+curl -X POST http://localhost:3000/api/agents/<agentId>/run \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <your-api-key>" \
   -d '{"input": {"text": "Hello, how are you?"}}'
 ```
 
@@ -124,29 +171,21 @@ Response:
 
 ## Node Types
 
-| Type | Description | Inputs | Outputs |
-|------|-------------|--------|---------|
-| `input` | Workflow entry point | - | `*` (schema fields) |
-| `output` | Workflow exit point | `value` | - |
-| `llm` | LLM call (OpenAI, Anthropic, Ollama) | `prompt`, `context` | `response`, `usage` |
-| `http` | HTTP request | `body`, `params` | `response`, `status` |
-| `js` | Custom JavaScript code | `input` | `output` |
-| `agent` | Execute sub-agent | `input` | `output` |
-| `if-else` | Conditional branching | `input` | `true`, `false`, `result` |
+Get available node types with full documentation:
 
-### If-Else Node Example
-
-```json
-{
-  "id": "condition-1",
-  "type": "if-else",
-  "data": {
-    "expression": "input.score > 0.5"
-  }
-}
+```bash
+curl http://localhost:3000/api/nodes
 ```
 
-The expression has access to the `input` variable. Nodes connected to the `true` output run when condition is true, nodes connected to `false` output run otherwise.
+Returns node definitions including:
+- `type` - Node type identifier
+- `description` - What the node does
+- `inputs` / `outputs` - Connection handles
+- `options` - Configuration options with types, defaults, descriptions
+- `features` - Special capabilities (e.g., template interpolation)
+- `examples` - Usage examples with sample configurations
+
+Available nodes: `input`, `output`, `llm`, `http`, `js`, `agent`, `if-else`
 
 ## Environment Variables
 
