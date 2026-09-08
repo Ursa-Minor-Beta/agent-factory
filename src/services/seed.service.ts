@@ -1,8 +1,15 @@
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
+import type { WorkflowNode } from '../domain/entities/Agent.js';
 import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
-import { DEFAULT_AGENT, BASIC_TEST_AGENT, FULL_TEST_AGENT } from '../agents/index.js';
+import {
+  DEFAULT_AGENT,
+  BASIC_TEST_AGENT,
+  FULL_TEST_AGENT,
+  MATH_SKILL_AGENT,
+  SKILLS_TEST_AGENT,
+} from '../agents/index.js';
 
 export class SeedService {
   constructor(
@@ -71,7 +78,68 @@ export class SeedService {
       created.push(FULL_TEST_AGENT.name);
     }
 
+    // Check and create Math Skill Agent (must be created before Skills Test Agent)
+    let mathSkillAgent = await this.agentRepo.findSystemAgentByName(MATH_SKILL_AGENT.name);
+    if (!mathSkillAgent) {
+      mathSkillAgent = await this.agentRepo.createSystemAgent({
+        userId: admin.id,
+        name: MATH_SKILL_AGENT.name,
+        description: MATH_SKILL_AGENT.description,
+        nodes: MATH_SKILL_AGENT.nodes,
+        edges: MATH_SKILL_AGENT.edges,
+        variables: [],
+      });
+      created.push(MATH_SKILL_AGENT.name);
+    }
+
+    // Check and create Skills Test Agent (with resolved tool agentIds)
+    const existingSkills = await this.agentRepo.findSystemAgentByName(SKILLS_TEST_AGENT.name);
+    if (!existingSkills) {
+      // Inject the actual Math Skill agent ID into the LLM node's tools
+      const resolvedNodes = this.resolveToolAgentIds(
+        SKILLS_TEST_AGENT.nodes,
+        { '{{MATH_SKILL_AGENT_ID}}': mathSkillAgent.id }
+      );
+
+      await this.agentRepo.createSystemAgent({
+        userId: admin.id,
+        name: SKILLS_TEST_AGENT.name,
+        description: SKILLS_TEST_AGENT.description,
+        nodes: resolvedNodes,
+        edges: SKILLS_TEST_AGENT.edges,
+        variables: [],
+      });
+      created.push(SKILLS_TEST_AGENT.name);
+    }
+
     return { created };
+  }
+
+  /**
+   * Replace placeholder agentIds in tool definitions with actual IDs
+   */
+  private resolveToolAgentIds(
+    nodes: WorkflowNode[],
+    idMap: Record<string, string>
+  ): WorkflowNode[] {
+    return nodes.map((node) => {
+      if (node.type !== 'llm' || !node.data.tools) {
+        return node;
+      }
+
+      const resolvedTools = (node.data.tools as Array<{ agentId: string }>).map((tool) => {
+        const resolvedId = idMap[tool.agentId] ?? tool.agentId;
+        return { ...tool, agentId: resolvedId };
+      });
+
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          tools: resolvedTools,
+        },
+      };
+    });
   }
 
   /**

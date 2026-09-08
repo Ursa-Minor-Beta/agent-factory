@@ -3,7 +3,7 @@ import { RunService } from '../services/run.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import { NotFoundError } from '../utils/errors.js';
-import { BASIC_TEST_AGENT, FULL_TEST_AGENT } from '../agents/index.js';
+import { BASIC_TEST_AGENT, FULL_TEST_AGENT, SKILLS_TEST_AGENT } from '../agents/index.js';
 
 const errorSchema = {
   type: 'object',
@@ -147,6 +147,56 @@ export async function testRoutes(app: FastifyInstance) {
     }
 
     const run = await runService.run(userId, agent.id, input ?? { text: 'Hello', score: 50 });
+
+    return reply.send({
+      success: true,
+      data: run,
+    });
+  });
+
+  // Run Skills Test Agent (LLM with tool calling)
+  app.post('/api/test/skills', {
+    schema: {
+      tags: ['system'],
+      summary: 'Run Skills Test Agent (LLM with tool calling to sub-agents)',
+      description: 'Tests LLM tool calling functionality. Requires OpenAI API key configured.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      body: {
+        type: 'object',
+        properties: {
+          input: {
+            type: 'object',
+            properties: {
+              message: { type: 'string', default: 'What is 15 + 27?' },
+            },
+            additionalProperties: true,
+          },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: runSchema,
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { input } = request.body as { input?: Record<string, unknown> };
+
+    const agent = await container.agentRepository.findSystemAgentByName(SKILLS_TEST_AGENT.name);
+    if (!agent) {
+      throw new NotFoundError('Skills Test Agent not found. Run server to seed it.');
+    }
+
+    const run = await runService.run(userId, agent.id, input ?? { message: 'What is 15 + 27?' });
 
     return reply.send({
       success: true,
