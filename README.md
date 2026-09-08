@@ -185,8 +185,6 @@ Returns node definitions including:
 - `features` - Special capabilities (e.g., template interpolation)
 - `examples` - Usage examples with sample configurations
 
-Available nodes: `input`, `output`, `llm`, `http`, `js`, `agent`, `if-else`
-
 ## Environment Variables
 
 ```bash
