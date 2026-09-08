@@ -8,8 +8,8 @@ export interface NodeExecutionResult {
 }
 
 export interface ProviderConfig {
-  openai?: { apiKey: string };
-  anthropic?: { apiKey: string };
+  openai?: { apiKey: string; baseUrl?: string };
+  anthropic?: { apiKey: string; baseUrl?: string };
   ollama?: { baseUrl: string };
 }
 
