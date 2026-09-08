@@ -25,6 +25,10 @@ export class WorkflowExecutor {
 
   /**
    * Check if a node should be skipped due to being in an unselected if-else branch
+   *
+   * A node should be skipped only if ALL incoming edges come from skipped sources.
+   * This allows converging branches to work correctly - the node executes if at least
+   * one branch reaches it.
    */
   private shouldSkipNode(
     nodeId: string,
@@ -35,10 +39,18 @@ export class WorkflowExecutor {
     // Find all incoming edges to this node
     const incomingEdges = edges.filter((e) => e.target === nodeId);
 
+    // If no incoming edges, don't skip (e.g., input node)
+    if (incomingEdges.length === 0) {
+      return false;
+    }
+
+    // Check each incoming edge - if ANY edge comes from an active source, don't skip
+    let hasActiveSource = false;
+
     for (const edge of incomingEdges) {
-      // If source node was skipped, this node should also be skipped
+      // Check if source node was skipped
       if (skippedNodes.has(edge.source)) {
-        return true;
+        continue; // This edge is inactive, check others
       }
 
       // Check if this edge comes from an if-else node's true/false output
@@ -46,14 +58,19 @@ export class WorkflowExecutor {
         const sourceOutputs = context.getNodeOutputs(edge.source);
         const value = sourceOutputs[edge.sourceHandle];
 
-        // If the if-else branch output is null/undefined, skip this node
+        // If the if-else branch output is null/undefined, this edge is inactive
         if (value === null || value === undefined) {
-          return true;
+          continue;
         }
       }
+
+      // This edge has an active source
+      hasActiveSource = true;
+      break;
     }
 
-    return false;
+    // Skip only if NO incoming edges are active
+    return !hasActiveSource;
   }
 
   /**

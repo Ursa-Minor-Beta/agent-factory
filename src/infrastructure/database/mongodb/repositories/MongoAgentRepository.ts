@@ -13,6 +13,7 @@ export class MongoAgentRepository implements IAgentRepository {
       edges: doc.edges,
       variables: doc.variables,
       status: doc.status,
+      isSystem: doc.isSystem,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -24,7 +25,17 @@ export class MongoAgentRepository implements IAgentRepository {
   }
 
   async findByUserId(userId: string): Promise<Agent[]> {
-    const docs = await AgentModel.find({ userId }).sort({ updatedAt: -1 });
+    const docs = await AgentModel.find({ userId, isSystem: { $ne: true } }).sort({ updatedAt: -1 });
+    return docs.map((doc) => this.toEntity(doc));
+  }
+
+  async findSystemAgentByName(name: string): Promise<Agent | null> {
+    const doc = await AgentModel.findOne({ name, isSystem: true });
+    return doc ? this.toEntity(doc) : null;
+  }
+
+  async findAllSystemAgents(): Promise<Agent[]> {
+    const docs = await AgentModel.find({ isSystem: true }).sort({ name: 1 });
     return docs.map((doc) => this.toEntity(doc));
   }
 
@@ -37,6 +48,21 @@ export class MongoAgentRepository implements IAgentRepository {
       edges: data.edges ?? [],
       variables: data.variables ?? [],
       status: 'draft',
+      isSystem: false,
+    });
+    return this.toEntity(doc);
+  }
+
+  async createSystemAgent(data: CreateAgentDTO): Promise<Agent> {
+    const doc = await AgentModel.create({
+      userId: data.userId,
+      name: data.name,
+      description: data.description ?? '',
+      nodes: data.nodes ?? [],
+      edges: data.edges ?? [],
+      variables: data.variables ?? [],
+      status: 'published',
+      isSystem: true,
     });
     return this.toEntity(doc);
   }

@@ -39,6 +39,7 @@ export interface Agent {
   edges: WorkflowEdge[];
   variables: WorkflowVariable[];
   status: AgentStatus;
+  isSystem: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +51,7 @@ export interface CreateAgentDTO {
   nodes?: WorkflowNode[];
   edges?: WorkflowEdge[];
   variables?: WorkflowVariable[];
+  isSystem?: boolean;
 }
 
 export interface UpdateAgentDTO {

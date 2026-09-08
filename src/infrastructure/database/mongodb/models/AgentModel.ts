@@ -17,6 +17,7 @@ export interface AgentDocument extends Document {
   edges: WorkflowEdge[];
   variables: WorkflowVariable[];
   status: AgentStatus;
+  isSystem: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,6 +95,10 @@ const agentSchema = new Schema<AgentDocument>(
       type: String,
       enum: AGENT_STATUSES,
       default: 'draft',
+    },
+    isSystem: {
+      type: Boolean,
+      default: false,
     },
   },
   {

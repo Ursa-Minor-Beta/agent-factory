@@ -12,6 +12,7 @@ import { agentRoutes } from './routes/agents.js';
 import { runRoutes } from './routes/runs.js';
 import { settingsRoutes } from './routes/settings.js';
 import { nodeRoutes } from './routes/nodes.js';
+import { testRoutes } from './routes/test.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 
@@ -37,7 +38,7 @@ async function bootstrap() {
         },
       ],
       tags: [
-        { name: 'system', description: 'Health check and API info' },
+        { name: 'system', description: 'Health check, API info, and test agents' },
         { name: 'auth', description: 'Authentication and API keys' },
         { name: 'users', description: 'User management (admin)' },
         { name: 'agents', description: 'Agent CRUD operations' },
@@ -134,23 +135,37 @@ async function bootstrap() {
   await app.register(runRoutes);
   await app.register(settingsRoutes);
   await app.register(nodeRoutes);
+  await app.register(testRoutes);
 
   try {
     // Connect to MongoDB
     await connectDatabase();
     app.log.info('Connected to MongoDB');
 
-    // Seed admin user and default agent on first run
+    // Seed admin user and agents
     const seedService = new SeedService(container.userRepository, container.agentRepository);
+
     const { created: adminCreated, email } = await seedService.seedAdmin();
     if (adminCreated) {
       app.log.info(`Admin user created: ${email}`);
     }
 
-    const { created: agentCreated, name, id: agentId } = await seedService.seedDefaultAgent();
-    if (agentCreated) {
-      app.log.info(`Default agent created: ${name} (id: ${agentId})`);
-      app.log.info(`Run example: POST /api/agents/${agentId}/run with body: { "input": { "text": "Hello!" } }`);
+    const { created: defaultCreated } = await seedService.seedDefaultAgent();
+    if (defaultCreated) {
+      app.log.info('Default agent created');
+    }
+
+    const { created: systemCreated } = await seedService.seedSystemAgents();
+    if (systemCreated.length > 0) {
+      app.log.info(`System agents created: ${systemCreated.join(', ')}`);
+    }
+
+    // Always log agent IDs
+    const agents = await seedService.getAllAgentIds();
+    app.log.info('Available agents:');
+    for (const agent of agents) {
+      const tag = agent.isSystem ? '[system]' : '';
+      app.log.info(`  ${agent.name} ${tag}: ${agent.id}`);
     }
 
     // Start server
