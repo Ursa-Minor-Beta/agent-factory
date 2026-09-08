@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
 import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
@@ -8,6 +9,11 @@ import type { Message } from '../domain/entities/Message.js';
 import { WorkflowExecutor } from '../engine/executor.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 export interface ChatOptions {
   sessionId?: string;
@@ -20,6 +26,33 @@ export interface ChatResult {
   runId: string;
   isNewSession: boolean;
 }
+
+interface IncognitoSession {
+  userId: string;
+  agentId: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  lastAccessedAt: number;
+}
+
+// In-memory store for incognito sessions
+const incognitoSessions = new Map<string, IncognitoSession>();
+
+// TTL for incognito sessions (1 hour)
+const INCOGNITO_SESSION_TTL_MS = 60 * 60 * 1000;
+
+// Cleanup interval (every 5 minutes)
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+// Start cleanup timer
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, session] of incognitoSessions.entries()) {
+    if (now - session.lastAccessedAt > INCOGNITO_SESSION_TTL_MS) {
+      incognitoSessions.delete(sessionId);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
 
 export class SessionService {
   private executor: WorkflowExecutor;
@@ -55,11 +88,32 @@ export class SessionService {
 
     const { sessionId, incognito = false } = options;
     let session: Session | null = null;
+    let incognitoSession: IncognitoSession | null = null;
     let isNewSession = false;
-    let history: Message[] = [];
+    let formattedHistory = '';
+    let effectiveSessionId: string | null = null;
 
-    // Get or create session
-    if (sessionId) {
+    // Check if this is an incognito session ID
+    const isIncognitoSessionId = sessionId?.startsWith('incognito_');
+
+    if (isIncognitoSessionId && sessionId) {
+      // Resume existing incognito session
+      incognitoSession = incognitoSessions.get(sessionId) ?? null;
+      if (!incognitoSession) {
+        throw new NotFoundError('Incognito session expired or not found');
+      }
+      if (incognitoSession.userId !== userId) {
+        throw new ForbiddenError('Access denied');
+      }
+      if (incognitoSession.agentId !== agentId) {
+        throw new ForbiddenError('Session belongs to a different agent');
+      }
+      // Update last accessed time
+      incognitoSession.lastAccessedAt = Date.now();
+      formattedHistory = this.formatChatMessages(incognitoSession.messages);
+      effectiveSessionId = sessionId;
+    } else if (sessionId) {
+      // Resume existing persisted session
       session = await this.sessionRepo.findById(sessionId);
       if (!session) {
         throw new NotFoundError('Session');
@@ -71,30 +125,46 @@ export class SessionService {
         throw new ForbiddenError('Session belongs to a different agent');
       }
       // Get existing conversation history
-      if (!session.incognito) {
-        history = await this.messageRepo.findBySessionId(sessionId, { order: 'asc' });
-      }
-    } else if (!incognito) {
-      // Create new session
+      const history = await this.messageRepo.findBySessionId(sessionId, { order: 'asc' });
+      formattedHistory = this.formatHistoryForAgent(history);
+      effectiveSessionId = sessionId;
+    } else if (incognito) {
+      // Create new incognito session (in-memory)
+      const newSessionId = `incognito_${crypto.randomUUID()}`;
+      incognitoSession = {
+        userId,
+        agentId,
+        messages: [],
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+      };
+      incognitoSessions.set(newSessionId, incognitoSession);
+      effectiveSessionId = newSessionId;
+      isNewSession = true;
+    } else {
+      // Create new persisted session
       session = await this.sessionRepo.create({
         userId,
         agentId,
         incognito: false,
       });
+      effectiveSessionId = session.id;
       isNewSession = true;
     }
 
-    // Save user message if not incognito
-    if (session && !session.incognito) {
+    // Add user message to incognito session memory
+    if (incognitoSession) {
+      incognitoSession.messages.push({ role: 'user', content: message });
+    }
+
+    // Save user message to DB if persisted session
+    if (session) {
       await this.messageRepo.create({
         sessionId: session.id,
         role: 'user',
         content: message,
       });
     }
-
-    // Format history for the agent
-    const formattedHistory = this.formatHistoryForAgent(history);
 
     // Build provider config
     const providers = await this.providerConfigService.buildExecutionConfig(userId);
@@ -120,8 +190,13 @@ export class SessionService {
     // Extract assistant response
     const response = this.extractAssistantResponse(run.output);
 
-    // Save assistant message if not incognito
-    if (session && !session.incognito) {
+    // Add assistant message to incognito session memory
+    if (incognitoSession) {
+      incognitoSession.messages.push({ role: 'assistant', content: response });
+    }
+
+    // Save assistant message to DB if persisted session
+    if (session) {
       await this.messageRepo.create({
         sessionId: session.id,
         role: 'assistant',
@@ -130,7 +205,7 @@ export class SessionService {
     }
 
     return {
-      sessionId: session?.id ?? null,
+      sessionId: effectiveSessionId,
       response,
       runId: run.id,
       isNewSession,
@@ -156,6 +231,20 @@ export class SessionService {
   }
 
   async delete(userId: string, sessionId: string): Promise<void> {
+    // Check if incognito session
+    if (sessionId.startsWith('incognito_')) {
+      const incognitoSession = incognitoSessions.get(sessionId);
+      if (!incognitoSession) {
+        throw new NotFoundError('Session');
+      }
+      if (incognitoSession.userId !== userId) {
+        throw new ForbiddenError('Access denied');
+      }
+      incognitoSessions.delete(sessionId);
+      return;
+    }
+
+    // Persisted session
     const session = await this.getById(userId, sessionId);
     await this.messageRepo.deleteBySessionId(session.id);
     await this.sessionRepo.delete(session.id);
@@ -166,11 +255,45 @@ export class SessionService {
     sessionId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<Message[]> {
+    // Check if incognito session
+    if (sessionId.startsWith('incognito_')) {
+      const incognitoSession = incognitoSessions.get(sessionId);
+      if (!incognitoSession) {
+        throw new NotFoundError('Session');
+      }
+      if (incognitoSession.userId !== userId) {
+        throw new ForbiddenError('Access denied');
+      }
+      // Return messages from memory (with fake IDs and timestamps)
+      const { limit = 50, offset = 0 } = options ?? {};
+      return incognitoSession.messages.slice(offset, offset + limit).map((msg, idx) => ({
+        id: `incognito_msg_${idx}`,
+        sessionId,
+        role: msg.role,
+        content: msg.content,
+        createdAt: new Date(incognitoSession.createdAt + idx * 1000),
+      }));
+    }
+
+    // Persisted session
     await this.getById(userId, sessionId);
     return this.messageRepo.findBySessionId(sessionId, { ...options, order: 'asc' });
   }
 
   private formatHistoryForAgent(messages: Message[]): string {
+    if (messages.length === 0) {
+      return '';
+    }
+
+    return messages
+      .map((msg) => {
+        const role = msg.role === 'user' ? 'User' : 'Assistant';
+        return `${role}: ${msg.content}`;
+      })
+      .join('\n\n');
+  }
+
+  private formatChatMessages(messages: ChatMessage[]): string {
     if (messages.length === 0) {
       return '';
     }

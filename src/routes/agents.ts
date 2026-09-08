@@ -361,8 +361,8 @@ export async function agentRoutes(app: FastifyInstance) {
         required: ['message'],
         properties: {
           message: { type: 'string', description: 'The message to send to the agent' },
-          sessionId: { type: 'string', description: 'Continue an existing session' },
-          incognito: { type: 'boolean', default: false, description: 'Do not save messages (no session created)' },
+          sessionId: { type: 'string', description: 'Continue an existing session (or incognito_* for incognito sessions)' },
+          incognito: { type: 'boolean', default: false, description: 'Start incognito session (messages stored in memory, not persisted)' },
         },
       },
       response: {

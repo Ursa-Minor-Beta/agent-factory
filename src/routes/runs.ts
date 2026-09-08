@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { RunService } from '../services/run.service.js';
 import { container } from '../config/container.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 // Schemas
 const errorSchema = {
@@ -52,52 +52,6 @@ export async function runRoutes(app: FastifyInstance) {
     container.agentRepository,
     container.providerConfigRepository
   );
-
-  // Execute agent
-  app.post('/api/agents/:agentId/run', {
-    schema: {
-      tags: ['runs'],
-      summary: 'Execute an agent',
-      security: [{ bearerAuth: [] }, { apiKey: [] }],
-      params: {
-        type: 'object',
-        properties: {
-          agentId: { type: 'string' },
-        },
-      },
-      body: {
-        type: 'object',
-        properties: {
-          input: { type: 'object', additionalProperties: true, default: { text: 'Hi' } },
-        },
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean' },
-            data: runSchema,
-          },
-        },
-        400: errorSchema,
-        401: errorSchema,
-        403: errorSchema,
-        404: errorSchema,
-      },
-    },
-    preHandler: requireAuth,
-  }, async (request, reply) => {
-    const { userId } = request.user as { userId: string };
-    const { agentId } = request.params as { agentId: string };
-    const { input } = request.body as { input?: Record<string, unknown> };
-
-    const run = await runService.run(userId, agentId, input ?? {});
-
-    return reply.send({
-      success: true,
-      data: run,
-    });
-  });
 
   // List runs for agent
   app.get('/api/agents/:agentId/runs', {
