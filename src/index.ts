@@ -13,6 +13,7 @@ import { runRoutes } from './routes/runs.js';
 import { settingsRoutes } from './routes/settings.js';
 import { nodeRoutes } from './routes/nodes.js';
 import { testRoutes } from './routes/test.js';
+import { sessionRoutes } from './routes/sessions.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 
@@ -43,6 +44,7 @@ async function bootstrap() {
         { name: 'users', description: 'User management (admin)' },
         { name: 'agents', description: 'Agent CRUD operations' },
         { name: 'runs', description: 'Agent execution and history' },
+        { name: 'sessions', description: 'Conversation sessions with agents' },
         { name: 'providers', description: 'LLM provider configurations' },
       ],
       components: {
@@ -133,6 +135,7 @@ async function bootstrap() {
   await app.register(userRoutes);
   await app.register(agentRoutes);
   await app.register(runRoutes);
+  await app.register(sessionRoutes);
   await app.register(settingsRoutes);
   await app.register(nodeRoutes);
   await app.register(testRoutes);

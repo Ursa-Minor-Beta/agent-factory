@@ -1,9 +1,15 @@
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
+import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
+import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
 import type { Agent, CreateAgentDTO, UpdateAgentDTO } from '../domain/entities/Agent.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
 export class AgentService {
-  constructor(private agentRepo: IAgentRepository) {}
+  constructor(
+    private agentRepo: IAgentRepository,
+    private sessionRepo?: ISessionRepository,
+    private messageRepo?: IMessageRepository
+  ) {}
 
   async create(userId: string, data: Omit<CreateAgentDTO, 'userId'>): Promise<Agent> {
     return this.agentRepo.create({ ...data, userId });
@@ -47,6 +53,15 @@ export class AgentService {
     }
     if (agent.userId !== userId) {
       throw new ForbiddenError('Access denied');
+    }
+
+    // Cascade delete sessions and messages
+    if (this.sessionRepo && this.messageRepo) {
+      const sessions = await this.sessionRepo.findByAgentId(agentId);
+      for (const session of sessions) {
+        await this.messageRepo.deleteBySessionId(session.id);
+      }
+      await this.sessionRepo.deleteByAgentId(agentId);
     }
 
     await this.agentRepo.delete(agentId);

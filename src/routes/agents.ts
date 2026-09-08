@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { AgentService } from '../services/agent.service.js';
+import { SessionService } from '../services/session.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import { NODE_TYPES, AGENT_STATUSES } from '../domain/entities/Agent.js';
@@ -73,7 +74,18 @@ const agentSchema = {
 };
 
 export async function agentRoutes(app: FastifyInstance) {
-  const agentService = new AgentService(container.agentRepository);
+  const agentService = new AgentService(
+    container.agentRepository,
+    container.sessionRepository,
+    container.messageRepository
+  );
+  const sessionService = new SessionService(
+    container.sessionRepository,
+    container.messageRepository,
+    container.agentRepository,
+    container.runRepository,
+    container.providerConfigRepository
+  );
 
   // List agents
   app.get('/api/agents', {
@@ -292,11 +304,12 @@ export async function agentRoutes(app: FastifyInstance) {
     });
   });
 
-  // Delete agent
+  // Delete agent and all its sessions/messages
   app.delete('/api/agents/:id', {
     schema: {
       tags: ['agents'],
       summary: 'Delete agent',
+      description: 'Deletes the agent and all associated conversation sessions and messages.',
       security: [{ bearerAuth: [] }, { apiKey: [] }],
       params: {
         type: 'object',
@@ -327,6 +340,71 @@ export async function agentRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       message: 'Agent deleted',
+    });
+  });
+
+  // Chat with agent (conversational mode)
+  app.post('/api/agents/:id/chat', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Chat with agent',
+      description: 'Send a message to an agent and get a response. Auto-creates a session if not provided.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['message'],
+        properties: {
+          message: { type: 'string', description: 'The message to send to the agent' },
+          sessionId: { type: 'string', description: 'Continue an existing session' },
+          incognito: { type: 'boolean', default: false, description: 'Do not save messages (no session created)' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                sessionId: { type: 'string', nullable: true },
+                response: { type: 'string' },
+                runId: { type: 'string' },
+                isNewSession: { type: 'boolean' },
+              },
+            },
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id: agentId } = request.params as { id: string };
+    const { message, sessionId, incognito } = request.body as {
+      message: string;
+      sessionId?: string;
+      incognito?: boolean;
+    };
+
+    const result = await sessionService.chat(userId, agentId, message, {
+      sessionId,
+      incognito,
+    });
+
+    return reply.send({
+      success: true,
+      data: result,
     });
   });
 }

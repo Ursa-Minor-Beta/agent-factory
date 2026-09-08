@@ -3,12 +3,16 @@ import { MongoApiKeyRepository } from '../infrastructure/database/mongodb/reposi
 import { MongoProviderConfigRepository } from '../infrastructure/database/mongodb/repositories/MongoProviderConfigRepository.js';
 import { MongoAgentRepository } from '../infrastructure/database/mongodb/repositories/MongoAgentRepository.js';
 import { MongoRunRepository } from '../infrastructure/database/mongodb/repositories/MongoRunRepository.js';
+import { MongoSessionRepository } from '../infrastructure/database/mongodb/repositories/MongoSessionRepository.js';
+import { MongoMessageRepository } from '../infrastructure/database/mongodb/repositories/MongoMessageRepository.js';
 
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
 import type { IApiKeyRepository } from '../domain/interfaces/repositories/IApiKeyRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
+import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
+import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
 
 export interface Container {
   userRepository: IUserRepository;
@@ -16,6 +20,8 @@ export interface Container {
   providerConfigRepository: IProviderConfigRepository;
   agentRepository: IAgentRepository;
   runRepository: IRunRepository;
+  sessionRepository: ISessionRepository;
+  messageRepository: IMessageRepository;
 }
 
 // Create singleton instances
@@ -26,4 +32,6 @@ export const container: Container = {
   providerConfigRepository: new MongoProviderConfigRepository(),
   agentRepository: new MongoAgentRepository(),
   runRepository: new MongoRunRepository(),
+  sessionRepository: new MongoSessionRepository(),
+  messageRepository: new MongoMessageRepository(),
 };
