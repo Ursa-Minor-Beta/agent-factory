@@ -92,7 +92,7 @@ npm run lint     # Run ESLint
 
 ### Authentication
 
-**Option A: JWT Token**
+**Login**
 ```bash
 curl -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -102,7 +102,7 @@ curl -X POST http://localhost:3000/api/auth/login \
 curl http://localhost:3000/api/agents -H "Authorization: Bearer <accessToken>"
 ```
 
-**Option B: API Key**
+**Option: create API Key**
 ```bash
 # Create API key (one-time)
 curl -X POST http://localhost:3000/api/auth/api-keys \
@@ -121,6 +121,22 @@ curl -X POST http://localhost:3000/api/providers \
   -H "X-API-Key: af_live_..." \
   -H "Content-Type: application/json" \
   -d '{"provider": "openai", "name": "OpenAI", "isDefault": true, "config": {"apiKey": "sk-..."}}'
+```
+
+### Chat with Agent by id
+
+```bash
+# Start conversation (auto-creates session)
+curl -X POST http://localhost:3000/api/agents/:id/chat \
+  -H "X-API-Key: af_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hi!"}'
+
+# Continue conversation
+curl -X POST http://localhost:3000/api/agents/:id/chat \
+  -H "X-API-Key: af_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Add error handling", "sessionId": "<sessionId>"}'
 ```
 
 ### Chat with Agent Creator
