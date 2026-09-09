@@ -53,7 +53,7 @@ async function tryApiKeyAuth(request: FastifyRequest): Promise<boolean> {
 }
 
 /**
- * Require valid JWT token or API key
+ * Require valid JWT token, API key, or cookie
  */
 export async function requireAuth(request: FastifyRequest): Promise<void> {
   // Try API key first
@@ -62,12 +62,33 @@ export async function requireAuth(request: FastifyRequest): Promise<void> {
     return;
   }
 
-  // Fall back to JWT
-  try {
-    await request.jwtVerify();
-  } catch {
-    throw new UnauthorizedError('Invalid or missing token');
+  // Try JWT from Authorization header
+  const authHeader = request.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      await request.jwtVerify();
+      return;
+    } catch {
+      throw new UnauthorizedError('Invalid or expired token');
+    }
   }
+
+  // Try JWT from cookie
+  const cookieToken = request.cookies?.['accessToken'];
+  if (cookieToken) {
+    try {
+      const decoded = request.server.jwt.verify<{ userId: string; role?: string }>(cookieToken);
+      (request as any).user = {
+        userId: decoded.userId,
+        role: decoded.role ?? 'user',
+      };
+      return;
+    } catch {
+      throw new UnauthorizedError('Invalid or expired token');
+    }
+  }
+
+  throw new UnauthorizedError('Authentication required');
 }
 
 /**

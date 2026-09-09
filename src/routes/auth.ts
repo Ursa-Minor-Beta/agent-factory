@@ -3,6 +3,17 @@ import { AuthService } from '../services/auth.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import { UnauthorizedError } from '../utils/errors.js';
+import { config } from '../config/index.js';
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: config.server.env === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+};
+
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15 minutes
+const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // Schemas
 const errorSchema = {
@@ -99,6 +110,16 @@ export async function authRoutes(app: FastifyInstance) {
 
     const result = await authService.login(email, password);
 
+    // Set httpOnly cookies for browser clients
+    reply.setCookie('accessToken', result.tokens.accessToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    });
+    reply.setCookie('refreshToken', result.tokens.refreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+    });
+
     return reply.send({
       success: true,
       data: result,
@@ -110,9 +131,9 @@ export async function authRoutes(app: FastifyInstance) {
     schema: {
       tags: ['auth'],
       summary: 'Refresh access token',
+      description: 'Accepts refreshToken in body or from httpOnly cookie',
       body: {
         type: 'object',
-        required: ['refreshToken'],
         properties: {
           refreshToken: { type: 'string' },
         },
@@ -129,7 +150,13 @@ export async function authRoutes(app: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
-    const { refreshToken } = request.body as { refreshToken: string };
+    const body = request.body as { refreshToken?: string };
+    // Accept from body or cookie
+    const refreshToken = body.refreshToken || request.cookies['refreshToken'];
+
+    if (!refreshToken) {
+      throw new UnauthorizedError('Refresh token required');
+    }
 
     let decoded: { userId: string; type?: string };
     try {
@@ -143,6 +170,16 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const tokens = await authService.refreshTokens(decoded.userId);
+
+    // Update cookies
+    reply.setCookie('accessToken', tokens.accessToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    });
+    reply.setCookie('refreshToken', tokens.refreshToken, {
+      ...COOKIE_OPTIONS,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+    });
 
     return reply.send({
       success: true,
@@ -175,6 +212,31 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: user,
+    });
+  });
+
+  // Logout (clear cookies)
+  app.post('/api/auth/logout', {
+    schema: {
+      tags: ['auth'],
+      summary: 'Logout (clears auth cookies)',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (_request, reply) => {
+    reply.clearCookie('accessToken', { path: '/' });
+    reply.clearCookie('refreshToken', { path: '/' });
+
+    return reply.send({
+      success: true,
+      message: 'Logged out',
     });
   });
 

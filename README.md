@@ -132,6 +132,21 @@ curl -X POST http://localhost:3000/api/auth/api-keys \
 curl http://localhost:3000/api/agents -H "X-API-Key: af_live_..."
 ```
 
+**Option: use httpOnly cookies (for browsers)**
+```bash
+# Login sets cookies automatically
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "...", "password": "..."}' \
+  -c cookies.txt
+
+# Cookies sent automatically
+curl http://localhost:3000/api/agents -b cookies.txt
+
+# Logout clears cookies
+curl -X POST http://localhost:3000/api/auth/logout -b cookies.txt -c cookies.txt
+```
+
 ### Configure LLM Provider
 
 ```bash

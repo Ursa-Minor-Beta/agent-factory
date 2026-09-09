@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -83,6 +84,8 @@ async function bootstrap() {
     origin: true,
     credentials: true,
   });
+
+  await app.register(cookie);
 
   await app.register(jwt, {
     secret: config.jwt.secret,
