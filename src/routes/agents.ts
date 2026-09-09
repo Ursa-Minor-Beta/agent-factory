@@ -399,7 +399,7 @@ export async function agentRoutes(app: FastifyInstance) {
     schema: {
       tags: ['agents'],
       summary: 'Chat with agent',
-      description: 'Send a message to an agent and get a response. Auto-creates a session if not provided.',
+      description: 'Send input to an agent and get a response. Input object must match agent schema. Auto-creates a session if not provided.',
       security: [{ bearerAuth: [] }, { apiKey: [] }],
       params: {
         type: 'object',
@@ -409,9 +409,9 @@ export async function agentRoutes(app: FastifyInstance) {
       },
       body: {
         type: 'object',
-        required: ['message'],
+        required: ['input'],
         properties: {
-          message: { type: 'string', description: 'The message to send to the agent' },
+          input: { type: 'object', additionalProperties: true, description: 'Input object matching agent schema (e.g., { "message": "hello" } or { "text": "hello", "count": 3 })' },
           sessionId: { type: 'string', description: 'Continue an existing session (or incognito_* for incognito sessions)' },
           incognito: { type: 'boolean', default: false, description: 'Start incognito session (messages stored in memory, not persisted)' },
         },
@@ -442,13 +442,13 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id: agentId } = request.params as { id: string };
-    const { message, sessionId, incognito } = request.body as {
-      message: string;
+    const { input, sessionId, incognito } = request.body as {
+      input: Record<string, unknown>;
       sessionId?: string;
       incognito?: boolean;
     };
 
-    const result = await sessionService.chat(userId, agentId, message, {
+    const result = await sessionService.chat(userId, agentId, input, {
       sessionId,
       incognito,
     });
@@ -468,9 +468,9 @@ export async function agentRoutes(app: FastifyInstance) {
       security: [{ bearerAuth: [] }, { apiKey: [] }],
       body: {
         type: 'object',
-        required: ['message'],
+        required: ['input'],
         properties: {
-          message: { type: 'string', description: 'Describe what agent you want to create' },
+          input: { type: 'object', additionalProperties: true, description: 'Input matching agent schema (e.g., { "message": "Create a weather agent" })' },
           sessionId: { type: 'string', description: 'Continue an existing conversation' },
         },
       },
@@ -498,8 +498,8 @@ export async function agentRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { message, sessionId } = request.body as {
-      message: string;
+    const { input, sessionId } = request.body as {
+      input: Record<string, unknown>;
       sessionId?: string;
     };
 
@@ -508,7 +508,7 @@ export async function agentRoutes(app: FastifyInstance) {
       throw new NotFoundError('Agent Creator not found. Restart server to seed it.');
     }
 
-    const result = await sessionService.chat(userId, agent.id, message, { sessionId });
+    const result = await sessionService.chat(userId, agent.id, input, { sessionId });
 
     return reply.send({
       success: true,

@@ -9,7 +9,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
     position: { x: 100, y: 200 },
     data: {
       schema: {
-        text: { type: 'string', required: true },
+        message: { type: 'string', required: true },
       },
     },
   },
@@ -21,7 +21,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
       provider: 'openai',
       model: 'gpt-4o-mini',
       systemPrompt: 'You are a helpful assistant.',
-      userPrompt: '{{text}}',
+      userPrompt: '{{message}}',
       temperature: 0.7,
       maxTokens: 1000,
       tools: [SAVE_NOTE_TOOL],
@@ -39,7 +39,7 @@ export const DEFAULT_EDGES: WorkflowEdge[] = [
   {
     id: 'edge-1',
     source: 'input-1',
-    sourceHandle: 'text',
+    sourceHandle: 'message',
     target: 'llm-1',
     targetHandle: 'prompt',
   },

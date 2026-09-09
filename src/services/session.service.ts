@@ -77,7 +77,7 @@ export class SessionService {
   async chat(
     userId: string,
     agentId: string,
-    message: string,
+    input: Record<string, unknown>,
     options: ChatOptions = {}
   ): Promise<ChatResult> {
     const agent = await this.agentRepo.findById(agentId);
@@ -161,9 +161,12 @@ export class SessionService {
       isNewSession = true;
     }
 
+    // Serialize input for session history
+    const inputContent = JSON.stringify(input);
+
     // Add user message to incognito session memory
     if (incognitoSession) {
-      incognitoSession.messages.push({ role: 'user', content: message });
+      incognitoSession.messages.push({ role: 'user', content: inputContent });
     }
 
     // Save user message to DB if persisted session
@@ -171,7 +174,7 @@ export class SessionService {
       await this.messageRepo.create({
         sessionId: session.id,
         role: 'user',
-        content: message,
+        content: inputContent,
       });
     }
 
@@ -185,11 +188,11 @@ export class SessionService {
         }
       : undefined;
 
-    // Execute agent with conversation context
+    // Execute agent with input and conversation context
     const run = await this.executor.execute(
       agent,
       {
-        message,
+        ...input,
         conversationHistory: formattedHistory,
         agentNotes,
       },
