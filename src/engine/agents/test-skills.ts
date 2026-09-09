@@ -1,4 +1,4 @@
-import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
+import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
 
 /**
  * Skills Test Agent: An orchestrator that uses LLM with tools to call skill agents
@@ -6,6 +6,7 @@ import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
  *
  * The tools.agentId will be resolved at seed time by looking up the skill agent
  */
+
 
 // Tool definition placeholder - agentId will be injected at seed time
 export const SKILLS_TOOL_DEFINITIONS = [

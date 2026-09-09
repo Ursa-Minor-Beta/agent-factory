@@ -1,10 +1,9 @@
-import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
+import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
 
 /**
  * Math Skill Agent: A simple skill that performs math operations
  * Used as a tool by the Skills Test Agent
  */
-
 export const MATH_SKILL_NODES: WorkflowNode[] = [
   {
     id: 'input-1',

@@ -1,4 +1,3 @@
-import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
 
 /**
  * Full Test Agent: Tests all node types
@@ -7,6 +6,8 @@ import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
  * - llm: requires configured provider
  * - agent: references Basic Test Agent (set agentId after creation)
  */
+
+import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
 
 export const FULL_TEST_NODES: WorkflowNode[] = [
   {

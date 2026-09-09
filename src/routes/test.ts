@@ -3,7 +3,9 @@ import { RunService } from '../services/run.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import { NotFoundError } from '../utils/errors.js';
-import { BASIC_TEST_AGENT, FULL_TEST_AGENT, SKILLS_TEST_AGENT } from '../agents/index.js';
+import { BASIC_TEST_AGENT } from '../engine/agents/test-basic.js';
+import { FULL_TEST_AGENT } from '../engine/agents/test-full.js';
+import { SKILLS_TEST_AGENT } from '../engine/agents/test-skills.js';
 
 const errorSchema = {
   type: 'object',

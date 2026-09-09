@@ -1,5 +1,5 @@
-import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
-import { SAVE_NOTE_TOOL } from '../engine/tools/index.js';
+import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
+import { SAVE_NOTE_TOOL } from "../tools/save-note.js";
 
 // Default workflow: Input (text) -> LLM -> Output
 export const DEFAULT_NODES: WorkflowNode[] = [

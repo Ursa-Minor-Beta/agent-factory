@@ -5,8 +5,8 @@ import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import { NODE_TYPES, AGENT_STATUSES } from '../domain/entities/Agent.js';
 import { validateWorkflow } from '../engine/graph.js';
-import { AGENT_CREATOR } from '../agents/index.js';
 import { NotFoundError } from '../utils/errors.js';
+import { AGENT_CREATOR } from '../engine/agents/index.js';
 
 // Schemas
 const errorSchema = {

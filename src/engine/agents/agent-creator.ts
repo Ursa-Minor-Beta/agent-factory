@@ -2,9 +2,11 @@
  * Agent Creator - System agent that helps users create custom agents
  */
 
-import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
-import { CREATE_AGENT_TOOL, SAVE_NOTE_TOOL } from '../engine/tools/index.js';
-import { generateNodeDocsForPrompt } from '../engine/nodes/definitions.js';
+import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
+import { generateNodeDocsForPrompt } from "../nodes/definitions.js";
+import { CREATE_AGENT_TOOL } from "../tools/create-agent.js";
+import { SAVE_NOTE_TOOL } from "../tools/save-note.js";
+
 
 const NODE_DOCS = generateNodeDocsForPrompt();
 

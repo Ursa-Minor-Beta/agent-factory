@@ -1,9 +1,10 @@
-import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
 
 /**
  * Basic Test Agent: Input -> JS -> If-Else -> Output
  * No external dependencies - tests core node functionality
  */
+
+import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
 
 export const BASIC_TEST_NODES: WorkflowNode[] = [
   {

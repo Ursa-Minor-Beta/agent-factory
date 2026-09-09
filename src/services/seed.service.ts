@@ -3,14 +3,13 @@ import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentR
 import type { WorkflowNode } from '../domain/entities/Agent.js';
 import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
-import {
-  DEFAULT_AGENT,
-  BASIC_TEST_AGENT,
-  FULL_TEST_AGENT,
-  MATH_SKILL_AGENT,
-  SKILLS_TEST_AGENT,
-  AGENT_CREATOR,
-} from '../agents/index.js';
+import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
+import { DEFAULT_AGENT } from '../engine/agents/default.js';
+import { BASIC_TEST_AGENT } from '../engine/agents/test-basic.js';
+import { FULL_TEST_AGENT } from '../engine/agents/test-full.js';
+import { MATH_SKILL_AGENT } from '../engine/agents/test-skill-math.js';
+import { SKILLS_TEST_AGENT } from '../engine/agents/test-skills.js';
+
 
 export class SeedService {
   constructor(
