@@ -93,13 +93,14 @@ export async function sessionRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { status, limit, offset } = request.query as {
+    const { agentId, status, limit, offset } = request.query as {
+      agentId?: string;
       status?: 'active' | 'archived';
       limit?: number;
       offset?: number;
     };
 
-    const sessions = await sessionService.list(userId, { status, limit, offset });
+    const sessions = await sessionService.list(userId, { agentId, status, limit, offset });
 
     return reply.send({
       success: true,

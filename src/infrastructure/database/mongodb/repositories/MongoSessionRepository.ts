@@ -24,9 +24,12 @@ export class MongoSessionRepository implements ISessionRepository {
 
   async findByUserId(
     userId: string,
-    options?: { status?: SessionStatus; limit?: number; offset?: number }
+    options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number }
   ): Promise<Session[]> {
     const query: Record<string, unknown> = { userId };
+    if (options?.agentId) {
+      query.agentId = options.agentId;
+    }
     if (options?.status) {
       query.status = options.status;
     }

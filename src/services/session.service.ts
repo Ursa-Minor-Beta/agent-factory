@@ -251,7 +251,7 @@ export class SessionService {
 
   async list(
     userId: string,
-    options?: { status?: SessionStatus; limit?: number; offset?: number }
+    options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number }
   ): Promise<Session[]> {
     return this.sessionRepo.findByUserId(userId, options);
   }
