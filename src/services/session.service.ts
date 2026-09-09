@@ -205,6 +205,11 @@ export class SessionService {
       }
     );
 
+    // Check if run failed and return error
+    if (run.status === 'failed') {
+      throw new Error(run.error ?? 'Agent execution failed');
+    }
+
     // Extract assistant response
     const response = this.extractAssistantResponse(run.output);
 

@@ -14,11 +14,19 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 
 ## Quick Start
 
+### Local Development
 ```bash
 npm install
 cp .env.example .env
 # Edit .env with your values
 npm run dev
+```
+
+### Docker
+```bash
+cp .env.example .env
+# Edit .env with your values
+docker-compose up -d
 ```
 
 Open http://localhost:3000/docs for full API documentation.
