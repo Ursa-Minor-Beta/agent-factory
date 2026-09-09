@@ -3,7 +3,7 @@ import { AgentService } from '../services/agent.service.js';
 import { SessionService } from '../services/session.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
-import { NODE_TYPES, AGENT_STATUSES } from '../domain/entities/Agent.js';
+import { NODE_TYPES } from '../domain/entities/Agent.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { NotFoundError } from '../utils/errors.js';
 import { AGENT_CREATOR } from '../engine/agents/index.js';
@@ -69,7 +69,6 @@ const agentSchema = {
     nodes: { type: 'array', items: nodeSchema },
     edges: { type: 'array', items: edgeSchema },
     variables: { type: 'array', items: variableSchema },
-    status: { type: 'string', enum: AGENT_STATUSES as unknown as string[] },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -223,7 +222,6 @@ export async function agentRoutes(app: FastifyInstance) {
           nodes: { type: 'array', items: nodeSchema },
           edges: { type: 'array', items: edgeSchema },
           variables: { type: 'array', items: variableSchema },
-          status: { type: 'string', enum: AGENT_STATUSES as unknown as string[] },
         },
       },
       response: {
@@ -250,7 +248,6 @@ export async function agentRoutes(app: FastifyInstance) {
       nodes?: any[];
       edges?: any[];
       variables?: any[];
-      status?: 'draft' | 'published';
     };
 
     const agent = await agentService.update(userId, id, body);

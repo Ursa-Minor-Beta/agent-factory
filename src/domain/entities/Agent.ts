@@ -27,9 +27,6 @@ export interface WorkflowVariable {
   defaultValue: unknown;
 }
 
-export const AGENT_STATUSES = ['draft', 'published'] as const;
-export type AgentStatus = (typeof AGENT_STATUSES)[number];
-
 export interface Agent {
   id: string;
   userId: string;
@@ -38,7 +35,6 @@ export interface Agent {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   variables: WorkflowVariable[];
-  status: AgentStatus;
   isSystem: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -60,5 +56,4 @@ export interface UpdateAgentDTO {
   nodes?: WorkflowNode[];
   edges?: WorkflowEdge[];
   variables?: WorkflowVariable[];
-  status?: AgentStatus;
 }
