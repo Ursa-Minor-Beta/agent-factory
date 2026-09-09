@@ -145,6 +145,8 @@ export async function agentRoutes(app: FastifyInstance) {
     };
 
     // Build options
+    // Non-admin users never see system agents (always filter isSystem: false)
+    // Admin users can optionally filter by isSystem or see all
     const options: AgentQueryOptions = {
       id: query.id,
       name: query.name,
@@ -153,14 +155,10 @@ export async function agentRoutes(app: FastifyInstance) {
       sortOrder: query.sortOrder,
       skip: query.skip,
       limit: query.limit,
+      isSystem: role === 'admin' ? query.isSystem : false,
       createdAfter: query.createdAfter ? new Date(query.createdAfter) : undefined,
       createdBefore: query.createdBefore ? new Date(query.createdBefore) : undefined,
     };
-
-    // Only admins can filter by isSystem
-    if (role === 'admin') {
-      options.isSystem = query.isSystem !== undefined ? query.isSystem : true;
-    }
 
     const result = await agentService.list(userId, options);
 

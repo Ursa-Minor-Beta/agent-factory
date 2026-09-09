@@ -44,10 +44,7 @@ export class MongoAgentRepository implements IAgentRepository {
     }
     if (options.isSystem !== undefined) {
       query.isSystem = options.isSystem;
-    } else {
-      // By default, exclude system agents for regular users
-      query.isSystem = { $ne: true };
-    }
+    } 
     if (options.createdAfter) {
       query.createdAt = { ...((query.createdAt as object) || {}), $gte: options.createdAfter };
     }
@@ -66,9 +63,6 @@ export class MongoAgentRepository implements IAgentRepository {
     // Pagination
     const skip = options.skip || 0;
     const limit = options.limit || 50;
-
-    console.log('query', query)
-    console.log('options', options)
 
     const docs = await AgentModel.find(query).sort(sort).skip(skip).limit(limit);
 
