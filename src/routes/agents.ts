@@ -5,6 +5,8 @@ import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import { NODE_TYPES, AGENT_STATUSES } from '../domain/entities/Agent.js';
 import { validateWorkflow } from '../engine/graph.js';
+import { AGENT_CREATOR } from '../agents/index.js';
+import { NotFoundError } from '../utils/errors.js';
 
 // Schemas
 const errorSchema = {
@@ -401,6 +403,63 @@ export async function agentRoutes(app: FastifyInstance) {
       sessionId,
       incognito,
     });
+
+    return reply.send({
+      success: true,
+      data: result,
+    });
+  });
+
+  // Chat with Agent Creator (convenience route)
+  app.post('/api/agents/agent-creator/chat', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Chat with Agent Creator',
+      description: 'Conversational interface to create custom agents. Describe what you want and the Agent Creator will build it.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      body: {
+        type: 'object',
+        required: ['message'],
+        properties: {
+          message: { type: 'string', description: 'Describe what agent you want to create' },
+          sessionId: { type: 'string', description: 'Continue an existing conversation' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                sessionId: { type: 'string', nullable: true },
+                response: { type: 'string' },
+                runId: { type: 'string' },
+                isNewSession: { type: 'boolean' },
+              },
+            },
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { message, sessionId } = request.body as {
+      message: string;
+      sessionId?: string;
+    };
+
+    const agent = await container.agentRepository.findSystemAgentByName(AGENT_CREATOR.name);
+    if (!agent) {
+      throw new NotFoundError('Agent Creator not found. Restart server to seed it.');
+    }
+
+    const result = await sessionService.chat(userId, agent.id, message, { sessionId });
 
     return reply.send({
       success: true,

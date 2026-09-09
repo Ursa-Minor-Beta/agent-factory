@@ -6,8 +6,35 @@ import type {
   UpdateProviderConfigDTO,
   ProviderType,
 } from '../../../../domain/entities/ProviderConfig.js';
+import { encrypt, decrypt, isEncrypted } from '../../../../utils/crypto.js';
 
 export class MongoProviderConfigRepository implements IProviderConfigRepository {
+  /**
+   * Decrypt API key when reading from DB
+   */
+  private decryptConfig(config: { apiKey?: string; baseUrl?: string }): {
+    apiKey?: string;
+    baseUrl?: string;
+  } {
+    if (config.apiKey && isEncrypted(config.apiKey)) {
+      return { ...config, apiKey: decrypt(config.apiKey) };
+    }
+    return config;
+  }
+
+  /**
+   * Encrypt API key before storing in DB
+   */
+  private encryptConfig(config: { apiKey?: string; baseUrl?: string }): {
+    apiKey?: string;
+    baseUrl?: string;
+  } {
+    if (config.apiKey && !isEncrypted(config.apiKey)) {
+      return { ...config, apiKey: encrypt(config.apiKey) };
+    }
+    return config;
+  }
+
   private toEntity(doc: ProviderConfigDocument): ProviderConfig {
     return {
       id: doc._id.toString(),
@@ -15,7 +42,7 @@ export class MongoProviderConfigRepository implements IProviderConfigRepository 
       provider: doc.provider,
       name: doc.name,
       isDefault: doc.isDefault,
-      config: doc.config,
+      config: this.decryptConfig(doc.config),
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -48,15 +75,19 @@ export class MongoProviderConfigRepository implements IProviderConfigRepository 
       provider: data.provider,
       name: data.name,
       isDefault: data.isDefault ?? existingCount === 0,
-      config: data.config,
+      config: this.encryptConfig(data.config),
     });
     return this.toEntity(doc);
   }
 
   async update(id: string, data: UpdateProviderConfigDTO): Promise<ProviderConfig | null> {
+    const updateData = { ...data };
+    if (updateData.config) {
+      updateData.config = this.encryptConfig(updateData.config);
+    }
     const doc = await ProviderConfigModel.findByIdAndUpdate(
       id,
-      { $set: data },
+      { $set: updateData },
       { new: true }
     );
     return doc ? this.toEntity(doc) : null;

@@ -14,6 +14,10 @@ export const config = {
     accessExpiresIn: process.env['JWT_ACCESS_EXPIRES_IN'] ?? '15m',
     refreshExpiresIn: process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d',
   },
+  encryption: {
+    // 32-byte hex key for AES-256 encryption of sensitive data
+    key: process.env['ENCRYPTION_KEY'] ?? 'change-me-in-production-32bytes!',
+  },
   admin: {
     email: process.env['ADMIN_EMAIL'],
     password: process.env['ADMIN_PASSWORD'],
