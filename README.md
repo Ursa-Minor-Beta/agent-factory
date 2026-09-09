@@ -108,7 +108,7 @@ curl -X POST http://localhost:3000/api/auth/api-keys \
   -H "Authorization: Bearer <accessToken>" \
   -d '{
     "name": "My API Key",
-    "permissions": ["agents:read", "agents:write", "agents:run", "runs:read", "sessions:read", "sessions:write"]
+    "permissions": ["agents:read", "agents:write" ]
   }'
 ```
 
