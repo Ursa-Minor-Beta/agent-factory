@@ -57,3 +57,26 @@ export interface UpdateAgentDTO {
   edges?: WorkflowEdge[];
   variables?: WorkflowVariable[];
 }
+
+export interface AgentQueryOptions {
+  // Filters
+  id?: string;
+  name?: string; // contains (case-insensitive)
+  description?: string; // contains (case-insensitive)
+  isSystem?: boolean; // admin only
+  createdAfter?: Date;
+  createdBefore?: Date;
+
+  // Sorting
+  sortBy?: 'name' | 'createdAt' | 'updatedAt';
+  sortOrder?: 'asc' | 'desc';
+
+  // Pagination
+  skip?: number;
+  limit?: number;
+}
+
+export interface AgentListResult {
+  agents: Agent[];
+  total: number;
+}

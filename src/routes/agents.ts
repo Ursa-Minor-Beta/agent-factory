@@ -3,7 +3,8 @@ import { AgentService } from '../services/agent.service.js';
 import { SessionService } from '../services/session.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
-import { NODE_TYPES } from '../domain/entities/Agent.js';
+import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js';
+import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { NotFoundError } from '../utils/errors.js';
 import { AGENT_CREATOR } from '../engine/agents/index.js';
@@ -93,13 +94,35 @@ export async function agentRoutes(app: FastifyInstance) {
     schema: {
       tags: ['agents'],
       summary: 'List all agents',
+      description: 'List agents with optional filtering, sorting, and pagination. Admin can filter by isSystem.',
       security: [{ bearerAuth: [] }, { apiKey: [] }],
+      querystring: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Filter by exact agent ID' },
+          name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
+          description: { type: 'string', description: 'Filter by description (contains, case-insensitive)' },
+          isSystem: { type: 'boolean', description: 'Filter by system agent (admin only)' },
+          createdAfter: { type: 'string', format: 'date-time', description: 'Filter by created date (after)' },
+          createdBefore: { type: 'string', format: 'date-time', description: 'Filter by created date (before)' },
+          sortBy: { type: 'string', enum: ['name', 'createdAt', 'updatedAt'], default: 'updatedAt' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+          skip: { type: 'integer', minimum: 0, default: 0 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      },
       response: {
         200: {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            data: { type: 'array', items: agentSchema },
+            data: {
+              type: 'object',
+              properties: {
+                agents: { type: 'array', items: agentSchema },
+                total: { type: 'integer' },
+              },
+            },
           },
         },
         401: errorSchema,
@@ -107,12 +130,43 @@ export async function agentRoutes(app: FastifyInstance) {
     },
     preHandler: requireAuth,
   }, async (request, reply) => {
-    const { userId } = request.user as { userId: string };
-    const agents = await agentService.list(userId);
+    const { userId, role } = request.user as AuthenticatedUser;
+    const query = request.query as {
+      id?: string;
+      name?: string;
+      description?: string;
+      isSystem?: boolean;
+      createdAfter?: string;
+      createdBefore?: string;
+      sortBy?: 'name' | 'createdAt' | 'updatedAt';
+      sortOrder?: 'asc' | 'desc';
+      skip?: number;
+      limit?: number;
+    };
+
+    // Build options
+    const options: AgentQueryOptions = {
+      id: query.id,
+      name: query.name,
+      description: query.description,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      skip: query.skip,
+      limit: query.limit,
+      createdAfter: query.createdAfter ? new Date(query.createdAfter) : undefined,
+      createdBefore: query.createdBefore ? new Date(query.createdBefore) : undefined,
+    };
+
+    // Only admins can filter by isSystem
+    if (role === 'admin') {
+      options.isSystem = query.isSystem !== undefined ? query.isSystem : true;
+    }
+
+    const result = await agentService.list(userId, options);
 
     return reply.send({
       success: true,
-      data: agents,
+      data: result,
     });
   });
 

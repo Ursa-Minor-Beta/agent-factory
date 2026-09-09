@@ -1,8 +1,14 @@
-import { Agent, CreateAgentDTO, UpdateAgentDTO } from '../../entities/Agent.js';
+import {
+  Agent,
+  CreateAgentDTO,
+  UpdateAgentDTO,
+  AgentQueryOptions,
+  AgentListResult,
+} from '../../entities/Agent.js';
 
 export interface IAgentRepository {
   findById(id: string): Promise<Agent | null>;
-  findByUserId(userId: string): Promise<Agent[]>;
+  findByUserId(userId: string, options?: AgentQueryOptions): Promise<AgentListResult>;
   findSystemAgentByName(name: string): Promise<Agent | null>;
   findAllSystemAgents(): Promise<Agent[]>;
   create(data: CreateAgentDTO): Promise<Agent>;

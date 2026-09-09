@@ -1,7 +1,13 @@
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
 import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
-import type { Agent, CreateAgentDTO, UpdateAgentDTO } from '../domain/entities/Agent.js';
+import type {
+  Agent,
+  CreateAgentDTO,
+  UpdateAgentDTO,
+  AgentQueryOptions,
+  AgentListResult,
+} from '../domain/entities/Agent.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
 export class AgentService {
@@ -15,8 +21,8 @@ export class AgentService {
     return this.agentRepo.create({ ...data, userId });
   }
 
-  async list(userId: string): Promise<Agent[]> {
-    return this.agentRepo.findByUserId(userId);
+  async list(userId: string, options?: AgentQueryOptions): Promise<AgentListResult> {
+    return this.agentRepo.findByUserId(userId, options);
   }
 
   async getById(userId: string, agentId: string): Promise<Agent> {

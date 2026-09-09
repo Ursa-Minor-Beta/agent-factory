@@ -1,6 +1,12 @@
 import { AgentModel, AgentDocument } from '../models/AgentModel.js';
 import type { IAgentRepository } from '../../../../domain/interfaces/repositories/IAgentRepository.js';
-import type { Agent, CreateAgentDTO, UpdateAgentDTO } from '../../../../domain/entities/Agent.js';
+import type {
+  Agent,
+  CreateAgentDTO,
+  UpdateAgentDTO,
+  AgentQueryOptions,
+  AgentListResult,
+} from '../../../../domain/entities/Agent.js';
 
 export class MongoAgentRepository implements IAgentRepository {
   private toEntity(doc: AgentDocument): Agent {
@@ -23,9 +29,53 @@ export class MongoAgentRepository implements IAgentRepository {
     return doc ? this.toEntity(doc) : null;
   }
 
-  async findByUserId(userId: string): Promise<Agent[]> {
-    const docs = await AgentModel.find({ userId, isSystem: { $ne: true } }).sort({ updatedAt: -1 });
-    return docs.map((doc) => this.toEntity(doc));
+  async findByUserId(userId: string, options: AgentQueryOptions = {}): Promise<AgentListResult> {
+    const query: Record<string, unknown> = { userId };
+
+    // Filters
+    if (options.id) {
+      query._id = options.id;
+    }
+    if (options.name) {
+      query.name = { $regex: options.name, $options: 'i' };
+    }
+    if (options.description) {
+      query.description = { $regex: options.description, $options: 'i' };
+    }
+    if (options.isSystem !== undefined) {
+      query.isSystem = options.isSystem;
+    } else {
+      // By default, exclude system agents for regular users
+      query.isSystem = { $ne: true };
+    }
+    if (options.createdAfter) {
+      query.createdAt = { ...((query.createdAt as object) || {}), $gte: options.createdAfter };
+    }
+    if (options.createdBefore) {
+      query.createdAt = { ...((query.createdAt as object) || {}), $lte: options.createdBefore };
+    }
+
+    // Sorting
+    const sortField = options.sortBy || 'updatedAt';
+    const sortOrder = options.sortOrder === 'asc' ? 1 : -1;
+    const sort: Record<string, 1 | -1> = { [sortField]: sortOrder };
+
+    // Count total before pagination
+    const total = await AgentModel.countDocuments(query);
+
+    // Pagination
+    const skip = options.skip || 0;
+    const limit = options.limit || 50;
+
+    console.log('query', query)
+    console.log('options', options)
+
+    const docs = await AgentModel.find(query).sort(sort).skip(skip).limit(limit);
+
+    return {
+      agents: docs.map((doc) => this.toEntity(doc)),
+      total,
+    };
   }
 
   async findSystemAgentByName(name: string): Promise<Agent | null> {

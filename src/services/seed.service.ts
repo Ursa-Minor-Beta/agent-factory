@@ -193,7 +193,7 @@ export class SeedService {
 
     // Add default agent if exists
     if (admin) {
-      const userAgents = await this.agentRepo.findByUserId(admin.id);
+      const { agents: userAgents } = await this.agentRepo.findByUserId(admin.id);
       for (const agent of userAgents) {
         result.push({ name: agent.name, id: agent.id, isSystem: false });
       }
