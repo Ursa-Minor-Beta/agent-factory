@@ -1,3 +1,7 @@
+# Usage:
+#   With local MongoDB:  docker-compose --profile local-db up
+#   With external MongoDB: set MONGODB_URI in .env, then: docker-compose up
+
 services:
   app:
     build: .
@@ -7,16 +11,15 @@ services:
       - NODE_ENV=development
       - PORT=3000
       - HOST=0.0.0.0
-      - MONGODB_URI=mongodb://mongo:27017/agent-factory
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/agent-factory}
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-change-me-in-production-32bytes}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - ADMIN_NAME=${ADMIN_NAME:-Admin}
-    depends_on:
-      - mongo
     restart: unless-stopped
 
+  # Optional: only starts with --profile local-db
   mongo:
     image: mongo:7
     ports:
@@ -24,6 +27,8 @@ services:
     volumes:
       - mongo_data:/data/db
     restart: unless-stopped
+    profiles:
+      - local-db
 
 volumes:
   mongo_data:

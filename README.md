@@ -12,33 +12,6 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Encrypted Secrets** - Provider API keys encrypted at rest (AES-256-GCM)
 - **Swagger Docs** - Full API documentation at `/docs`
 
-## Quick Start
-
-### Local Development
-```bash
-npm install
-cp .env.example .env
-# Edit .env with your values
-npm run dev
-```
-
-### Docker
-```bash
-cp .env.example .env
-# Edit .env with your values
-docker-compose up -d
-```
-
-Open http://localhost:3000/docs for full API documentation.
-
-## First Run
-
-On startup, the server creates:
-- **Admin user** from `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars
-- **Agent Creator** - System agent for building custom agents
-- **Test agents** - For verification (no external APIs needed)
-- **Default agent** - Simple `Input → LLM → Output` workflow
-
 ## Environment Variables
 
 ```bash
@@ -64,6 +37,51 @@ ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=your-secure-password
 ADMIN_NAME=Admin
 ```
+
+## Quick Start
+
+### Local Development
+```bash
+npm install
+cp .env.example .env
+# Edit .env with your values, set at least MONGODB_URI, ADMIN_EMAIL, ADMIN_PASSWORD
+npm run dev
+```
+
+### Or Docker
+
+#### Full stack (app + MongoDB)
+```bash
+cp .env.example .env
+# Edit .env with your values, set at least ADMIN_EMAIL, ADMIN_PASSWORD
+
+docker-compose --profile local-db up -d
+
+# Rebuild after code changes
+docker-compose --profile local-db up -d --build
+```
+
+#### App only (set external MONGODB_URI in .env)
+```bash
+cp .env.example .env
+# Edit .env with your values, set at least MONGODB_URI, ADMIN_EMAIL, ADMIN_PASSWORD
+
+docker-compose up -d
+
+# Rebuild after code changes
+docker-compose up -d --build 
+```
+
+Open http://localhost:3000/docs for full API documentation.
+
+## First Run
+
+On startup, the server creates:
+- **Admin user** from `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars
+- **Agent Creator** - System agent for building custom agents
+- **Test agents** - For verification (no external APIs needed)
+- **Default agent** - Simple `Input → LLM → Output` workflow
+
 
 ## Node Types
 
