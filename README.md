@@ -88,6 +88,132 @@ npm run start    # Run production build
 npm run lint     # Run ESLint
 ```
 
+## Usage
+
+### 1. Login
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@example.com", "password": "your-secure-password"}'
+```
+
+### 2. Create API Key (Optional)
+
+For programmatic access, create an API key instead of using JWT tokens:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/api-keys \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <accessToken>" \
+  -d '{
+    "name": "My API Key",
+    "permissions": ["agents:read", "agents:write", "agents:run", "runs:read", "sessions:read", "sessions:write"]
+  }'
+```
+
+**Save the `plainKey`** - it's only shown once!
+
+Use `X-API-Key` header for subsequent requests:
+```bash
+curl http://localhost:3000/api/agents -H "X-API-Key: af_live_abc123..."
+```
+
+### 3. Configure LLM Provider
+
+```bash
+curl -X POST http://localhost:3000/api/providers \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <accessToken>" \
+  -d '{"provider": "openai", "name": "My OpenAI", "isDefault": true, "config": {"apiKey": "sk-..."}}'
+```
+
+Provider API keys are encrypted at rest using AES-256-GCM.
+
+### 4. Run an Agent
+
+Single execution:
+```bash
+curl -X POST http://localhost:3000/api/agents/<agentId>/run \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <accessToken>" \
+  -d '{"input": {"text": "Hello, how are you?"}}'
+```
+
+
+### 6. Create Custom Agents
+
+**Option A: Via Agent Creator (Recommended)**
+
+Chat with the Agent Creator system agent:
+```bash
+# Create session with Agent Creator
+curl -X POST http://localhost:3000/api/sessions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <accessToken>" \
+  -d '{"agentId": "<agentCreatorId>", "title": "Create my agent"}'
+
+# Describe what you want
+curl -X POST http://localhost:3000/api/sessions/<sessionId>/messages \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <accessToken>" \
+  -d '{"content": "Create an agent that summarizes web articles"}'
+```
+
+The Agent Creator will:
+1. Ask clarifying questions about your requirements
+2. Suggest features and improvements
+3. Build the workflow with appropriate nodes
+4. Create the agent using the `create_agent` tool
+
+**Option B: Via API**
+
+```bash
+curl -X POST http://localhost:3000/api/agents \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <accessToken>" \
+  -d '{
+    "name": "My Agent",
+    "description": "Does something useful",
+    "nodes": [...],
+    "edges": [...]
+  }'
+```
+
+
+### Template Interpolation
+
+LLM and HTTP nodes support `{{variable}}` template syntax:
+```json
+{
+  "type": "llm",
+  "data": {
+    "systemPrompt": "You are a {{role}} assistant.",
+    "userPrompt": "{{userMessage}}"
+  }
+}
+```
+
+## Builtin Tools
+
+LLM nodes can use builtin tools for function calling:
+
+### save_note
+Saves important information to session notes (persisted across messages):
+```json
+{
+  "tools": [{ "type": "builtin", "name": "save_note" }]
+}
+```
+
+### create_agent
+Creates a new agent with a custom workflow:
+```json
+{
+  "tools": [{ "type": "builtin", "name": "create_agent" }]
+}
+```
+
 ## License
 
 MIT
