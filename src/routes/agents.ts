@@ -63,6 +63,7 @@ const agentSchema = {
     nodes: { type: 'array', items: nodeSchema },
     edges: { type: 'array', items: edgeSchema },
     variables: { type: 'array', items: variableSchema },
+    isSystem: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },

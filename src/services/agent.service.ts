@@ -45,6 +45,11 @@ export class AgentService {
       throw new ForbiddenError('Access denied');
     }
 
+    // Prevent name change for system agents
+    if (agent.isSystem && data.name !== undefined) {
+      delete data.name;
+    }
+
     const updated = await this.agentRepo.update(agentId, data);
     if (!updated) {
       throw new NotFoundError('Agent');
