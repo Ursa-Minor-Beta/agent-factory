@@ -136,6 +136,11 @@ export class LlmNode extends BaseNode {
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
+    // Add agent notes as system message if present
+    const agentNotes = options.workflowInput?.agentNotes as string | undefined;
+    if (agentNotes) {
+      messages.push({ role: 'system', content: `Agent notes from previous conversation:\n${agentNotes}` });
+    }
     // Add conversation history before current message
     for (const msg of conversationHistory) {
       messages.push({ role: msg.role, content: msg.content });
@@ -427,6 +432,14 @@ export class LlmNode extends BaseNode {
     }
     messages.push({ role: 'user', content: userPrompt });
 
+    // Combine system prompt with agent notes if present
+    const agentNotes = options.workflowInput?.agentNotes as string | undefined;
+    let fullSystemPrompt = systemPrompt;
+    if (agentNotes) {
+      const notesSection = `\n\nAgent notes from previous conversation:\n${agentNotes}`;
+      fullSystemPrompt = systemPrompt ? systemPrompt + notesSection : notesSection.trim();
+    }
+
     const maxIterations = data.maxToolCalls ?? 5;
     let totalUsage = { inputTokens: 0, outputTokens: 0 };
     const executedToolCalls: Array<{ name: string; result: unknown }> = [];
@@ -436,7 +449,7 @@ export class LlmNode extends BaseNode {
         const response = await client.messages.create({
           model: data.model || 'claude-sonnet-4-20250514',
           max_tokens: data.maxTokens ?? 1000,
-          system: systemPrompt,
+          system: fullSystemPrompt,
           messages,
           tools: anthropicTools,
         });
@@ -539,6 +552,11 @@ export class LlmNode extends BaseNode {
     const messages: Array<{ role: string; content: string }> = [];
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
+    }
+    // Add agent notes as system message if present
+    const agentNotes = options.workflowInput?.agentNotes as string | undefined;
+    if (agentNotes) {
+      messages.push({ role: 'system', content: `Agent notes from previous conversation:\n${agentNotes}` });
     }
     // Add conversation history before current message
     for (const msg of conversationHistory) {

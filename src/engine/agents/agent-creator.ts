@@ -59,6 +59,20 @@ Input → If-Else → [true branch] / [false branch] → Output
 ### Multi-step Agent
 Input → LLM (analyze) → JS (extract) → HTTP (fetch) → LLM (summarize) → Output
 
+## JS Node Best Practices
+
+Always use try-catch blocks in JS nodes to handle errors gracefully:
+
+\`\`\`javascript
+try {
+  const data = JSON.parse(input);
+  const result = data.items.map(item => item.name);
+  return { success: true, result };
+} catch (error) {
+  return { success: false, error: error.message };
+}
+\`\`\`
+
 ## Conversation Flow
 
 1. **Ask what the user wants** - Understand the goal
@@ -118,9 +132,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
       provider: 'openai',
       model: 'gpt-4o',
       systemPrompt: AGENT_CREATOR_SYSTEM_PROMPT,
-      userPrompt: `{{agentNotes}}
-
-User: {{message}}`,
+      userPrompt: `{{message}}`,
       temperature: 0.7,
       maxTokens: 4000,
       tools: [CREATE_AGENT_TOOL, SAVE_NOTE_TOOL],

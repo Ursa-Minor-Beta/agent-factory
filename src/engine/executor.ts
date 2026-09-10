@@ -190,6 +190,10 @@ export class WorkflowExecutor {
       runRepo: options.runRepo ?? this.runRepo,
       callStack: options.callStack,
       userId: options.userId ?? userId,
+      sessionId: options.sessionId,
+      messageRepo: options.messageRepo,
+      saveNotes: options.saveNotes,
+      resolvedSecrets: options.resolvedSecrets,
     };
 
     // Track skipped nodes (nodes in unselected if-else branches)
