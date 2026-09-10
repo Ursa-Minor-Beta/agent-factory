@@ -86,7 +86,7 @@ export class LlmNode extends BaseNode {
   ): Promise<{ response: string; usage: { inputTokens: number; outputTokens: number }; toolCalls?: Array<{ name: string; result: unknown }> }> {
     const apiKey = options.providers.openai?.apiKey;
     if (!apiKey) {
-      throw new NodeExecutionError('OpenAI API key not configured', {});
+      throw new NodeExecutionError('OpenAI API provider not configured', {});
     }
 
     const client = new OpenAI({
@@ -356,7 +356,7 @@ export class LlmNode extends BaseNode {
   ): Promise<{ response: string; usage: { inputTokens: number; outputTokens: number }; toolCalls?: Array<{ name: string; result: unknown }> }> {
     const apiKey = options.providers.anthropic?.apiKey;
     if (!apiKey) {
-      throw new NodeExecutionError('Anthropic API key not configured', {});
+      throw new NodeExecutionError('Anthropic API provider not configured', {});
     }
 
     const client = new Anthropic({
