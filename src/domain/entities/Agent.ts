@@ -1,15 +1,9 @@
 export const NODE_TYPES = ['input', 'output', 'llm', 'http', 'js', 'agent', 'if-else'] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
-export interface NodePosition {
-  x: number;
-  y: number;
-}
-
 export interface WorkflowNode {
   id: string;
   type: NodeType;
-  position: NodePosition;
   data: Record<string, unknown>;
 }
 

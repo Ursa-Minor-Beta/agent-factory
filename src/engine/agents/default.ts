@@ -6,7 +6,6 @@ export const DEFAULT_NODES: WorkflowNode[] = [
   {
     id: 'input-1',
     type: 'input',
-    position: { x: 100, y: 200 },
     data: {
       schema: {
         message: { type: 'string', required: true },
@@ -16,7 +15,6 @@ export const DEFAULT_NODES: WorkflowNode[] = [
   {
     id: 'llm-1',
     type: 'llm',
-    position: { x: 400, y: 200 },
     data: {
       provider: 'openai',
       model: 'gpt-4o-mini',
@@ -30,7 +28,6 @@ export const DEFAULT_NODES: WorkflowNode[] = [
   {
     id: 'output-1',
     type: 'output',
-    position: { x: 700, y: 200 },
     data: {},
   },
 ];

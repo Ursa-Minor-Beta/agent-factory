@@ -33,7 +33,7 @@ Common handles: input nodes output field names, llm outputs "response", js outpu
       },
       nodes: {
         type: 'array',
-        description: 'Array of workflow nodes. Each node: { id: string, type: string, position: {x,y}, data: object }',
+        description: 'Array of workflow nodes. Each node: { id: string, type: string, data: object }',
       },
       edges: {
         type: 'array',

@@ -8,7 +8,6 @@ export const MATH_SKILL_NODES: WorkflowNode[] = [
   {
     id: 'input-1',
     type: 'input',
-    position: { x: 100, y: 200 },
     data: {
       schema: {
         operation: { type: 'string', required: true }, // add, subtract, multiply, divide
@@ -20,7 +19,6 @@ export const MATH_SKILL_NODES: WorkflowNode[] = [
   {
     id: 'js-calc',
     type: 'js',
-    position: { x: 300, y: 200 },
     data: {
       code: `
 const { operation, a, b } = input;
@@ -64,7 +62,6 @@ return {
   {
     id: 'output-1',
     type: 'output',
-    position: { x: 500, y: 200 },
     data: {},
   },
 ];

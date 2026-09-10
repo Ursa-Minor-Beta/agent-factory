@@ -40,7 +40,6 @@ Edges connect nodes by specifying source and target:
 2. **Always end with an output node** - Collect the final result
 3. **Connect nodes logically** - Data flows from source handles to target handles
 4. **Use unique IDs** - Each node and edge needs a unique ID
-5. **Position nodes left-to-right** - Start around x:100, increment by 300
 
 ## Common Patterns
 
@@ -78,7 +77,6 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
   {
     id: 'input-1',
     type: 'input',
-    position: { x: 100, y: 200 },
     data: {
       schema: {
         message: { type: 'string', required: true },
@@ -90,7 +88,6 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
   {
     id: 'llm-creator',
     type: 'llm',
-    position: { x: 400, y: 200 },
     data: {
       provider: 'openai',
       model: 'gpt-4o',
@@ -111,7 +108,6 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
   {
     id: 'output-1',
     type: 'output',
-    position: { x: 700, y: 200 },
     data: {},
   },
 ];

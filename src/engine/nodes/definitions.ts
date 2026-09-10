@@ -313,7 +313,6 @@ export function generateNodeDocsForPrompt(): string {
       lines.push(JSON.stringify({
         id: `${node.type}-1`,
         type: node.type,
-        position: { x: 400, y: 200 },
         data: firstExample.data,
       }, null, 2));
       lines.push('```');

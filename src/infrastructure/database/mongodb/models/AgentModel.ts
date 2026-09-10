@@ -27,10 +27,6 @@ const nodeSchema = new Schema(
       required: true,
       enum: NODE_TYPES,
     },
-    position: {
-      x: { type: Number, required: true },
-      y: { type: Number, required: true },
-    },
     data: { type: Schema.Types.Mixed, default: {} },
   },
   { _id: false }

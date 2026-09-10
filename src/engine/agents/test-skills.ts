@@ -40,7 +40,6 @@ export const SKILLS_TEST_NODES: WorkflowNode[] = [
   {
     id: 'input-1',
     type: 'input',
-    position: { x: 100, y: 200 },
     data: {
       schema: {
         message: { type: 'string', required: true },
@@ -50,7 +49,6 @@ export const SKILLS_TEST_NODES: WorkflowNode[] = [
   {
     id: 'llm-orchestrator',
     type: 'llm',
-    position: { x: 350, y: 200 },
     data: {
       provider: 'openai',
       model: 'gpt-4o-mini',
@@ -67,7 +65,6 @@ Always respond with a clear answer after using tools.`,
   {
     id: 'output-1',
     type: 'output',
-    position: { x: 600, y: 200 },
     data: {},
   },
 ];

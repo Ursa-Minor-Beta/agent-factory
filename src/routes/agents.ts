@@ -29,13 +29,6 @@ const nodeSchema = {
   properties: {
     id: { type: 'string' },
     type: { type: 'string', enum: NODE_TYPES as unknown as string[] },
-    position: {
-      type: 'object',
-      properties: {
-        x: { type: 'number' },
-        y: { type: 'number' },
-      },
-    },
     data: { type: 'object', additionalProperties: true },
   },
 };

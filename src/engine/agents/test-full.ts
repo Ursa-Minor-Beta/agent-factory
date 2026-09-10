@@ -13,7 +13,6 @@ export const FULL_TEST_NODES: WorkflowNode[] = [
   {
     id: 'input-1',
     type: 'input',
-    position: { x: 100, y: 200 },
     data: {
       schema: {
         text: { type: 'string', required: true },
@@ -24,7 +23,6 @@ export const FULL_TEST_NODES: WorkflowNode[] = [
   {
     id: 'js-prepare',
     type: 'js',
-    position: { x: 300, y: 200 },
     data: {
       // input.value contains full input object {text, score}
       code: `
@@ -40,7 +38,6 @@ return {
   {
     id: 'if-else-1',
     type: 'if-else',
-    position: { x: 500, y: 200 },
     data: {
       expression: 'input.score >= 50',
     },
@@ -48,7 +45,6 @@ return {
   {
     id: 'http-1',
     type: 'http',
-    position: { x: 700, y: 100 },
     data: {
       method: 'POST',
       url: 'https://httpbin.org/post',
@@ -58,7 +54,6 @@ return {
   {
     id: 'js-skip',
     type: 'js',
-    position: { x: 700, y: 300 },
     data: {
       code: 'return { skipped: true, reason: "Score below threshold", data: input };',
     },
@@ -66,7 +61,6 @@ return {
   {
     id: 'js-after-http',
     type: 'js',
-    position: { x: 900, y: 100 },
     data: {
       // Format HTTP response for LLM
       code: `
@@ -81,7 +75,6 @@ return {
   {
     id: 'llm-1',
     type: 'llm',
-    position: { x: 1100, y: 100 },
     data: {
       provider: 'openai',
       model: 'gpt-4o-mini',
@@ -94,7 +87,6 @@ return {
   {
     id: 'js-format',
     type: 'js',
-    position: { x: 1300, y: 200 },
     data: {
       // input is either a string (LLM response "4") or object (skip branch { skipped: true, ... })
       code: `
@@ -122,7 +114,6 @@ if (typeof input === 'string') {
   {
     id: 'output-1',
     type: 'output',
-    position: { x: 1500, y: 200 },
     data: {},
   },
 ];

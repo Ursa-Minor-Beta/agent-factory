@@ -10,7 +10,6 @@ export const BASIC_TEST_NODES: WorkflowNode[] = [
   {
     id: 'input-1',
     type: 'input',
-    position: { x: 100, y: 200 },
     data: {
       schema: {
         text: { type: 'string', required: true },
@@ -21,7 +20,6 @@ export const BASIC_TEST_NODES: WorkflowNode[] = [
   {
     id: 'js-1',
     type: 'js',
-    position: { x: 300, y: 200 },
     data: {
       // input contains full object {text, score} from 'value' handle
       code: `
@@ -40,7 +38,6 @@ return {
   {
     id: 'if-else-1',
     type: 'if-else',
-    position: { x: 500, y: 200 },
     data: {
       expression: 'input.score >= 50',
     },
@@ -48,7 +45,6 @@ return {
   {
     id: 'js-pass',
     type: 'js',
-    position: { x: 700, y: 100 },
     data: {
       code: 'return { ...input, status: "PASS", message: "Score is passing" };',
     },
@@ -56,7 +52,6 @@ return {
   {
     id: 'js-fail',
     type: 'js',
-    position: { x: 700, y: 300 },
     data: {
       code: 'return { ...input, status: "FAIL", message: "Score is below threshold" };',
     },
@@ -64,7 +59,6 @@ return {
   {
     id: 'output-1',
     type: 'output',
-    position: { x: 900, y: 200 },
     data: {},
   },
 ];
