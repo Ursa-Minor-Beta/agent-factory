@@ -134,6 +134,7 @@ export async function authRoutes(app: FastifyInstance) {
       description: 'Accepts refreshToken in body or from httpOnly cookie',
       body: {
         type: 'object',
+        nullable: true,
         properties: {
           refreshToken: { type: 'string' },
         },
@@ -150,9 +151,9 @@ export async function authRoutes(app: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
-    const body = request.body as { refreshToken?: string };
+    const body = request.body as { refreshToken?: string } | null;
     // Accept from body or cookie
-    const refreshToken = body.refreshToken || request.cookies['refreshToken'];
+    const refreshToken = body?.refreshToken || request.cookies['refreshToken'];
 
     if (!refreshToken) {
       throw new UnauthorizedError('Refresh token required');
