@@ -2,7 +2,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { NodeExecutionError } from '../../utils/errors.js';
-import { interpolate } from './utils.js';
+import { interpolateWithSecrets } from './utils.js';
 
 interface HttpNodeData {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -28,9 +28,10 @@ export class HttpNode extends BaseNode {
 
     // Merge workflow input with edge-resolved inputs for template interpolation
     const templateValues = { ...options.workflowInput, ...inputs };
+    const secrets = options.resolvedSecrets ?? {};
 
-    // Interpolate URL with input values
-    const url = interpolate(data.url, templateValues);
+    // Interpolate URL with input values and secrets
+    const url = interpolateWithSecrets(data.url, templateValues, secrets);
     const method = data.method ?? 'GET';
     const timeout = data.timeout ?? 30000;
 
@@ -40,9 +41,9 @@ export class HttpNode extends BaseNode {
       headers['Content-Type'] = 'application/json';
     }
 
-    // Interpolate header values
+    // Interpolate header values (supports {{secret:KEY}} syntax)
     for (const [key, value] of Object.entries(headers)) {
-      headers[key] = interpolate(value, templateValues);
+      headers[key] = interpolateWithSecrets(value, templateValues, secrets);
     }
 
     // Prepare body
@@ -52,7 +53,7 @@ export class HttpNode extends BaseNode {
       if (requestBody !== undefined) {
         body =
           typeof requestBody === 'string'
-            ? interpolate(requestBody, templateValues)
+            ? interpolateWithSecrets(requestBody, templateValues, secrets)
             : JSON.stringify(requestBody);
       }
     }

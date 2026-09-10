@@ -80,7 +80,8 @@ export async function agentRoutes(app: FastifyInstance) {
     container.messageRepository,
     container.agentRepository,
     container.runRepository,
-    container.providerConfigRepository
+    container.providerConfigRepository,
+    container.userSecretRepository
   );
 
   // List agents

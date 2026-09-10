@@ -16,6 +16,7 @@ import { nodeRoutes } from './routes/nodes.js';
 import { testRoutes } from './routes/test.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { toolRoutes } from './routes/tools.js';
+import { secretRoutes } from './routes/secrets.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 
@@ -48,6 +49,7 @@ async function bootstrap() {
         { name: 'runs', description: 'Agent execution and history' },
         { name: 'sessions', description: 'Conversation sessions with agents' },
         { name: 'providers', description: 'LLM provider configurations' },
+        { name: 'secrets', description: 'Encrypted user secrets for HTTP nodes' },
       ],
       components: {
         securitySchemes: {
@@ -141,6 +143,7 @@ async function bootstrap() {
   await app.register(runRoutes);
   await app.register(sessionRoutes);
   await app.register(settingsRoutes);
+  await app.register(secretRoutes);
   await app.register(nodeRoutes);
   await app.register(toolRoutes);
   await app.register(testRoutes);

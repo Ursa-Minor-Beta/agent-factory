@@ -4,11 +4,13 @@ import type { IMessageRepository } from '../domain/interfaces/repositories/IMess
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
+import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
 import { AGENT_NOTES_MAX_LENGTH } from '../domain/entities/Session.js';
 import type { Message } from '../domain/entities/Message.js';
 import { WorkflowExecutor } from '../engine/executor.js';
 import { ProviderConfigService } from './provider-config.service.js';
+import { UserSecretService } from './user-secret.service.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
 export interface ChatMessage {
@@ -59,16 +61,19 @@ setInterval(() => {
 export class SessionService {
   private executor: WorkflowExecutor;
   private providerConfigService: ProviderConfigService;
+  private userSecretService: UserSecretService;
 
   constructor(
     private sessionRepo: ISessionRepository,
     private messageRepo: IMessageRepository,
     private agentRepo: IAgentRepository,
     private runRepo: IRunRepository,
-    providerConfigRepo: IProviderConfigRepository
+    providerConfigRepo: IProviderConfigRepository,
+    userSecretRepo: IUserSecretRepository
   ) {
     this.executor = new WorkflowExecutor(runRepo);
     this.providerConfigService = new ProviderConfigService(providerConfigRepo);
+    this.userSecretService = new UserSecretService(userSecretRepo);
   }
 
   /**
@@ -181,6 +186,9 @@ export class SessionService {
     // Build provider config
     const providers = await this.providerConfigService.buildExecutionConfig(userId);
 
+    // Pre-resolve all user secrets for {{secret:KEY}} interpolation
+    const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId);
+
     // Create saveNotes callback for built-in save_note tool
     const saveNotes = effectiveSessionId
       ? async (notes: string) => {
@@ -205,6 +213,7 @@ export class SessionService {
         callStack: new Set([agent.id]),
         sessionId: effectiveSessionId ?? undefined,
         saveNotes,
+        resolvedSecrets,
       }
     );
 

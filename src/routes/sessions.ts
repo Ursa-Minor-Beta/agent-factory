@@ -61,7 +61,8 @@ export async function sessionRoutes(app: FastifyInstance) {
     container.messageRepository,
     container.agentRepository,
     container.runRepository,
-    container.providerConfigRepository
+    container.providerConfigRepository,
+    container.userSecretRepository
   );
 
   // List sessions

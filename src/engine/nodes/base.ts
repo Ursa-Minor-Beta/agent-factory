@@ -27,6 +27,8 @@ export interface ExecutionOptions {
   // For built-in tools (save_note)
   sessionId?: string;
   saveNotes?: SaveNotesCallback;
+  // Pre-resolved secrets for {{secret:KEY}} interpolation in HTTP nodes
+  resolvedSecrets?: Record<string, string>;
 }
 
 export abstract class BaseNode {

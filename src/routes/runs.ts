@@ -50,7 +50,8 @@ export async function runRoutes(app: FastifyInstance) {
   const runService = new RunService(
     container.runRepository,
     container.agentRepository,
-    container.providerConfigRepository
+    container.providerConfigRepository,
+    container.userSecretRepository
   );
 
   // List runs for agent

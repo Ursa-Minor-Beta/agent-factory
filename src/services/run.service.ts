@@ -1,22 +1,27 @@
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
+import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
 import type { Run } from '../domain/entities/Run.js';
 import { WorkflowExecutor } from '../engine/executor.js';
 import { ProviderConfigService } from './provider-config.service.js';
+import { UserSecretService } from './user-secret.service.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
 export class RunService {
   private executor: WorkflowExecutor;
   private providerConfigService: ProviderConfigService;
+  private userSecretService: UserSecretService;
 
   constructor(
     private runRepo: IRunRepository,
     private agentRepo: IAgentRepository,
-    providerConfigRepo: IProviderConfigRepository
+    providerConfigRepo: IProviderConfigRepository,
+    userSecretRepo: IUserSecretRepository
   ) {
     this.executor = new WorkflowExecutor(runRepo);
     this.providerConfigService = new ProviderConfigService(providerConfigRepo);
+    this.userSecretService = new UserSecretService(userSecretRepo);
   }
 
   async run(
@@ -35,6 +40,9 @@ export class RunService {
     // Build provider config from stored defaults
     const providers = await this.providerConfigService.buildExecutionConfig(userId);
 
+    // Pre-resolve all user secrets for {{secret:KEY}} interpolation
+    const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId);
+
     // Pass repositories for sub-agent execution support
     return this.executor.execute(agent, input, userId, {
       providers,
@@ -42,6 +50,7 @@ export class RunService {
       runRepo: this.runRepo,
       userId,
       callStack: new Set([agentId]), // Initialize call stack with current agent
+      resolvedSecrets,
     });
   }
 
