@@ -127,12 +127,20 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         default: 1000,
       },
       {
+        name: 'maxMessages',
+        type: 'number',
+        description: 'Maximum conversation history messages to include.',
+        default: 20,
+      },
+      {
         name: 'tools',
         type: 'object',
         description: 'Array of tool definitions for function calling.',
       },
     ],
-    features: ['Template interpolation with {{variable}} syntax'],
+    features: [
+      'Template interpolation with {{variable}} syntax',
+    ],
     examples: [
       {
         name: 'Simple chat',

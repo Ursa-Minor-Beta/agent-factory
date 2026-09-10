@@ -2,6 +2,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import type { IAgentRepository } from '../../domain/interfaces/repositories/IAgentRepository.js';
 import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRepository.js';
+import type { IMessageRepository } from '../../domain/interfaces/repositories/IMessageRepository.js';
 
 export interface NodeExecutionResult {
   outputs: Record<string, unknown>;
@@ -24,9 +25,10 @@ export interface ExecutionOptions {
   runRepo?: IRunRepository;
   callStack?: Set<string>; // Track agent IDs to detect circular calls
   userId?: string; // Current user for permission checks
-  // For built-in tools (save_note)
+  // For built-in tools (save_note) and LLM multi-turn conversations
   sessionId?: string;
   saveNotes?: SaveNotesCallback;
+  messageRepo?: IMessageRepository;
   // Pre-resolved secrets for {{secret:KEY}} interpolation in HTTP nodes
   resolvedSecrets?: Record<string, string>;
 }

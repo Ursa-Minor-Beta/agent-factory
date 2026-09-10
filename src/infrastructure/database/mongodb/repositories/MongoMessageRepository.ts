@@ -21,15 +21,42 @@ export class MongoMessageRepository implements IMessageRepository {
 
   async findBySessionId(
     sessionId: string,
-    options?: { limit?: number; offset?: number; order?: 'asc' | 'desc' }
+    options?: {
+      limit?: number;
+      offset?: number;
+      order?: 'asc' | 'desc';
+      roles?: Array<'user' | 'assistant' | 'system'>;
+      fields?: Array<keyof Message>;
+    }
   ): Promise<Message[]> {
     const sortOrder = options?.order === 'desc' ? -1 : 1;
 
-    const docs = await MessageModel.find({ sessionId })
+    const query: Record<string, unknown> = { sessionId };
+    if (options?.roles?.length) {
+      query.role = { $in: options.roles };
+    }
+
+    // Build projection - always include _id and sessionId for toEntity
+    let projection: Record<string, 1> | undefined;
+    if (options?.fields?.length) {
+      projection = { _id: 1, sessionId: 1 };
+      for (const field of options.fields) {
+        if (field !== 'id' && field !== 'sessionId') {
+          projection[field] = 1;
+        }
+      }
+    }
+
+    const cursor = MessageModel.find(query)
       .sort({ createdAt: sortOrder })
       .skip(options?.offset ?? 0)
       .limit(options?.limit ?? 100);
 
+    if (projection) {
+      cursor.select(projection);
+    }
+
+    const docs = await cursor;
     return docs.map((doc) => this.toEntity(doc));
   }
 

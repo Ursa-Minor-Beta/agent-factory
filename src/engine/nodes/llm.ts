@@ -15,9 +15,16 @@ interface LLMNodeData {
   userPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  maxMessages?: number; // Limit conversation history messages (default: 20)
   // Tool calling support
   tools?: ToolDefinition[];
   maxToolCalls?: number; // Limit iterations to prevent infinite loops
+}
+
+// Chat message format for multi-turn conversations
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 /**
@@ -46,19 +53,23 @@ export class LlmNode extends BaseNode {
       ? interpolate(data.userPrompt, templateValues)
       : String(inputs.prompt ?? inputs.input ?? '');
 
+    // Get conversation history for multi-turn conversations
+    const maxMessages = data.maxMessages ?? 20;
+    const conversationHistory = await this.getConversationHistory(maxMessages, options);
+
     let response: string;
     let usage = { inputTokens: 0, outputTokens: 0 };
     let toolCalls: Array<{ name: string; result: unknown }> | undefined;
 
     switch (data.provider) {
       case 'openai':
-        ({ response, usage, toolCalls } = await this.callOpenAI(data, systemPrompt, userPrompt, options));
+        ({ response, usage, toolCalls } = await this.callOpenAI(data, systemPrompt, userPrompt, conversationHistory, options));
         break;
       case 'anthropic':
-        ({ response, usage, toolCalls } = await this.callAnthropic(data, systemPrompt, userPrompt, options));
+        ({ response, usage, toolCalls } = await this.callAnthropic(data, systemPrompt, userPrompt, conversationHistory, options));
         break;
       case 'ollama':
-        ({ response, usage } = await this.callOllama(data, systemPrompt, userPrompt, options));
+        ({ response, usage } = await this.callOllama(data, systemPrompt, userPrompt, conversationHistory, options));
         break;
       default:
         throw new Error(`Unknown LLM provider: ${data.provider}`);
@@ -78,10 +89,37 @@ export class LlmNode extends BaseNode {
     return { outputs };
   }
 
+  /**
+   * Get conversation history from session (DB or incognito memory)
+   * Fetches only the needed messages based on maxMessages limit
+   */
+  private async getConversationHistory(
+    maxMessages: number,
+    options: ExecutionOptions
+  ): Promise<ChatMessage[]> {
+    // Check if this is a persisted session (not incognito)
+    const isPersistedSession = options.sessionId && !options.sessionId.startsWith('incognito_');
+
+    if (isPersistedSession && options.messageRepo) {
+      // Fetch from DB with limit, role filter, and field projection (desc order to get most recent, then reverse)
+      const messages = await options.messageRepo.findBySessionId(
+        options.sessionId!,
+        { order: 'desc', limit: maxMessages, roles: ['user', 'assistant'], fields: ['role', 'content'] }
+      );
+      return messages.reverse() as ChatMessage[];
+    }
+
+    // For incognito sessions, use messages from workflowInput (passed by SessionService)
+    const inputMessages = options.workflowInput?.messages as ChatMessage[] | undefined;
+    const allMessages = Array.isArray(inputMessages) ? inputMessages : [];
+    return allMessages.slice(-maxMessages);
+  }
+
   private async callOpenAI(
     data: LLMNodeData,
     systemPrompt: string | undefined,
     userPrompt: string,
+    conversationHistory: ChatMessage[],
     options: ExecutionOptions
   ): Promise<{ response: string; usage: { inputTokens: number; outputTokens: number }; toolCalls?: Array<{ name: string; result: unknown }> }> {
     const apiKey = options.providers.openai?.apiKey;
@@ -97,6 +135,10 @@ export class LlmNode extends BaseNode {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
+    }
+    // Add conversation history before current message
+    for (const msg of conversationHistory) {
+      messages.push({ role: msg.role, content: msg.content });
     }
     messages.push({ role: 'user', content: userPrompt });
 
@@ -352,6 +394,7 @@ export class LlmNode extends BaseNode {
     data: LLMNodeData,
     systemPrompt: string | undefined,
     userPrompt: string,
+    conversationHistory: ChatMessage[],
     options: ExecutionOptions
   ): Promise<{ response: string; usage: { inputTokens: number; outputTokens: number }; toolCalls?: Array<{ name: string; result: unknown }> }> {
     const apiKey = options.providers.anthropic?.apiKey;
@@ -377,7 +420,12 @@ export class LlmNode extends BaseNode {
       toolMap.set(tool.name, tool);
     });
 
-    const messages: Anthropic.MessageParam[] = [{ role: 'user', content: userPrompt }];
+    // Build messages array with conversation history
+    const messages: Anthropic.MessageParam[] = [];
+    for (const msg of conversationHistory) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+    messages.push({ role: 'user', content: userPrompt });
 
     const maxIterations = data.maxToolCalls ?? 5;
     let totalUsage = { inputTokens: 0, outputTokens: 0 };
@@ -480,6 +528,7 @@ export class LlmNode extends BaseNode {
     data: LLMNodeData,
     systemPrompt: string | undefined,
     userPrompt: string,
+    conversationHistory: ChatMessage[],
     options: ExecutionOptions
   ): Promise<{ response: string; usage: { inputTokens: number; outputTokens: number } }> {
     const baseUrl = options.providers.ollama?.baseUrl;
@@ -490,6 +539,10 @@ export class LlmNode extends BaseNode {
     const messages: Array<{ role: string; content: string }> = [];
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
+    }
+    // Add conversation history before current message
+    for (const msg of conversationHistory) {
+      messages.push({ role: msg.role, content: msg.content });
     }
     messages.push({ role: 'user', content: userPrompt });
 

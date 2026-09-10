@@ -97,7 +97,7 @@ export class SessionService {
     let session: Session | null = null;
     let incognitoSession: IncognitoSession | null = null;
     let isNewSession = false;
-    let formattedHistory = '';
+    let messagesHistory: ChatMessage[] = []; // Only used for incognito sessions
     let agentNotes = '';
     let effectiveSessionId: string | null = null;
 
@@ -118,7 +118,7 @@ export class SessionService {
       }
       // Update last accessed time
       incognitoSession.lastAccessedAt = Date.now();
-      formattedHistory = this.formatChatMessages(incognitoSession.messages);
+      messagesHistory = [...incognitoSession.messages];
       agentNotes = incognitoSession.agentNotes;
       effectiveSessionId = sessionId;
     } 
@@ -134,9 +134,7 @@ export class SessionService {
       if (session.agentId !== agentId) {
         throw new ForbiddenError('Session belongs to a different agent');
       }
-      // Get existing conversation history
-      const history = await this.messageRepo.findBySessionId(sessionId, { order: 'asc' });
-      formattedHistory = this.formatHistoryForAgent(history);
+      // Note: messages are fetched by LLM node on-demand with maxMessages limit
       agentNotes = session.agentNotes;
       effectiveSessionId = sessionId;
     } 
@@ -201,7 +199,8 @@ export class SessionService {
       agent,
       {
         ...input,
-        conversationHistory: formattedHistory,
+        // Only pass messages for incognito sessions (persisted sessions fetch from DB on-demand)
+        messages: messagesHistory,
         agentNotes,
       },
       userId,
@@ -209,6 +208,7 @@ export class SessionService {
         providers,
         agentRepo: this.agentRepo,
         runRepo: this.runRepo,
+        messageRepo: this.messageRepo,
         userId,
         callStack: new Set([agent.id]),
         sessionId: effectiveSessionId ?? undefined,
@@ -355,32 +355,6 @@ export class SessionService {
     // Persisted session
     const session = await this.getById(userId, sessionId);
     return session.agentNotes;
-  }
-
-  private formatHistoryForAgent(messages: Message[]): string {
-    if (messages.length === 0) {
-      return '';
-    }
-
-    return messages
-      .map((msg) => {
-        const role = msg.role === 'user' ? 'User' : 'Assistant';
-        return `${role}: ${msg.content}`;
-      })
-      .join('\n\n');
-  }
-
-  private formatChatMessages(messages: ChatMessage[]): string {
-    if (messages.length === 0) {
-      return '';
-    }
-
-    return messages
-      .map((msg) => {
-        const role = msg.role === 'user' ? 'User' : 'Assistant';
-        return `${role}: ${msg.content}`;
-      })
-      .join('\n\n');
   }
 
   private extractAssistantResponse(output: Record<string, unknown> | null): string {

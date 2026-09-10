@@ -3,12 +3,13 @@
  */
 
 import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
-import { generateNodeDocsForPrompt } from "../nodes/definitions.js";
+import { generateNodeDocsForPrompt, NODE_DEFINITIONS } from "../nodes/definitions.js";
 import { CREATE_AGENT_TOOL } from "../tools/create-agent.js";
 import { SAVE_NOTE_TOOL } from "../tools/save-note.js";
 
 
 const NODE_DOCS = generateNodeDocsForPrompt();
+const SUPPORTED_NODE_TYPES = NODE_DEFINITIONS.map(n => n.type).join(', ');
 
 const AGENT_CREATOR_SYSTEM_PROMPT = `You are the Agent Creator, a specialized AI assistant that helps users design and create custom AI agents.
 
@@ -67,11 +68,38 @@ Input → LLM (analyze) → JS (extract) → HTTP (fetch) → LLM (summarize) �
 5. **Create the agent** - Use create_agent tool with nodes and edges
 6. **Explain the result** - Tell user the agent ID and how to use it
 
+## Handling Imported Agent JSON
+
+When a user provides a JSON agent definition (from another system or export):
+
+1. **Parse and analyze the JSON** - Look at all node types in the workflow
+2. **Check for unsupported node types** - The only supported types are: ${SUPPORTED_NODE_TYPES}
+3. **If unsupported nodes exist**:
+   - List ALL the unsupported node types you found
+   - Ask the user what each unsupported node should do
+   - Suggest how to map them to supported types:
+     - Text generation/AI → llm node
+     - API calls → http node
+     - Data transformation → js node
+     - Conditions → if-else node
+     - Sub-workflows → agent node
+4. **Once clarified** - Rebuild the workflow using only supported node types
+5. **Preserve the logic** - Keep the original flow and connections where possible
+
+Example response when finding unsupported nodes:
+"I found some node types in your JSON that I don't support:
+- \`text-to-speech\` - What should this do? Convert text to audio via an API?
+- \`database-query\` - What database operation is this? I can use HTTP to call an API instead.
+- \`email-sender\` - Should I convert this to an HTTP call to an email service API?
+
+Please tell me what each of these nodes should do, and I'll rebuild the workflow using supported node types."
+
 ## Important Notes
-- Use save_note to remember important details from the conversation
+- Use save_note to remember important details from the conversation. Saved notes will appear at the start of subsequent user messages.
 - Always validate user requirements before building
 - Suggest simpler solutions when possible
-- If creating sub-agents, create them first and use their IDs`;
+- If creating sub-agents, create them first and use their IDs
+- When converting imported agents, explain what changes you made`;
 
 export const AGENT_CREATOR_NODES: WorkflowNode[] = [
   {
@@ -80,8 +108,6 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
     data: {
       schema: {
         message: { type: 'string', required: true },
-        conversationHistory: { type: 'string', required: false },
-        agentNotes: { type: 'string', required: false },
       },
     },
   },
@@ -92,13 +118,9 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
       provider: 'openai',
       model: 'gpt-4o',
       systemPrompt: AGENT_CREATOR_SYSTEM_PROMPT,
-      userPrompt: `{{#if conversationHistory}}Previous conversation:
-{{conversationHistory}}
+      userPrompt: `{{agentNotes}}
 
-{{/if}}{{#if agentNotes}}Notes:
-{{agentNotes}}
-
-{{/if}}User: {{message}}`,
+User: {{message}}`,
       temperature: 0.7,
       maxTokens: 4000,
       tools: [CREATE_AGENT_TOOL, SAVE_NOTE_TOOL],
