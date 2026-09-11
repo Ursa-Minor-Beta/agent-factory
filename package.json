@@ -16,7 +16,7 @@
     "workflow",
     "llm"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@fastify/cookie": "^11.1.2",

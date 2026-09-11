@@ -190,6 +190,6 @@ curl -X POST http://localhost:3000/api/agents/agent-creator/chat \
 
 See http://localhost:3000/docs for full API documentation.
 
-## License
+## Licence
 
-MIT
+Apache 2.0 — see [LICENSE](LICENSE).
