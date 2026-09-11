@@ -1,4 +1,4 @@
-import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
+import type { IRunRepository, RunQueryOptions, RunQueryResult } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
@@ -81,7 +81,7 @@ export class RunService {
     return this.runRepo.findByUserId(userId, limit);
   }
 
-  async listAll(options?: { userId?: string; limit?: number }): Promise<Run[]> {
+  async listAll(options?: RunQueryOptions): Promise<RunQueryResult> {
     return this.runRepo.findAll(options);
   }
 }

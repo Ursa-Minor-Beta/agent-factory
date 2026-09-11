@@ -1,5 +1,5 @@
 import { RunModel, RunDocument } from '../models/RunModel.js';
-import type { IRunRepository } from '../../../../domain/interfaces/repositories/IRunRepository.js';
+import type { IRunRepository, RunQueryOptions, RunQueryResult } from '../../../../domain/interfaces/repositories/IRunRepository.js';
 import type { Run, CreateRunDTO, RunStatus, NodeState } from '../../../../domain/entities/Run.js';
 
 export class MongoRunRepository implements IRunRepository {
@@ -44,16 +44,43 @@ export class MongoRunRepository implements IRunRepository {
     return docs.map((doc) => this.toEntity(doc));
   }
 
-  async findAll(options?: { userId?: string; limit?: number }): Promise<Run[]> {
+  async findAll(options?: RunQueryOptions): Promise<RunQueryResult> {
     const query: Record<string, unknown> = {};
+
     if (options?.userId) {
       query.userId = options.userId;
     }
+    if (options?.agentId) {
+      query.agentId = options.agentId;
+    }
+    if (options?.status) {
+      query.status = options.status;
+    }
+    if (options?.startedAfter || options?.startedBefore) {
+      query.startedAt = {};
+      if (options.startedAfter) {
+        (query.startedAt as Record<string, Date>).$gte = options.startedAfter;
+      }
+      if (options.startedBefore) {
+        (query.startedAt as Record<string, Date>).$lte = options.startedBefore;
+      }
+    }
 
-    const docs = await RunModel.find(query)
-      .sort({ startedAt: -1 })
-      .limit(options?.limit ?? 100);
-    return docs.map((doc) => this.toEntity(doc));
+    const sortField = options?.sortBy ?? 'startedAt';
+    const sortOrder = options?.sortOrder === 'asc' ? 1 : -1;
+
+    const [docs, total] = await Promise.all([
+      RunModel.find(query)
+        .sort({ [sortField]: sortOrder })
+        .skip(options?.skip ?? 0)
+        .limit(options?.limit ?? 50),
+      RunModel.countDocuments(query),
+    ]);
+
+    return {
+      runs: docs.map((doc) => this.toEntity(doc)),
+      total,
+    };
   }
 
   async create(data: CreateRunDTO): Promise<Run> {
