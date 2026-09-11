@@ -244,6 +244,7 @@ export class LlmNode extends BaseNode {
             });
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
+            executedToolCalls.push({ name: toolName, result: { error: errorMessage } });
             messages.push({
               role: 'tool',
               tool_call_id: toolCall.id,
@@ -262,8 +263,16 @@ export class LlmNode extends BaseNode {
       }
     }
 
+    // Build detailed error message
+    const toolSummary = executedToolCalls
+      .map((tc) => {
+        const resultStr = JSON.stringify(tc.result);
+        return `- ${tc.name}: ${resultStr.length > 200 ? resultStr.slice(0, 200) + '...' : resultStr}`;
+      })
+      .join('\n');
+
     throw new NodeExecutionError(
-      `Exceeded maximum tool call iterations (${maxIterations})`,
+      `Exceeded maximum tool call iterations (${maxIterations}).\nTools called:\n${toolSummary}`,
       { toolCalls: executedToolCalls }
     );
   }
@@ -618,6 +627,7 @@ export class LlmNode extends BaseNode {
             });
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
+            executedToolCalls.push({ name: toolUse.name, result: { error: errorMessage } });
             toolResults.push({
               type: 'tool_result',
               tool_use_id: toolUse.id,
@@ -639,8 +649,16 @@ export class LlmNode extends BaseNode {
       }
     }
 
+    // Build detailed error message
+    const toolSummary = executedToolCalls
+      .map((tc) => {
+        const resultStr = JSON.stringify(tc.result);
+        return `- ${tc.name}: ${resultStr.length > 200 ? resultStr.slice(0, 200) + '...' : resultStr}`;
+      })
+      .join('\n');
+
     throw new NodeExecutionError(
-      `Exceeded maximum tool call iterations (${maxIterations})`,
+      `Exceeded maximum tool call iterations (${maxIterations}).\nTools called:\n${toolSummary}`,
       { toolCalls: executedToolCalls }
     );
   }
