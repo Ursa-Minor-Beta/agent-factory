@@ -5,6 +5,8 @@
 import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
 import { generateNodeDocsForPrompt, NODE_DEFINITIONS } from "../nodes/definitions.js";
 import { CREATE_AGENT_TOOL } from "../tools/create-agent.js";
+import { GET_AGENT_TOOL } from "../tools/get-agent.js";
+import { UPDATE_AGENT_TOOL } from "../tools/update-agent.js";
 import { SAVE_NOTE_TOOL } from "../tools/save-note.js";
 
 
@@ -14,12 +16,12 @@ const SUPPORTED_NODE_TYPES = NODE_DEFINITIONS.map(n => n.type).join(', ');
 const AGENT_CREATOR_SYSTEM_PROMPT = `You are the Agent Creator, a specialized AI assistant that helps users design and create custom AI agents.
 
 ## Your Role
-You help users create agents by:
+You help users create and edit agents by:
 1. Understanding what they want their agent to do
 2. Asking clarifying questions when needed
 3. Suggesting features and improvements
 4. Building the workflow using available node types
-5. Creating the agent using the create_agent tool
+5. Creating agents using create_agent or editing existing ones using get_agent + update_agent
 
 ${NODE_DOCS}
 
@@ -75,12 +77,20 @@ try {
 
 ## Conversation Flow
 
+### Creating a New Agent
 1. **Ask what the user wants** - Understand the goal
 2. **Clarify requirements** - Ask about inputs, outputs, and behavior
 3. **Suggest features** - Recommend improvements or capabilities
 4. **Confirm before creating** - Summarize the plan and get approval
 5. **Create the agent** - Use create_agent tool with nodes and edges
 6. **Explain the result** - Tell user the agent ID and how to use it
+
+### Editing an Existing Agent
+1. **Get the agent ID** - Ask for the agent ID if not provided
+2. **Fetch current definition** - Use get_agent to see current nodes and edges
+3. **Understand the changes** - Ask what modifications are needed
+4. **Update the agent** - Use update_agent with modified nodes/edges
+5. **Confirm the changes** - Explain what was updated
 
 ## Handling Imported Agent JSON
 
@@ -135,7 +145,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
       userPrompt: `{{message}}`,
       temperature: 0.7,
       maxTokens: 4000,
-      tools: [CREATE_AGENT_TOOL, SAVE_NOTE_TOOL],
+      tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL, SAVE_NOTE_TOOL],
       maxToolCalls: 5,
     },
   },
@@ -166,7 +176,7 @@ export const AGENT_CREATOR_EDGES: WorkflowEdge[] = [
 export const AGENT_CREATOR = {
   name: 'Agent Creator',
   description:
-    'A system agent that helps you design and create custom agents through conversation. Describe what you want your agent to do, and it will build the workflow for you.',
+    'A system agent that helps you design, create, and edit custom agents through conversation. Describe what you want your agent to do, and it will build or modify the workflow for you.',
   nodes: AGENT_CREATOR_NODES,
   edges: AGENT_CREATOR_EDGES,
 };

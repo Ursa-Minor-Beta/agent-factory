@@ -390,6 +390,114 @@ export class LlmNode extends BaseNode {
           message: `Agent "${name}" created successfully with ID: ${agent.id}`,
         };
       }
+      case 'get_agent': {
+        if (!options.agentRepo) {
+          throw new Error('get_agent tool requires agentRepo in options');
+        }
+        if (!options.userId) {
+          throw new Error('get_agent tool requires userId in options');
+        }
+
+        const agentId = String(args.agentId ?? '');
+        if (!agentId) {
+          return { success: false, error: 'Agent ID is required' };
+        }
+
+        const agent = await options.agentRepo.findById(agentId);
+        if (!agent) {
+          return { success: false, error: `Agent not found: ${agentId}` };
+        }
+
+        // Permission check - can only get own agents or system agents
+        if (agent.userId !== options.userId && !agent.isSystem) {
+          return { success: false, error: 'Access denied' };
+        }
+
+        return {
+          success: true,
+          agent: {
+            id: agent.id,
+            name: agent.name,
+            description: agent.description,
+            nodes: agent.nodes,
+            edges: agent.edges,
+            isSystem: agent.isSystem,
+          },
+        };
+      }
+      case 'update_agent': {
+        if (!options.agentRepo) {
+          throw new Error('update_agent tool requires agentRepo in options');
+        }
+        if (!options.userId) {
+          throw new Error('update_agent tool requires userId in options');
+        }
+
+        const agentId = String(args.agentId ?? '');
+        if (!agentId) {
+          return { success: false, error: 'Agent ID is required' };
+        }
+
+        const existingAgent = await options.agentRepo.findById(agentId);
+        if (!existingAgent) {
+          return { success: false, error: `Agent not found: ${agentId}` };
+        }
+
+        // Permission check - can only update own agents, not system agents
+        if (existingAgent.userId !== options.userId) {
+          return { success: false, error: 'Access denied' };
+        }
+        if (existingAgent.isSystem) {
+          return { success: false, error: 'Cannot modify system agents' };
+        }
+
+        // Build update object with only provided fields
+        const updates: Record<string, unknown> = {};
+        if (args.name !== undefined) {
+          updates.name = String(args.name);
+        }
+        if (args.description !== undefined) {
+          updates.description = String(args.description);
+        }
+        if (args.nodes !== undefined) {
+          const nodes = args.nodes as Array<Record<string, unknown>>;
+          if (!Array.isArray(nodes) || nodes.length === 0) {
+            return { success: false, error: 'At least one node is required' };
+          }
+          const hasInput = nodes.some((n) => n.type === 'input');
+          const hasOutput = nodes.some((n) => n.type === 'output');
+          if (!hasInput) {
+            return { success: false, error: 'Workflow must have at least one input node' };
+          }
+          if (!hasOutput) {
+            return { success: false, error: 'Workflow must have at least one output node' };
+          }
+          updates.nodes = nodes;
+        }
+        if (args.edges !== undefined) {
+          const edges = args.edges as Array<Record<string, unknown>>;
+          if (!Array.isArray(edges)) {
+            return { success: false, error: 'Edges must be an array' };
+          }
+          updates.edges = edges;
+        }
+
+        if (Object.keys(updates).length === 0) {
+          return { success: false, error: 'No updates provided' };
+        }
+
+        const updatedAgent = await options.agentRepo.update(agentId, updates);
+        if (!updatedAgent) {
+          return { success: false, error: 'Failed to update agent' };
+        }
+
+        return {
+          success: true,
+          agentId: updatedAgent.id,
+          name: updatedAgent.name,
+          message: `Agent "${updatedAgent.name}" updated successfully`,
+        };
+      }
       default:
         throw new Error(`Unknown builtin tool: ${toolName}`);
     }
