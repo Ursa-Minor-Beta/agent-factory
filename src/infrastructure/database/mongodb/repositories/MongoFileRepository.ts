@@ -1,6 +1,6 @@
 import { FileModel, FileDocument } from '../models/FileModel.js';
 import type { IFileRepository } from '../../../../domain/interfaces/repositories/IFileRepository.js';
-import type { File, CreateFileDTO } from '../../../../domain/entities/File.js';
+import type { File, FileListItem, CreateFileDTO } from '../../../../domain/entities/File.js';
 
 export class MongoFileRepository implements IFileRepository {
   private toEntity(doc: FileDocument): File {
@@ -33,6 +33,23 @@ export class MongoFileRepository implements IFileRepository {
       .skip(options?.offset ?? 0)
       .limit(options?.limit ?? 100);
     return docs.map((doc) => this.toEntity(doc));
+  }
+
+  async listByUserId(
+    userId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<FileListItem[]> {
+    const docs = await FileModel.find({ userId })
+      .select({ _id: 1, name: 1, mimeType: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .skip(options?.offset ?? 0)
+      .limit(options?.limit ?? 100);
+    return docs.map((doc) => ({
+      id: doc._id.toString(),
+      name: doc.name,
+      mimeType: doc.mimeType,
+      createdAt: doc.createdAt,
+    }));
   }
 
   async create(data: CreateFileDTO): Promise<File> {

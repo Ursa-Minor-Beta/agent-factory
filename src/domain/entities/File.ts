@@ -7,6 +7,13 @@ export interface File {
   createdAt: Date;
 }
 
+export interface FileListItem {
+  id: string;
+  name: string;
+  mimeType: string;
+  createdAt: Date;
+}
+
 export interface CreateFileDTO {
   userId: string;
   name: string;

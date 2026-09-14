@@ -71,17 +71,9 @@ export async function fileRoutes(app: FastifyInstance) {
     const { userId } = request.user as { userId: string };
     const { limit = 50, offset = 0 } = request.query as { limit?: number; offset?: number };
 
-    const files = await fileRepo.findByUserId(userId, { limit, offset });
+    const files = await fileRepo.listByUserId(userId, { limit, offset });
 
-    // Return without data field
-    const filesWithoutData = files.map(({ id, name, mimeType, createdAt }) => ({
-      id,
-      name,
-      mimeType,
-      createdAt,
-    }));
-
-    return { success: true, data: filesWithoutData };
+    return { success: true, data: files };
   });
 
   // Get file by ID
