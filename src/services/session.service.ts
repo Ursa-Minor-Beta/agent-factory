@@ -258,6 +258,41 @@ export class SessionService {
     return session;
   }
 
+  async update(
+    userId: string,
+    sessionId: string,
+    data: { title?: string; status?: SessionStatus }
+  ): Promise<Session> {
+    const session = await this.getById(userId, sessionId);
+
+    // Validate and map allowed fields
+    const updates: { title?: string; status?: SessionStatus } = {};
+
+    if (data.title !== undefined) {
+      if (data.title !== null && typeof data.title !== 'string') {
+        throw new Error('Title must be a string or null');
+      }
+      updates.title = data.title;
+    }
+
+    if (data.status !== undefined) {
+      if (data.status !== 'active' && data.status !== 'archived') {
+        throw new Error('Status must be "active" or "archived"');
+      }
+      updates.status = data.status;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return session;
+    }
+
+    const updated = await this.sessionRepo.update(session.id, updates);
+    if (!updated) {
+      throw new Error('Failed to update session');
+    }
+    return updated;
+  }
+
   async list(
     userId: string,
     options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number }

@@ -149,6 +149,52 @@ export async function sessionRoutes(app: FastifyInstance) {
     });
   });
 
+  // Update session
+  app.patch('/api/sessions/:id', {
+    schema: {
+      tags: ['sessions'],
+      summary: 'Update session',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', nullable: true },
+          status: { type: 'string', enum: ['active', 'archived'] },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: sessionSchema,
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id } = request.params as { id: string };
+    const { title, status } = request.body as { title?: string; status?: 'active' | 'archived' };
+
+    const session = await sessionService.update(userId, id, { title, status });
+
+    return reply.send({
+      success: true,
+      data: session,
+    });
+  });
+
   // Delete session and all its messages
   app.delete('/api/sessions/:id', {
     schema: {
