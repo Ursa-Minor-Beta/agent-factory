@@ -10,6 +10,7 @@ export interface ToolCall {
 export interface Message {
   id: string;
   sessionId: string;
+  runId?: string;
   role: MessageRole;
   content: string;
   toolCalls?: ToolCall[];
@@ -18,6 +19,7 @@ export interface Message {
 
 export interface CreateMessageDTO {
   sessionId: string;
+  runId?: string;
   role: MessageRole;
   content: string;
   toolCalls?: ToolCall[];

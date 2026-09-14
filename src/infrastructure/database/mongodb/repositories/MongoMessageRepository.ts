@@ -7,6 +7,7 @@ export class MongoMessageRepository implements IMessageRepository {
     return {
       id: doc._id.toString(),
       sessionId: doc.sessionId.toString(),
+      runId: doc.runId?.toString(),
       role: doc.role,
       content: doc.content,
       toolCalls: doc.toolCalls,
@@ -63,6 +64,7 @@ export class MongoMessageRepository implements IMessageRepository {
   async create(data: CreateMessageDTO): Promise<Message> {
     const doc = await MessageModel.create({
       sessionId: data.sessionId,
+      runId: data.runId,
       role: data.role,
       content: data.content,
       toolCalls: data.toolCalls,
@@ -74,6 +76,7 @@ export class MongoMessageRepository implements IMessageRepository {
     const docs = await MessageModel.insertMany(
       data.map((d) => ({
         sessionId: d.sessionId,
+        runId: d.runId,
         role: d.role,
         content: d.content,
         toolCalls: d.toolCalls,

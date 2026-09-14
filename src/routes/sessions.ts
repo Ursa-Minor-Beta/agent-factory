@@ -37,6 +37,7 @@ const messageSchema = {
   properties: {
     id: { type: 'string' },
     sessionId: { type: 'string' },
+    runId: { type: 'string', nullable: true },
     role: { type: 'string', enum: ['user', 'assistant', 'system', 'tool'] },
     content: { type: 'string' },
     toolCalls: {

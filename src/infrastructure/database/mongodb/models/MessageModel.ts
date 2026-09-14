@@ -4,6 +4,7 @@ import type { MessageRole, ToolCall } from '../../../../domain/entities/Message.
 export interface MessageDocument extends Document {
   _id: mongoose.Types.ObjectId;
   sessionId: mongoose.Types.ObjectId;
+  runId?: mongoose.Types.ObjectId;
   role: MessageRole;
   content: string;
   toolCalls?: ToolCall[];
@@ -26,6 +27,10 @@ const messageSchema = new Schema<MessageDocument>(
       type: Schema.Types.ObjectId,
       ref: 'Session',
       required: true,
+    },
+    runId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Run',
     },
     role: {
       type: String,
