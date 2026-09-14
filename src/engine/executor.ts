@@ -233,6 +233,7 @@ export class WorkflowExecutor {
             status: 'completed',
             input: nodeInputs,
             output: result.outputs,
+            state: result.state,
             completedAt: new Date(),
           });
         } catch (error) {

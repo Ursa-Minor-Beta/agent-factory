@@ -4,12 +4,15 @@ import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './bas
 import { NodeExecutionError } from '../../utils/errors.js';
 import { interpolateWithSecrets } from './utils.js';
 
+type HttpPersistedField = 'url' | 'method' | 'headers' | 'body' | 'status' | 'responseHeaders';
+
 interface HttpNodeData {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   url: string;
   headers?: Record<string, string>;
   body?: unknown;
   timeout?: number;
+  persistedFields?: HttpPersistedField[];
 }
 
 /**
@@ -92,7 +95,36 @@ export class HttpNode extends BaseNode {
       context.setOutput(node.id, 'response', response);
       context.setOutput(node.id, 'status', status);
 
-      return { outputs };
+      // Build state based on persistedFields config
+      // TODO make base
+      let state: Record<string, unknown> | undefined;
+      if (data.persistedFields?.length) {
+        state = {};
+        for (const field of data.persistedFields) {
+          switch (field) {
+            case 'url':
+              state.url = url;
+              break;
+            case 'method':
+              state.method = method;
+              break;
+            case 'headers':
+              state.headers = headers;
+              break;
+            case 'body':
+              state.body = body;
+              break;
+            case 'status':
+              state.status = status;
+              break;
+            case 'responseHeaders':
+              state.responseHeaders = Object.fromEntries(res.headers.entries());
+              break;
+          }
+        }
+      }
+
+      return { outputs, state };
     } catch (error) {
       clearTimeout(timeoutId);
 

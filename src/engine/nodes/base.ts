@@ -6,6 +6,7 @@ import type { IMessageRepository } from '../../domain/interfaces/repositories/IM
 
 export interface NodeExecutionResult {
   outputs: Record<string, unknown>;
+  state?: unknown;
 }
 
 export interface ProviderConfig {

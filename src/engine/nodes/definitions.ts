@@ -191,6 +191,12 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         description: 'Request timeout in milliseconds.',
         default: 30000,
       },
+      {
+        name: 'persistedFields',
+        type: 'enum',
+        description: 'Fields to persist in run state for debugging. Empty by default. WARNING: headers/body may expose secrets.',
+        values: ['url', 'method', 'headers', 'body', 'status', 'responseHeaders'],
+      },
     ],
     features: ['Template interpolation with {{variable}} syntax'],
     examples: [
