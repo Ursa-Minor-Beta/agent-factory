@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
 import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
@@ -8,6 +10,7 @@ import type { IUserSecretRepository } from '../domain/interfaces/repositories/IU
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
 import { AGENT_NOTES_MAX_LENGTH } from '../domain/entities/Session.js';
 import type { Message } from '../domain/entities/Message.js';
+import type { ProviderConfig } from '../engine/nodes/base.js';
 import { WorkflowExecutor } from '../engine/executor.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
@@ -104,8 +107,14 @@ export class SessionService {
     // Check if this is an incognito session ID
     const isIncognitoSessionId = sessionId?.startsWith('incognito_');
 
+    // Serialize input for session history
+    const inputContent = JSON.stringify(input);
+
+    // Build provider config
+    const providers = await this.providerConfigService.buildExecutionConfig(userId);
+
+    // Resume existing incognito session
     if (isIncognitoSessionId && sessionId) {
-      // Resume existing incognito session
       incognitoSession = incognitoSessions.get(sessionId) ?? null;
       if (!incognitoSession) {
         throw new NotFoundError('Incognito session expired or not found');
@@ -122,8 +131,8 @@ export class SessionService {
       agentNotes = incognitoSession.agentNotes;
       effectiveSessionId = sessionId;
     } 
+    // Resume existing persisted session
     else if (sessionId) {
-      // Resume existing persisted session
       session = await this.sessionRepo.findById(sessionId);
       if (!session) {
         throw new NotFoundError('Session');
@@ -138,8 +147,8 @@ export class SessionService {
       agentNotes = session.agentNotes;
       effectiveSessionId = sessionId;
     } 
+    // Create new incognito session (in-memory)
     else if (incognito) {
-      // Create new incognito session (in-memory)
       const newSessionId = `incognito_${crypto.randomUUID()}`;
       incognitoSession = {
         userId,
@@ -153,19 +162,18 @@ export class SessionService {
       effectiveSessionId = newSessionId;
       isNewSession = true;
     } 
+    // Create new persisted session
     else {
-      // Create new persisted session
+      const title = await this.generateTitle(inputContent, providers).catch(() => {}) || '';
       session = await this.sessionRepo.create({
         userId,
         agentId,
+        title,
         incognito: false,
       });
       effectiveSessionId = session.id;
       isNewSession = true;
     }
-
-    // Serialize input for session history
-    const inputContent = JSON.stringify(input);
 
     // Add user message to incognito session memory
     if (incognitoSession) {
@@ -180,9 +188,6 @@ export class SessionService {
         content: inputContent,
       });
     }
-
-    // Build provider config
-    const providers = await this.providerConfigService.buildExecutionConfig(userId);
 
     // Pre-resolve all user secrets for {{secret:KEY}} interpolation
     const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId);
@@ -410,5 +415,77 @@ export class SessionService {
 
     // Fallback to JSON stringified output
     return JSON.stringify(output);
+  }
+
+  /**
+   * Generate a short title for a session based on the first message (silent fail)
+   */
+  private async generateTitle(
+    userMessage: string,
+    providers: ProviderConfig
+  ): Promise<string | undefined> {
+    try {
+      const prompt = userMessage.slice(0, 1000);
+      const systemPrompt = 'Generate a very short title (max 6 words) for this conversation. Return only the title, no quotes or punctuation.';
+      let title: string | undefined;
+
+      if (providers.openai?.apiKey) {
+        title = await this.generateTitleWithOpenAI(prompt, systemPrompt, providers);
+      } else if (providers.anthropic?.apiKey) {
+        title = await this.generateTitleWithAnthropic(prompt, systemPrompt, providers);
+      }
+
+      return title;
+    } catch (error) {
+      // Log error but don't throw - title generation is not critical
+      console.error('Failed to generate session title:', error instanceof Error ? error.message : error);
+      return;
+    }
+  }
+
+  private async generateTitleWithOpenAI(
+    prompt: string,
+    systemPrompt: string,
+    providers: ProviderConfig
+  ): Promise<string | undefined> {
+    const client = new OpenAI({
+      apiKey: providers.openai!.apiKey,
+      baseURL: providers.openai!.baseUrl,
+    });
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ],
+      max_tokens: 30,
+      temperature: 0.7,
+    });
+
+    return completion.choices[0]?.message?.content?.trim();
+  }
+
+  private async generateTitleWithAnthropic(
+    prompt: string,
+    systemPrompt: string,
+    providers: ProviderConfig
+  ): Promise<string | undefined> {
+    const client = new Anthropic({
+      apiKey: providers.anthropic!.apiKey,
+      baseURL: providers.anthropic!.baseUrl,
+    });
+
+    const response = await client.messages.create({
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 30,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const textBlock = response.content.find(
+      (block): block is Anthropic.TextBlock => block.type === 'text'
+    );
+    return textBlock?.text?.trim();
   }
 }
