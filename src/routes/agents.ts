@@ -80,6 +80,7 @@ export async function agentRoutes(app: FastifyInstance) {
     container.messageRepository,
     container.agentRepository,
     container.runRepository,
+    container.fileRepository,
     container.providerConfigRepository,
     container.userSecretRepository
   );
@@ -421,6 +422,18 @@ export async function agentRoutes(app: FastifyInstance) {
               properties: {
                 sessionId: { type: 'string', nullable: true },
                 response: { type: 'string' },
+                files: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      mimeType: { type: 'string' },
+                      data: { type: 'string' },
+                      field: { type: 'string' },
+                    },
+                  },
+                  description: 'Extracted files from response',
+                },
                 runId: { type: 'string' },
                 isNewSession: { type: 'boolean' },
               },
@@ -479,6 +492,18 @@ export async function agentRoutes(app: FastifyInstance) {
               properties: {
                 sessionId: { type: 'string', nullable: true },
                 response: { type: 'string' },
+                files: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      mimeType: { type: 'string' },
+                      data: { type: 'string' },
+                      field: { type: 'string' },
+                    },
+                  },
+                  description: 'Extracted files from response',
+                },
                 runId: { type: 'string' },
                 isNewSession: { type: 'boolean' },
               },

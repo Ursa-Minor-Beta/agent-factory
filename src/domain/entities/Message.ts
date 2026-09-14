@@ -14,6 +14,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   toolCalls?: ToolCall[];
+  files?: string[]; // Format: "inner:<fileId>:<fieldName>"
   createdAt: Date;
 }
 
@@ -23,4 +24,5 @@ export interface CreateMessageDTO {
   role: MessageRole;
   content: string;
   toolCalls?: ToolCall[];
+  files?: string[];
 }

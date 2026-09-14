@@ -7,6 +7,7 @@ import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentR
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
 import { AGENT_NOTES_MAX_LENGTH } from '../domain/entities/Session.js';
 import type { Message } from '../domain/entities/Message.js';
@@ -21,6 +22,17 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ExtractedFile {
+  mimeType: string;
+  data: string;
+  field?: string;
+}
+
+export interface ExtractedResponse {
+  text: string;
+  files: ExtractedFile[];
+}
+
 export interface ChatOptions {
   sessionId?: string;
   incognito?: boolean;
@@ -29,6 +41,7 @@ export interface ChatOptions {
 export interface ChatResult {
   sessionId: string | null;
   response: string;
+  files: ExtractedFile[];
   runId: string;
   isNewSession: boolean;
 }
@@ -71,6 +84,7 @@ export class SessionService {
     private messageRepo: IMessageRepository,
     private agentRepo: IAgentRepository,
     private runRepo: IRunRepository,
+    private fileRepo: IFileRepository,
     providerConfigRepo: IProviderConfigRepository,
     userSecretRepo: IUserSecretRepository
   ) {
@@ -227,12 +241,27 @@ export class SessionService {
       throw new Error(run.error ?? 'Agent execution failed');
     }
 
-    // Extract assistant response
-    const response = this.extractAssistantResponse(run.output);
+    // Extract assistant response (separates text from base64 files)
+    const extracted = this.extractAssistantResponse(run.output);
 
-    // Add assistant message to incognito session memory
+    // Save files to DB and get references
+    let fileRefs: string[] = [];
+    if (extracted.files.length > 0 && session) {
+      const fileNames = extracted.files.map((f) => f.field ?? 'file');
+      const savedFiles = await this.fileRepo.createMany(
+        extracted.files.map((f, idx) => ({
+          userId,
+          name: fileNames[idx] ?? 'file',
+          mimeType: f.mimeType,
+          data: f.data,
+        }))
+      );
+      fileRefs = savedFiles.map((f, idx) => `inner:${f.id}:${fileNames[idx] ?? 'file'}`);
+    }
+
+    // Add assistant message to incognito session memory (text only, no large files)
     if (incognitoSession) {
-      incognitoSession.messages.push({ role: 'assistant', content: response });
+      incognitoSession.messages.push({ role: 'assistant', content: extracted.text });
     }
 
     // Save assistant message to DB if persisted session
@@ -241,13 +270,15 @@ export class SessionService {
         sessionId: session.id,
         runId: run.id,
         role: 'assistant',
-        content: response,
+        content: extracted.text,
+        files: fileRefs.length > 0 ? fileRefs : undefined,
       });
     }
 
     return {
       sessionId: effectiveSessionId,
-      response,
+      response: extracted.text,
+      files: extracted.files,
       runId: run.id,
       isNewSession,
     };
@@ -398,24 +429,105 @@ export class SessionService {
     return session.agentNotes;
   }
 
-  private extractAssistantResponse(output: Record<string, unknown> | null): string {
+  private extractAssistantResponse(output: Record<string, unknown> | null): ExtractedResponse {
     if (!output) {
-      return 'No response generated.';
+      return { text: 'No response generated.', files: [] };
     }
 
-    // Try common output field names
-    if (typeof output.response === 'string') {
-      return output.response;
-    }
-    if (typeof output.value === 'string') {
-      return output.value;
-    }
-    if (output.value && typeof (output.value as Record<string, unknown>).response === 'string') {
-      return (output.value as Record<string, unknown>).response as string;
+    const files: ExtractedFile[] = [];
+
+    // Extract files from dedicated fields in the output object
+    const cleanOutput = this.extractFilesFromObject(output, files);
+
+    // Get text response
+    let text: string;
+    if (typeof cleanOutput.response === 'string') {
+      text = cleanOutput.response;
+    } else if (typeof cleanOutput.value === 'string') {
+      text = cleanOutput.value;
+    } else if (cleanOutput.value && typeof (cleanOutput.value as Record<string, unknown>).response === 'string') {
+      text = (cleanOutput.value as Record<string, unknown>).response as string;
+    } else {
+      text = JSON.stringify(cleanOutput);
     }
 
-    // Fallback to JSON stringified output
-    return JSON.stringify(output);
+    return { text, files };
+  }
+
+  private extractFilesFromObject(
+    obj: Record<string, unknown>,
+    files: ExtractedFile[],
+    parentKey?: string
+  ): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(obj)) {
+      const fieldName = parentKey ? `${parentKey}.${key}` : key;
+
+      if (typeof value === 'string') {
+        const extracted = this.extractBase64FromString(value, fieldName);
+        if (extracted) {
+          files.push(extracted);
+          result[key] = `[file:${files.length - 1}:${extracted.mimeType}]`;
+        } else {
+          result[key] = value;
+        }
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        result[key] = this.extractFilesFromObject(value as Record<string, unknown>, files, fieldName);
+      } else if (Array.isArray(value)) {
+        result[key] = value.map((item, idx) => {
+          if (typeof item === 'string') {
+            const extracted = this.extractBase64FromString(item, `${fieldName}[${idx}]`);
+            if (extracted) {
+              files.push(extracted);
+              return `[file:${files.length - 1}:${extracted.mimeType}]`;
+            }
+            return item;
+          } else if (item && typeof item === 'object') {
+            return this.extractFilesFromObject(item as Record<string, unknown>, files, `${fieldName}[${idx}]`);
+          }
+          return item;
+        });
+      } else {
+        result[key] = value;
+      }
+    }
+
+    return result;
+  }
+
+  private extractBase64FromString(value: string, field: string): ExtractedFile | null {
+    // Check for data URL format: data:mime/type;base64,<data>
+    const dataUrlMatch = value.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/);
+    if (dataUrlMatch && dataUrlMatch[1] && dataUrlMatch[2]) {
+      return { mimeType: dataUrlMatch[1], data: dataUrlMatch[2], field };
+    }
+
+    // Check for standalone base64 (min 500 chars to avoid false positives)
+    if (/^[A-Za-z0-9+/=]{500,}$/.test(value)) {
+      const mimeType = this.detectMimeTypeFromBase64(value) ?? 'application/octet-stream';
+      return { mimeType, data: value, field };
+    }
+
+    return null;
+  }
+
+  private detectMimeTypeFromBase64(base64: string): string | null {
+    try {
+      // Decode first few bytes to detect magic numbers
+      const decoded = Buffer.from(base64.slice(0, 16), 'base64');
+      const hex = decoded.toString('hex').toUpperCase();
+
+      if (hex.startsWith('89504E47')) return 'image/png';
+      if (hex.startsWith('FFD8FF')) return 'image/jpeg';
+      if (hex.startsWith('47494638')) return 'image/gif';
+      if (hex.startsWith('25504446')) return 'application/pdf';
+      if (hex.startsWith('504B0304')) return 'application/zip';
+
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   /**

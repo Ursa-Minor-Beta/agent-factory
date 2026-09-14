@@ -8,6 +8,7 @@ export interface MessageDocument extends Document {
   role: MessageRole;
   content: string;
   toolCalls?: ToolCall[];
+  files?: string[];
   createdAt: Date;
 }
 
@@ -43,6 +44,10 @@ const messageSchema = new Schema<MessageDocument>(
     },
     toolCalls: {
       type: [toolCallSchema],
+      default: undefined,
+    },
+    files: {
+      type: [String],
       default: undefined,
     },
   },

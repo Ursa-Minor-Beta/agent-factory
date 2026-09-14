@@ -6,6 +6,7 @@ import { MongoRunRepository } from '../infrastructure/database/mongodb/repositor
 import { MongoSessionRepository } from '../infrastructure/database/mongodb/repositories/MongoSessionRepository.js';
 import { MongoMessageRepository } from '../infrastructure/database/mongodb/repositories/MongoMessageRepository.js';
 import { MongoUserSecretRepository } from '../infrastructure/database/mongodb/repositories/MongoUserSecretRepository.js';
+import { MongoFileRepository } from '../infrastructure/database/mongodb/repositories/MongoFileRepository.js';
 
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
 import type { IApiKeyRepository } from '../domain/interfaces/repositories/IApiKeyRepository.js';
@@ -15,6 +16,7 @@ import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepos
 import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
 import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 
 export interface Container {
   userRepository: IUserRepository;
@@ -25,6 +27,7 @@ export interface Container {
   sessionRepository: ISessionRepository;
   messageRepository: IMessageRepository;
   userSecretRepository: IUserSecretRepository;
+  fileRepository: IFileRepository;
 }
 
 // Create singleton instances
@@ -38,4 +41,5 @@ export const container: Container = {
   sessionRepository: new MongoSessionRepository(),
   messageRepository: new MongoMessageRepository(),
   userSecretRepository: new MongoUserSecretRepository(),
+  fileRepository: new MongoFileRepository(),
 };

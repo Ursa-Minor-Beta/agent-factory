@@ -53,6 +53,12 @@ const messageSchema = {
       },
       nullable: true,
     },
+    files: {
+      type: 'array',
+      items: { type: 'string' },
+      nullable: true,
+      description: 'File references in format "inner:<fileId>:<fieldName>"',
+    },
     createdAt: { type: 'string', format: 'date-time' },
   },
 };
@@ -63,6 +69,7 @@ export async function sessionRoutes(app: FastifyInstance) {
     container.messageRepository,
     container.agentRepository,
     container.runRepository,
+    container.fileRepository,
     container.providerConfigRepository,
     container.userSecretRepository
   );

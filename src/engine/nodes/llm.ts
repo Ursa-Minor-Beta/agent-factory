@@ -55,7 +55,9 @@ export class LlmNode extends BaseNode {
 
     // Get conversation history for multi-turn conversations
     const maxMessages = data.maxMessages ?? 20;
-    const conversationHistory = await this.getConversationHistory(maxMessages, options);
+    const conversationHistory = maxMessages > 0
+      ? await this.getConversationHistory(maxMessages, options)
+      : [];
 
     let response: string;
     let usage = { inputTokens: 0, outputTokens: 0 };

@@ -11,6 +11,7 @@ export class MongoMessageRepository implements IMessageRepository {
       role: doc.role,
       content: doc.content,
       toolCalls: doc.toolCalls,
+      files: doc.files,
       createdAt: doc.createdAt,
     };
   }
@@ -68,6 +69,7 @@ export class MongoMessageRepository implements IMessageRepository {
       role: data.role,
       content: data.content,
       toolCalls: data.toolCalls,
+      files: data.files,
     });
     return this.toEntity(doc);
   }
@@ -80,6 +82,7 @@ export class MongoMessageRepository implements IMessageRepository {
         role: d.role,
         content: d.content,
         toolCalls: d.toolCalls,
+        files: d.files,
       }))
     );
     return docs.map((doc) => this.toEntity(doc as unknown as MessageDocument));
