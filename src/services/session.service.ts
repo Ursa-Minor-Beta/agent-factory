@@ -239,6 +239,7 @@ export class SessionService {
     if (session) {
       await this.messageRepo.create({
         sessionId: session.id,
+        runId: run.id,
         role: 'assistant',
         content: response,
       });
