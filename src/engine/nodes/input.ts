@@ -18,10 +18,12 @@ export class InputNode extends BaseNode {
     const outputs: Record<string, unknown> = {};
 
     // Get schema from node data to know which fields to extract
-    const schema = (node.data.schema as Record<string, unknown>) ?? {};
+    const schema = (node.data.schema as Record<string, { type?: string; required?: boolean; default?: unknown }>) ?? {};
 
-    for (const fieldName of Object.keys(schema)) {
-      outputs[fieldName] = options.workflowInput[fieldName];
+    for (const [fieldName, fieldDef] of Object.entries(schema)) {
+      const inputValue = options.workflowInput[fieldName];
+      // Use default value if input is undefined and default is defined
+      outputs[fieldName] = inputValue !== undefined ? inputValue : fieldDef?.default;
     }
 
     // Also pass the entire input as 'value' for simple workflows
@@ -31,6 +33,8 @@ export class InputNode extends BaseNode {
     for (const [handle, value] of Object.entries(outputs)) {
       context.setOutput(node.id, handle, value);
     }
+
+    console.log('outputs', outputs)
 
     return { outputs };
   }

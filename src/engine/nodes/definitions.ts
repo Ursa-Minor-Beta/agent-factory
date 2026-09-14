@@ -38,7 +38,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         name: 'schema',
         type: 'object',
         required: true,
-        description: 'Input field definitions. Keys are field names, values define type and required.',
+        description: 'Input field definitions. Keys are field names, values define type, required, and default.',
       },
     ],
     examples: [
@@ -52,13 +52,13 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         },
       },
       {
-        name: 'Multiple fields',
-        description: 'Input with multiple fields of different types',
+        name: 'Multiple fields with defaults',
+        description: 'Input with multiple fields including default values',
         data: {
           schema: {
             query: { type: 'string', required: true },
-            maxResults: { type: 'number', required: false },
-            includeMetadata: { type: 'boolean', required: false },
+            maxResults: { type: 'number', required: false, default: 10 },
+            includeMetadata: { type: 'boolean', required: false, default: false },
           },
         },
       },
