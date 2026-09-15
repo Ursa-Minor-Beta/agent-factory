@@ -45,6 +45,16 @@ export class ConflictError extends AppError {
   }
 }
 
+export class AgentExecutionError extends AppError {
+  constructor(
+    message: string,
+    public runId: string
+  ) {
+    super(message, 500, 'AGENT_EXECUTION_ERROR');
+    this.name = 'AgentExecutionError';
+  }
+}
+
 export interface NodeErrorContext {
   request?: {
     url?: string;

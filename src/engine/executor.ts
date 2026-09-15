@@ -1,10 +1,12 @@
 import type { Agent } from '../domain/entities/Agent.js';
 import type { Run, NodeErrorDetails } from '../domain/entities/Run.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
+import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import { ExecutionContext } from './context.js';
 import { topologicalSort, validateWorkflow } from './graph.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
 import { NodeExecutionError } from '../utils/errors.js';
+import { extractFiles, replaceFileRefsInObject, type ExtractedFile } from '../utils/file-extractor.js';
 
 export interface ExecutorOptions {
   providers: ProviderConfig;
@@ -16,12 +18,16 @@ export interface InternalExecutionOptions extends ExecutionOptions {
 
 interface InternalResult {
   output: Record<string, unknown>;
+  files: string[];
   status: 'completed' | 'failed';
   error?: string;
 }
 
 export class WorkflowExecutor {
-  constructor(private runRepo: IRunRepository) {}
+  constructor(
+    private runRepo: IRunRepository,
+    private fileRepo?: IFileRepository
+  ) {}
 
   /**
    * Check if a node should be skipped due to being in an unselected if-else branch
@@ -114,7 +120,7 @@ export class WorkflowExecutor {
       const result = await this.executeWorkflow(agent, input, userId, run.id, options);
 
       if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output))!;
+        run = (await this.runRepo.complete(run.id, result.output, result.files.length > 0 ? result.files : undefined))!;
       } else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
@@ -156,7 +162,7 @@ export class WorkflowExecutor {
       const result = await this.executeWorkflow(agent, input, userId, run.id, options);
 
       if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output))!;
+        run = (await this.runRepo.complete(run.id, result.output, result.files.length > 0 ? result.files : undefined))!;
       } else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
@@ -198,6 +204,8 @@ export class WorkflowExecutor {
 
     // Track skipped nodes (nodes in unselected if-else branches)
     const skippedNodes = new Set<string>();
+    // Track all files from this run
+    const allFiles: string[] = [];
 
     try {
       // Execute nodes in order
@@ -228,12 +236,45 @@ export class WorkflowExecutor {
         try {
           const result = await nodeHandler.execute(node, context, execOptions);
 
+          // Extract files from output and save to DB
+          let finalOutput = result.outputs;
+          let nodeFiles: string[] | undefined;
+
+          if (this.fileRepo && result.outputs && typeof result.outputs === 'object') {
+            const { cleanedOutput, files } = extractFiles(result.outputs);
+
+            if (files.length > 0) {
+              // Save files to DB
+              const savedFiles = await this.saveFiles(files, userId);
+              nodeFiles = savedFiles;
+              allFiles.push(...savedFiles);
+
+              // Replace placeholders with actual file refs
+              const fileIdMap = new Map<number, { id: string; field: string }>();
+              files.forEach((f, idx) => {
+                const ref = savedFiles[idx];
+                if (ref) {
+                  const parts = ref.split(':');
+                  fileIdMap.set(idx, { id: parts[1] ?? '', field: f.field });
+                }
+              });
+              finalOutput = replaceFileRefsInObject(cleanedOutput, fileIdMap);
+
+              // Update context with cleaned output (file references instead of base64)
+              // This ensures downstream nodes receive file refs, not raw base64
+              for (const [handle, value] of Object.entries(finalOutput)) {
+                context.setOutput(nodeId, handle, value);
+              }
+            }
+          }
+
           // Update node state to completed
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'completed',
             input: nodeInputs,
-            output: result.outputs,
+            output: finalOutput,
             state: result.state,
+            files: nodeFiles,
             completedAt: new Date(),
           });
         } catch (error) {
@@ -265,24 +306,44 @@ export class WorkflowExecutor {
             completedAt: new Date(),
           });
 
-          return { output: {}, status: 'failed', error: errorMessage };
+          return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
         }
       }
 
-      // Get output from output nodes
+      // Get output from output nodes - store references instead of duplicating data
       const outputNodes = agent.nodes.filter((n) => n.type === 'output');
       const output: Record<string, unknown> = {};
 
       for (const outputNode of outputNodes) {
-        const nodeOutputs = context.getNodeOutputs(outputNode.id);
         const key = (outputNode.data.name as string) ?? outputNode.id;
-        output[key] = nodeOutputs.value;
+        // Store reference to node output instead of actual value
+        output[key] = `nodeRef:${outputNode.id}:value`;
       }
 
-      return { output, status: 'completed' };
+      return { output, files: allFiles, status: 'completed' };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return { output: {}, status: 'failed', error: errorMessage };
+      return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
     }
+  }
+
+  /**
+   * Save extracted files to DB and return file references
+   */
+  private async saveFiles(files: ExtractedFile[], userId: string): Promise<string[]> {
+    if (!this.fileRepo || files.length === 0) {
+      return [];
+    }
+
+    const savedFiles = await this.fileRepo.createMany(
+      files.map((f) => ({
+        userId,
+        name: f.field,
+        mimeType: f.mimeType,
+        data: f.data,
+      }))
+    );
+
+    return savedFiles.map((f) => `inner:${f.id}:${f.name}`);
   }
 }

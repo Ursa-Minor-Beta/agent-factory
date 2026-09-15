@@ -22,6 +22,7 @@ export interface NodeState {
   input: unknown;
   output: unknown;
   state?: unknown;
+  files?: string[]; // Format: "inner:<fileId>:<fieldName>"
   error: string | null;
   errorDetails?: NodeErrorDetails | null;
   startedAt: Date | null;
@@ -34,6 +35,7 @@ export interface Run {
   userId: string;
   input: Record<string, unknown>;
   output: Record<string, unknown> | null;
+  files?: string[]; // All file refs from the run: "inner:<fileId>:<fieldName>"
   status: RunStatus;
   nodeStates: Record<string, NodeState>;
   error: string | null;

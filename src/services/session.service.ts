@@ -11,11 +11,12 @@ import type { IFileRepository } from '../domain/interfaces/repositories/IFileRep
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
 import { AGENT_NOTES_MAX_LENGTH } from '../domain/entities/Session.js';
 import type { Message } from '../domain/entities/Message.js';
+import { resolveRunOutput } from '../utils/node-ref.js';
 import type { ProviderConfig } from '../engine/nodes/base.js';
 import { WorkflowExecutor } from '../engine/executor.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
-import { NotFoundError, ForbiddenError } from '../utils/errors.js';
+import { NotFoundError, ForbiddenError, AgentExecutionError } from '../utils/errors.js';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -26,11 +27,6 @@ export interface ExtractedFile {
   mimeType: string;
   data: string;
   field?: string;
-}
-
-export interface ExtractedResponse {
-  text: string;
-  files: ExtractedFile[];
 }
 
 export interface ChatOptions {
@@ -88,7 +84,7 @@ export class SessionService {
     providerConfigRepo: IProviderConfigRepository,
     userSecretRepo: IUserSecretRepository
   ) {
-    this.executor = new WorkflowExecutor(runRepo);
+    this.executor = new WorkflowExecutor(runRepo, fileRepo);
     this.providerConfigService = new ProviderConfigService(providerConfigRepo);
     this.userSecretService = new UserSecretService(userSecretRepo);
   }
@@ -213,15 +209,10 @@ export class SessionService {
         }
       : undefined;
 
-    // Execute agent with input and conversation context
+    // Execute agent with input (context passed via options, not mixed into input)
     const run = await this.executor.execute(
       agent,
-      {
-        ...input,
-        // Only pass messages for incognito sessions (persisted sessions fetch from DB on-demand)
-        messages: messagesHistory,
-        agentNotes,
-      },
+      input,
       userId,
       {
         providers,
@@ -233,35 +224,27 @@ export class SessionService {
         sessionId: effectiveSessionId ?? undefined,
         saveNotes,
         resolvedSecrets,
+        // Session context (separate from user input)
+        messages: messagesHistory,
+        agentNotes,
       }
     );
 
-    // Check if run failed and return error
+    // Check if run failed and return error with runId for debugging
     if (run.status === 'failed') {
-      throw new Error(run.error ?? 'Agent execution failed');
+      throw new AgentExecutionError(run.error ?? 'Agent execution failed', run.id);
     }
 
-    // Extract assistant response (separates text from base64 files)
-    const extracted = this.extractAssistantResponse(run.output);
+    // Resolve nodeRef references to actual values, then extract text response
+    const resolvedOutput = resolveRunOutput(run);
+    const responseText = this.extractTextResponse(resolvedOutput);
 
-    // Save files to DB and get references
-    let fileRefs: string[] = [];
-    if (extracted.files.length > 0 && session) {
-      const fileNames = extracted.files.map((f) => f.field ?? 'file');
-      const savedFiles = await this.fileRepo.createMany(
-        extracted.files.map((f, idx) => ({
-          userId,
-          name: fileNames[idx] ?? 'file',
-          mimeType: f.mimeType,
-          data: f.data,
-        }))
-      );
-      fileRefs = savedFiles.map((f, idx) => `inner:${f.id}:${fileNames[idx] ?? 'file'}`);
-    }
+    // Files are already saved by executor - use refs from run
+    const fileRefs = run.files ?? [];
 
     // Add assistant message to incognito session memory (text only, no large files)
     if (incognitoSession) {
-      incognitoSession.messages.push({ role: 'assistant', content: extracted.text });
+      incognitoSession.messages.push({ role: 'assistant', content: responseText });
     }
 
     // Save assistant message to DB if persisted session
@@ -270,15 +253,25 @@ export class SessionService {
         sessionId: session.id,
         runId: run.id,
         role: 'assistant',
-        content: extracted.text,
+        content: responseText,
         files: fileRefs.length > 0 ? fileRefs : undefined,
       });
     }
 
+    // Convert file refs to ExtractedFile format for API response
+    const files: ExtractedFile[] = fileRefs.map((ref) => {
+      const parts = ref.split(':');
+      return {
+        mimeType: 'application/octet-stream', // Will be resolved when fetching
+        data: '', // Data is in DB, not returned here
+        field: parts[2] ?? 'file',
+      };
+    });
+
     return {
       sessionId: effectiveSessionId,
-      response: extracted.text,
-      files: extracted.files,
+      response: responseText,
+      files,
       runId: run.id,
       isNewSession,
     };
@@ -429,105 +422,26 @@ export class SessionService {
     return session.agentNotes;
   }
 
-  private extractAssistantResponse(output: Record<string, unknown> | null): ExtractedResponse {
+  /**
+   * Extract text response from run output (files are already extracted by executor)
+   */
+  private extractTextResponse(output: Record<string, unknown> | null): string {
     if (!output) {
-      return { text: 'No response generated.', files: [] };
+      return 'No response generated.';
     }
 
-    const files: ExtractedFile[] = [];
-
-    // Extract files from dedicated fields in the output object
-    const cleanOutput = this.extractFilesFromObject(output, files);
-
-    // Get text response
-    let text: string;
-    if (typeof cleanOutput.response === 'string') {
-      text = cleanOutput.response;
-    } else if (typeof cleanOutput.value === 'string') {
-      text = cleanOutput.value;
-    } else if (cleanOutput.value && typeof (cleanOutput.value as Record<string, unknown>).response === 'string') {
-      text = (cleanOutput.value as Record<string, unknown>).response as string;
-    } else {
-      text = JSON.stringify(cleanOutput);
+    // Get text response from common output fields
+    if (typeof output.response === 'string') {
+      return output.response;
+    }
+    if (typeof output.value === 'string') {
+      return output.value;
+    }
+    if (output.value && typeof (output.value as Record<string, unknown>).response === 'string') {
+      return (output.value as Record<string, unknown>).response as string;
     }
 
-    return { text, files };
-  }
-
-  private extractFilesFromObject(
-    obj: Record<string, unknown>,
-    files: ExtractedFile[],
-    parentKey?: string
-  ): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(obj)) {
-      const fieldName = parentKey ? `${parentKey}.${key}` : key;
-
-      if (typeof value === 'string') {
-        const extracted = this.extractBase64FromString(value, fieldName);
-        if (extracted) {
-          files.push(extracted);
-          result[key] = `[file:${files.length - 1}:${extracted.mimeType}]`;
-        } else {
-          result[key] = value;
-        }
-      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-        result[key] = this.extractFilesFromObject(value as Record<string, unknown>, files, fieldName);
-      } else if (Array.isArray(value)) {
-        result[key] = value.map((item, idx) => {
-          if (typeof item === 'string') {
-            const extracted = this.extractBase64FromString(item, `${fieldName}[${idx}]`);
-            if (extracted) {
-              files.push(extracted);
-              return `[file:${files.length - 1}:${extracted.mimeType}]`;
-            }
-            return item;
-          } else if (item && typeof item === 'object') {
-            return this.extractFilesFromObject(item as Record<string, unknown>, files, `${fieldName}[${idx}]`);
-          }
-          return item;
-        });
-      } else {
-        result[key] = value;
-      }
-    }
-
-    return result;
-  }
-
-  private extractBase64FromString(value: string, field: string): ExtractedFile | null {
-    // Check for data URL format: data:mime/type;base64,<data>
-    const dataUrlMatch = value.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/);
-    if (dataUrlMatch && dataUrlMatch[1] && dataUrlMatch[2]) {
-      return { mimeType: dataUrlMatch[1], data: dataUrlMatch[2], field };
-    }
-
-    // Check for standalone base64 (min 500 chars to avoid false positives)
-    if (/^[A-Za-z0-9+/=]{500,}$/.test(value)) {
-      const mimeType = this.detectMimeTypeFromBase64(value) ?? 'application/octet-stream';
-      return { mimeType, data: value, field };
-    }
-
-    return null;
-  }
-
-  private detectMimeTypeFromBase64(base64: string): string | null {
-    try {
-      // Decode first few bytes to detect magic numbers
-      const decoded = Buffer.from(base64.slice(0, 16), 'base64');
-      const hex = decoded.toString('hex').toUpperCase();
-
-      if (hex.startsWith('89504E47')) return 'image/png';
-      if (hex.startsWith('FFD8FF')) return 'image/jpeg';
-      if (hex.startsWith('47494638')) return 'image/gif';
-      if (hex.startsWith('25504446')) return 'application/pdf';
-      if (hex.startsWith('504B0304')) return 'application/zip';
-
-      return null;
-    } catch {
-      return null;
-    }
+    return JSON.stringify(output);
   }
 
   /**

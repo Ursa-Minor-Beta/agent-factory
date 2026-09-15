@@ -26,6 +26,6 @@ export interface IRunRepository {
   updateStatus(id: string, status: RunStatus, error?: string | null): Promise<Run | null>;
   updateNodeState(id: string, nodeId: string, state: Partial<NodeState>): Promise<Run | null>;
   setOutput(id: string, output: Record<string, unknown>): Promise<Run | null>;
-  complete(id: string, output: Record<string, unknown>): Promise<Run | null>;
+  complete(id: string, output: Record<string, unknown>, files?: string[]): Promise<Run | null>;
   fail(id: string, error: string): Promise<Run | null>;
 }

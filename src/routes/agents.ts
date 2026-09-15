@@ -6,7 +6,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js';
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
-import { NotFoundError } from '../utils/errors.js';
+import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
 import { AGENT_CREATOR } from '../engine/agents/index.js';
 
 // Schemas
@@ -19,6 +19,21 @@ const errorSchema = {
       properties: {
         code: { type: 'string' },
         message: { type: 'string' },
+      },
+    },
+  },
+};
+
+const executionErrorSchema = {
+  type: 'object',
+  properties: {
+    success: { type: 'boolean' },
+    error: {
+      type: 'object',
+      properties: {
+        code: { type: 'string' },
+        message: { type: 'string' },
+        runId: { type: 'string' },
       },
     },
   },
@@ -444,6 +459,7 @@ export async function agentRoutes(app: FastifyInstance) {
         401: errorSchema,
         403: errorSchema,
         404: errorSchema,
+        500: executionErrorSchema,
       },
     },
     preHandler: requireAuth,
@@ -456,15 +472,29 @@ export async function agentRoutes(app: FastifyInstance) {
       incognito?: boolean;
     };
 
-    const result = await sessionService.chat(userId, agentId, input, {
-      sessionId,
-      incognito,
-    });
+    try {
+      const result = await sessionService.chat(userId, agentId, input, {
+        sessionId,
+        incognito,
+      });
 
-    return reply.send({
-      success: true,
-      data: result,
-    });
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      if (error instanceof AgentExecutionError) {
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+            runId: error.runId,
+          },
+        });
+      }
+      throw error;
+    }
   });
 
   // Chat with Agent Creator (convenience route)
@@ -513,6 +543,7 @@ export async function agentRoutes(app: FastifyInstance) {
         400: errorSchema,
         401: errorSchema,
         404: errorSchema,
+        500: executionErrorSchema,
       },
     },
     preHandler: requireAuth,
@@ -528,11 +559,25 @@ export async function agentRoutes(app: FastifyInstance) {
       throw new NotFoundError('Agent Creator not found. Restart server to seed it.');
     }
 
-    const result = await sessionService.chat(userId, agent.id, input, { sessionId });
+    try {
+      const result = await sessionService.chat(userId, agent.id, input, { sessionId });
 
-    return reply.send({
-      success: true,
-      data: result,
-    });
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      if (error instanceof AgentExecutionError) {
+        return reply.status(500).send({
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+            runId: error.runId,
+          },
+        });
+      }
+      throw error;
+    }
   });
 }

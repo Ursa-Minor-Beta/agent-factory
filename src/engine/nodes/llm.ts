@@ -6,6 +6,7 @@ import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './bas
 import { NodeExecutionError } from '../../utils/errors.js';
 import { interpolate } from './utils.js';
 import { WorkflowExecutor } from '../executor.js';
+import { resolveRunOutput } from '../../utils/node-ref.js';
 import type { ToolDefinition } from '../tools/index.js';
 
 interface LLMNodeData {
@@ -21,11 +22,7 @@ interface LLMNodeData {
   maxToolCalls?: number; // Limit iterations to prevent infinite loops
 }
 
-// Chat message format for multi-turn conversations
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import type { ChatMessage } from './base.js';
 
 /**
  * LLM node - Call language model APIs using official SDKs
@@ -111,9 +108,8 @@ export class LlmNode extends BaseNode {
       return messages.reverse() as ChatMessage[];
     }
 
-    // For incognito sessions, use messages from workflowInput (passed by SessionService)
-    const inputMessages = options.workflowInput?.messages as ChatMessage[] | undefined;
-    const allMessages = Array.isArray(inputMessages) ? inputMessages : [];
+    // For incognito sessions, use messages from options (passed by SessionService)
+    const allMessages = Array.isArray(options.messages) ? options.messages : [];
     return allMessages.slice(-maxMessages);
   }
 
@@ -139,9 +135,8 @@ export class LlmNode extends BaseNode {
       messages.push({ role: 'system', content: systemPrompt });
     }
     // Add agent notes as system message if present
-    const agentNotes = options.workflowInput?.agentNotes as string | undefined;
-    if (agentNotes) {
-      messages.push({ role: 'system', content: `Agent notes from previous conversation:\n${agentNotes}` });
+    if (options.agentNotes) {
+      messages.push({ role: 'system', content: `Agent notes from previous conversation:\n${options.agentNotes}` });
     }
     // Add conversation history before current message
     for (const msg of conversationHistory) {
@@ -334,7 +329,8 @@ export class LlmNode extends BaseNode {
       throw new Error(`Sub-agent failed: ${run.error}`);
     }
 
-    return run.output;
+    // Resolve nodeRef references to actual values
+    return resolveRunOutput(run);
   }
 
   private async executeBuiltinTool(
@@ -552,10 +548,9 @@ export class LlmNode extends BaseNode {
     messages.push({ role: 'user', content: userPrompt });
 
     // Combine system prompt with agent notes if present
-    const agentNotes = options.workflowInput?.agentNotes as string | undefined;
     let fullSystemPrompt = systemPrompt;
-    if (agentNotes) {
-      const notesSection = `\n\nAgent notes from previous conversation:\n${agentNotes}`;
+    if (options.agentNotes) {
+      const notesSection = `\n\nAgent notes from previous conversation:\n${options.agentNotes}`;
       fullSystemPrompt = systemPrompt ? systemPrompt + notesSection : notesSection.trim();
     }
 
@@ -682,9 +677,8 @@ export class LlmNode extends BaseNode {
       messages.push({ role: 'system', content: systemPrompt });
     }
     // Add agent notes as system message if present
-    const agentNotes = options.workflowInput?.agentNotes as string | undefined;
-    if (agentNotes) {
-      messages.push({ role: 'system', content: `Agent notes from previous conversation:\n${agentNotes}` });
+    if (options.agentNotes) {
+      messages.push({ role: 'system', content: `Agent notes from previous conversation:\n${options.agentNotes}` });
     }
     // Add conversation history before current message
     for (const msg of conversationHistory) {

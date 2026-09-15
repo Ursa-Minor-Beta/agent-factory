@@ -17,6 +17,7 @@ export class MongoRunRepository implements IRunRepository {
       userId: doc.userId.toString(),
       input: doc.input,
       output: doc.output,
+      files: doc.files,
       status: doc.status,
       nodeStates,
       error: doc.error,
@@ -135,16 +136,18 @@ export class MongoRunRepository implements IRunRepository {
     return doc ? this.toEntity(doc) : null;
   }
 
-  async complete(id: string, output: Record<string, unknown>): Promise<Run | null> {
+  async complete(id: string, output: Record<string, unknown>, files?: string[]): Promise<Run | null> {
+    const update: Record<string, unknown> = {
+      status: 'completed',
+      output,
+      completedAt: new Date(),
+    };
+    if (files && files.length > 0) {
+      update.files = files;
+    }
     const doc = await RunModel.findByIdAndUpdate(
       id,
-      {
-        $set: {
-          status: 'completed',
-          output,
-          completedAt: new Date(),
-        },
-      },
+      { $set: update },
       { new: true }
     );
     return doc ? this.toEntity(doc) : null;

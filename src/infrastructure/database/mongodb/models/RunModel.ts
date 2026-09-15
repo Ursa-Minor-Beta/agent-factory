@@ -7,6 +7,7 @@ export interface RunDocument extends Document {
   userId: mongoose.Types.ObjectId;
   input: Record<string, unknown>;
   output: Record<string, unknown> | null;
+  files?: string[];
   status: RunStatus;
   nodeStates: Map<string, NodeState>;
   error: string | null;
@@ -24,6 +25,7 @@ const nodeStateSchema = new Schema(
     input: { type: Schema.Types.Mixed },
     output: { type: Schema.Types.Mixed },
     state: { type: Schema.Types.Mixed },
+    files: { type: [String], default: undefined },
     error: { type: String, default: null },
     errorDetails: { type: Schema.Types.Mixed },
     startedAt: { type: Date, default: null },
@@ -51,6 +53,10 @@ const runSchema = new Schema<RunDocument>(
     output: {
       type: Schema.Types.Mixed,
       default: null,
+    },
+    files: {
+      type: [String],
+      default: undefined,
     },
     status: {
       type: String,

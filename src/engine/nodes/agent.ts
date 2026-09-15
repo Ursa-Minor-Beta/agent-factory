@@ -2,6 +2,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { WorkflowExecutor } from '../executor.js';
+import { resolveRunOutput } from '../../utils/node-ref.js';
 
 interface AgentNodeData {
   agentId: string;
@@ -76,8 +77,10 @@ export class AgentNode extends BaseNode {
       throw new Error(`Sub-agent failed: ${run.error}`);
     }
 
-    const outputs = { output: run.output, run };
-    context.setOutput(node.id, 'output', run.output);
+    // Resolve nodeRef references to actual values for downstream nodes
+    const resolvedOutput = resolveRunOutput(run);
+    const outputs = { output: resolvedOutput, run };
+    context.setOutput(node.id, 'output', resolvedOutput);
     context.setOutput(node.id, 'run', run);
 
     return { outputs };

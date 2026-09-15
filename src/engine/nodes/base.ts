@@ -18,6 +18,12 @@ export interface ProviderConfig {
 // Callback for built-in tools to save agent notes
 export type SaveNotesCallback = (notes: string) => Promise<void>;
 
+// Chat message format for session context
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface ExecutionOptions {
   providers: ProviderConfig;
   workflowInput: Record<string, unknown>;
@@ -32,6 +38,9 @@ export interface ExecutionOptions {
   messageRepo?: IMessageRepository;
   // Pre-resolved secrets for {{secret:KEY}} interpolation in HTTP nodes
   resolvedSecrets?: Record<string, string>;
+  // Session context (separate from user input)
+  messages?: ChatMessage[]; // For incognito sessions - conversation history
+  agentNotes?: string; // Notes from previous conversations
 }
 
 export abstract class BaseNode {
