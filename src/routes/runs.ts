@@ -42,7 +42,7 @@ const runSchema = {
     userId: { type: 'string' },
     input: { type: 'object', additionalProperties: true },
     output: { type: 'object', additionalProperties: true, nullable: true },
-    status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed'] },
+    status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'] },
     nodeStates: { type: 'object', additionalProperties: nodeStateSchema },
     error: { type: 'string', nullable: true },
     startedAt: { type: 'string', format: 'date-time' },
@@ -54,6 +54,7 @@ export async function runRoutes(app: FastifyInstance) {
   const runService = new RunService(
     container.runRepository,
     container.agentRepository,
+    container.runManager,
     container.providerConfigRepository,
     container.userSecretRepository
   );
@@ -153,7 +154,7 @@ export async function runRoutes(app: FastifyInstance) {
         properties: {
           userId: { type: 'string', description: 'Filter by user ID (admin only)' },
           agentId: { type: 'string', description: 'Filter by agent ID' },
-          status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed'], description: 'Filter by status' },
+          status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'], description: 'Filter by status' },
           startedAfter: { type: 'string', format: 'date-time', description: 'Filter by started date (after)' },
           startedBefore: { type: 'string', format: 'date-time', description: 'Filter by started date (before)' },
           sortBy: { type: 'string', enum: ['startedAt', 'completedAt'], default: 'startedAt' },

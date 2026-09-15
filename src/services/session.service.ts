@@ -7,16 +7,28 @@ import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentR
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
-import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
 import { AGENT_NOTES_MAX_LENGTH } from '../domain/entities/Session.js';
+import type { Agent } from '../domain/entities/Agent.js';
 import type { Message } from '../domain/entities/Message.js';
 import { resolveRunOutput } from '../utils/node-ref.js';
 import type { ProviderConfig } from '../engine/nodes/base.js';
-import { WorkflowExecutor } from '../engine/executor.js';
+import type { RunManager } from '../engine/worker/index.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
 import { NotFoundError, ForbiddenError, AgentExecutionError } from '../utils/errors.js';
+
+/**
+ * Result of session initialization
+ */
+interface SessionSetupResult {
+  session: Session | null;
+  incognitoSession: IncognitoSession | null;
+  effectiveSessionId: string | null;
+  isNewSession: boolean;
+  messagesHistory: ChatMessage[];
+  agentNotes: string;
+}
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -40,6 +52,19 @@ export interface ChatResult {
   files: ExtractedFile[];
   runId: string;
   isNewSession: boolean;
+  cancelled?: boolean;
+}
+
+export interface ChatStreamInit {
+  runId: string;
+  sessionId: string | null;
+  isNewSession: boolean;
+}
+
+export interface ChatStreamContext {
+  init: ChatStreamInit;
+  /** Call when run completes to finalize session (save messages, etc) */
+  finalize: () => Promise<ChatResult>;
 }
 
 interface IncognitoSession {
@@ -71,7 +96,6 @@ setInterval(() => {
 }, CLEANUP_INTERVAL_MS);
 
 export class SessionService {
-  private executor: WorkflowExecutor;
   private providerConfigService: ProviderConfigService;
   private userSecretService: UserSecretService;
 
@@ -80,13 +104,29 @@ export class SessionService {
     private messageRepo: IMessageRepository,
     private agentRepo: IAgentRepository,
     private runRepo: IRunRepository,
-    private fileRepo: IFileRepository,
+    private runManager: RunManager,
     providerConfigRepo: IProviderConfigRepository,
     userSecretRepo: IUserSecretRepository
   ) {
-    this.executor = new WorkflowExecutor(runRepo, fileRepo);
     this.providerConfigService = new ProviderConfigService(providerConfigRepo);
     this.userSecretService = new UserSecretService(userSecretRepo);
+
+    // Handle save-notes events from worker
+    this.runManager.on('save-notes', async (event: { sessionId: string; notes: string }) => {
+      try {
+        // Handle both incognito and persisted sessions
+        if (event.sessionId.startsWith('incognito_')) {
+          const incognitoSession = incognitoSessions.get(event.sessionId);
+          if (incognitoSession) {
+            incognitoSession.agentNotes = event.notes;
+          }
+        } else {
+          await this.sessionRepo.setAgentNotes(event.sessionId, event.notes);
+        }
+      } catch (error) {
+        console.error('Failed to save agent notes:', error);
+      }
+    });
   }
 
   /**
@@ -106,141 +146,81 @@ export class SessionService {
       throw new ForbiddenError('Access denied');
     }
 
-    const { sessionId, incognito = false } = options;
-    let session: Session | null = null;
-    let incognitoSession: IncognitoSession | null = null;
-    let isNewSession = false;
-    let messagesHistory: ChatMessage[] = []; // Only used for incognito sessions
-    let agentNotes = '';
-    let effectiveSessionId: string | null = null;
-
-    // Check if this is an incognito session ID
-    const isIncognitoSessionId = sessionId?.startsWith('incognito_');
-
-    // Serialize input for session history
     const inputContent = JSON.stringify(input);
-
-    // Build provider config
     const providers = await this.providerConfigService.buildExecutionConfig(userId);
 
-    // Resume existing incognito session
-    if (isIncognitoSessionId && sessionId) {
-      incognitoSession = incognitoSessions.get(sessionId) ?? null;
-      if (!incognitoSession) {
-        throw new NotFoundError('Incognito session expired or not found');
-      }
-      if (incognitoSession.userId !== userId) {
-        throw new ForbiddenError('Access denied');
-      }
-      if (incognitoSession.agentId !== agentId) {
-        throw new ForbiddenError('Session belongs to a different agent');
-      }
-      // Update last accessed time
-      incognitoSession.lastAccessedAt = Date.now();
-      messagesHistory = [...incognitoSession.messages];
-      agentNotes = incognitoSession.agentNotes;
-      effectiveSessionId = sessionId;
-    } 
-    // Resume existing persisted session
-    else if (sessionId) {
-      session = await this.sessionRepo.findById(sessionId);
-      if (!session) {
-        throw new NotFoundError('Session');
-      }
-      if (session.userId !== userId) {
-        throw new ForbiddenError('Access denied');
-      }
-      if (session.agentId !== agentId) {
-        throw new ForbiddenError('Session belongs to a different agent');
-      }
-      // Note: messages are fetched by LLM node on-demand with maxMessages limit
-      agentNotes = session.agentNotes;
-      effectiveSessionId = sessionId;
-    } 
-    // Create new incognito session (in-memory)
-    else if (incognito) {
-      const newSessionId = `incognito_${crypto.randomUUID()}`;
-      incognitoSession = {
-        userId,
-        agentId,
-        messages: [],
-        agentNotes: '',
-        createdAt: Date.now(),
-        lastAccessedAt: Date.now(),
-      };
-      incognitoSessions.set(newSessionId, incognitoSession);
-      effectiveSessionId = newSessionId;
-      isNewSession = true;
-    } 
-    // Create new persisted session
-    else {
-      const title = await this.generateTitle(inputContent, providers).catch(() => {}) || '';
-      session = await this.sessionRepo.create({
-        userId,
-        agentId,
-        title,
-        incognito: false,
-      });
-      effectiveSessionId = session.id;
-      isNewSession = true;
-    }
+    // Initialize session (handles incognito and persisted)
+    const {
+      session,
+      incognitoSession,
+      effectiveSessionId,
+      isNewSession,
+      messagesHistory,
+      agentNotes,
+    } = await this.initChatSession(userId, agent, inputContent, options, providers);
 
-    // Add user message to incognito session memory
-    if (incognitoSession) {
-      incognitoSession.messages.push({ role: 'user', content: inputContent });
-    }
-
-    // Save user message to DB if persisted session
-    if (session) {
-      await this.messageRepo.create({
-        sessionId: session.id,
-        role: 'user',
-        content: inputContent,
-      });
-    }
+    // Save user message
+    await this.saveUserMessage(session, incognitoSession, inputContent);
 
     // Pre-resolve all user secrets for {{secret:KEY}} interpolation
     const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId);
 
-    // Create saveNotes callback for built-in save_note tool
-    const saveNotes = effectiveSessionId
-      ? async (notes: string) => {
-          await this.setAgentNotes(userId, effectiveSessionId!, notes);
+    // Create run record
+    let run = await this.runRepo.create({
+      agentId: agent.id,
+      userId,
+      input,
+    });
+    run = (await this.runRepo.updateStatus(run.id, 'running'))!;
+
+    // Build session context for worker
+    const sessionContext = effectiveSessionId
+      ? {
+          sessionId: effectiveSessionId,
+          messages: messagesHistory,
+          agentNotes,
         }
       : undefined;
 
-    // Execute agent with input (context passed via options, not mixed into input)
-    const run = await this.executor.execute(
+    // Execute in worker and wait for completion
+    const result = await this.runManager.executeAndWait(run.id, {
       agent,
       input,
       userId,
-      {
-        providers,
-        agentRepo: this.agentRepo,
-        runRepo: this.runRepo,
-        messageRepo: this.messageRepo,
-        userId,
-        callStack: new Set([agent.id]),
-        sessionId: effectiveSessionId ?? undefined,
-        saveNotes,
-        resolvedSecrets,
-        // Session context (separate from user input)
-        messages: messagesHistory,
-        agentNotes,
-      }
-    );
+      providers,
+      resolvedSecrets,
+      sessionContext,
+    });
+
+    // Fetch final run state from DB
+    const finalRun = await this.runRepo.findById(run.id);
+    if (!finalRun) {
+      throw new Error('Run not found after execution');
+    }
 
     // Check if run failed and return error with runId for debugging
-    if (run.status === 'failed') {
-      throw new AgentExecutionError(run.error ?? 'Agent execution failed', run.id);
+    if (result.status === 'failed' || finalRun.status === 'failed') {
+      throw new AgentExecutionError(finalRun.error ?? result.error ?? 'Agent execution failed', run.id);
+    }
+
+    // Check if run was cancelled - return cancelled response instead of error
+    if (result.status === 'cancelled' || finalRun.status === 'cancelled') {
+      return {
+        sessionId: effectiveSessionId,
+        response: '',
+        files: [],
+        runId: run.id,
+        isNewSession,
+        cancelled: true,
+      };
     }
 
     // Resolve nodeRef references to actual values, then extract text response
-    const resolvedOutput = resolveRunOutput(run);
+    const resolvedOutput = resolveRunOutput(finalRun);
     const responseText = this.extractTextResponse(resolvedOutput);
 
     // Files are already saved by executor - use refs from run
-    const fileRefs = run.files ?? [];
+    const fileRefs = finalRun.files ?? [];
 
     // Add assistant message to incognito session memory (text only, no large files)
     if (incognitoSession) {
@@ -274,6 +254,133 @@ export class SessionService {
       files,
       runId: run.id,
       isNewSession,
+    };
+  }
+
+  /**
+   * Start a chat session with streaming support.
+   * Returns immediately with runId so client can cancel.
+   * Call finalize() when run completes to save messages and get final result.
+   */
+  async chatStream(
+    userId: string,
+    agentId: string,
+    input: Record<string, unknown>,
+    options: ChatOptions = {}
+  ): Promise<ChatStreamContext> {
+    const agent = await this.agentRepo.findById(agentId);
+    if (!agent) {
+      throw new NotFoundError('Agent');
+    }
+    if (agent.userId !== userId && !agent.isSystem) {
+      throw new ForbiddenError('Access denied');
+    }
+
+    const inputContent = JSON.stringify(input);
+    const providers = await this.providerConfigService.buildExecutionConfig(userId);
+
+    // Initialize session (handles incognito and persisted)
+    const {
+      session,
+      incognitoSession,
+      effectiveSessionId,
+      isNewSession,
+      messagesHistory,
+      agentNotes,
+    } = await this.initChatSession(userId, agent, inputContent, options, providers);
+
+    // Save user message
+    await this.saveUserMessage(session, incognitoSession, inputContent);
+
+    // Create and start run (don't wait)
+    const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId);
+    let run = await this.runRepo.create({
+      agentId: agent.id,
+      userId,
+      input,
+    });
+    run = (await this.runRepo.updateStatus(run.id, 'running'))!;
+
+    const sessionContext = effectiveSessionId
+      ? { sessionId: effectiveSessionId, messages: messagesHistory, agentNotes }
+      : undefined;
+
+    // Start execution (non-blocking)
+    this.runManager.startRun(run.id, {
+      agent,
+      input,
+      userId,
+      providers,
+      resolvedSecrets,
+      sessionContext,
+    });
+
+    // Return context with finalize function
+    return {
+      init: {
+        runId: run.id,
+        sessionId: effectiveSessionId,
+        isNewSession,
+      },
+      finalize: async (): Promise<ChatResult> => {
+        const finalRun = await this.runRepo.findById(run.id);
+        if (!finalRun) {
+          throw new Error('Run not found');
+        }
+
+        // Handle cancelled
+        if (finalRun.status === 'cancelled') {
+          return {
+            sessionId: effectiveSessionId,
+            response: '',
+            files: [],
+            runId: run.id,
+            isNewSession,
+            cancelled: true,
+          };
+        }
+
+        // Handle failed
+        if (finalRun.status === 'failed') {
+          throw new AgentExecutionError(finalRun.error ?? 'Agent execution failed', run.id);
+        }
+
+        // Get response
+        const resolvedOutput = resolveRunOutput(finalRun);
+        const responseText = this.extractTextResponse(resolvedOutput);
+        const fileRefs = finalRun.files ?? [];
+
+        // Save assistant message
+        if (incognitoSession) {
+          incognitoSession.messages.push({ role: 'assistant', content: responseText });
+        }
+        if (session) {
+          await this.messageRepo.create({
+            sessionId: session.id,
+            runId: run.id,
+            role: 'assistant',
+            content: responseText,
+            files: fileRefs.length > 0 ? fileRefs : undefined,
+          });
+        }
+
+        const files: ExtractedFile[] = fileRefs.map((ref) => {
+          const parts = ref.split(':');
+          return {
+            mimeType: 'application/octet-stream',
+            data: '',
+            field: parts[2] ?? 'file',
+          };
+        });
+
+        return {
+          sessionId: effectiveSessionId,
+          response: responseText,
+          files,
+          runId: run.id,
+          isNewSession,
+        };
+      },
     };
   }
 
@@ -442,6 +549,117 @@ export class SessionService {
     }
 
     return JSON.stringify(output);
+  }
+
+  /**
+   * Initialize chat session - handles both incognito and persisted sessions
+   * Extracts common session setup logic from chat() and chatStream()
+   */
+  private async initChatSession(
+    userId: string,
+    agent: Agent,
+    inputContent: string,
+    options: ChatOptions,
+    providers: ProviderConfig
+  ): Promise<SessionSetupResult> {
+    const { sessionId, incognito = false } = options;
+    let session: Session | null = null;
+    let incognitoSession: IncognitoSession | null = null;
+    let isNewSession = false;
+    let messagesHistory: ChatMessage[] = [];
+    let agentNotes = '';
+    let effectiveSessionId: string | null = null;
+
+    const isIncognitoSessionId = sessionId?.startsWith('incognito_');
+
+    // Resume existing incognito session
+    if (isIncognitoSessionId && sessionId) {
+      incognitoSession = incognitoSessions.get(sessionId) ?? null;
+      if (!incognitoSession) {
+        throw new NotFoundError('Incognito session expired or not found');
+      }
+      if (incognitoSession.userId !== userId) {
+        throw new ForbiddenError('Access denied');
+      }
+      if (incognitoSession.agentId !== agent.id) {
+        throw new ForbiddenError('Session belongs to a different agent');
+      }
+      incognitoSession.lastAccessedAt = Date.now();
+      messagesHistory = [...incognitoSession.messages];
+      agentNotes = incognitoSession.agentNotes;
+      effectiveSessionId = sessionId;
+    }
+    // Resume existing persisted session
+    else if (sessionId) {
+      session = await this.sessionRepo.findById(sessionId);
+      if (!session) {
+        throw new NotFoundError('Session');
+      }
+      if (session.userId !== userId) {
+        throw new ForbiddenError('Access denied');
+      }
+      if (session.agentId !== agent.id) {
+        throw new ForbiddenError('Session belongs to a different agent');
+      }
+      agentNotes = session.agentNotes;
+      effectiveSessionId = sessionId;
+    }
+    // Create new incognito session (in-memory)
+    else if (incognito) {
+      const newSessionId = `incognito_${crypto.randomUUID()}`;
+      incognitoSession = {
+        userId,
+        agentId: agent.id,
+        messages: [],
+        agentNotes: '',
+        createdAt: Date.now(),
+        lastAccessedAt: Date.now(),
+      };
+      incognitoSessions.set(newSessionId, incognitoSession);
+      effectiveSessionId = newSessionId;
+      isNewSession = true;
+    }
+    // Create new persisted session
+    else {
+      const title = await this.generateTitle(inputContent, providers).catch(() => {}) || '';
+      session = await this.sessionRepo.create({
+        userId,
+        agentId: agent.id,
+        title,
+        incognito: false,
+      });
+      effectiveSessionId = session.id;
+      isNewSession = true;
+    }
+
+    return {
+      session,
+      incognitoSession,
+      effectiveSessionId,
+      isNewSession,
+      messagesHistory,
+      agentNotes,
+    };
+  }
+
+  /**
+   * Save user message to session (incognito or persisted)
+   */
+  private async saveUserMessage(
+    session: Session | null,
+    incognitoSession: IncognitoSession | null,
+    inputContent: string
+  ): Promise<void> {
+    if (incognitoSession) {
+      incognitoSession.messages.push({ role: 'user', content: inputContent });
+    }
+    if (session) {
+      await this.messageRepo.create({
+        sessionId: session.id,
+        role: 'user',
+        content: inputContent,
+      });
+    }
   }
 
   /**

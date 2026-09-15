@@ -28,4 +28,10 @@ export interface IRunRepository {
   setOutput(id: string, output: Record<string, unknown>): Promise<Run | null>;
   complete(id: string, output: Record<string, unknown>, files?: string[]): Promise<Run | null>;
   fail(id: string, error: string): Promise<Run | null>;
+  /**
+   * Cancel a running execution.
+   * Sets status to 'cancelling' if running, or 'cancelled' if pending.
+   * Returns null if run not found or already completed/failed/cancelled.
+   */
+  cancel(id: string): Promise<Run | null>;
 }

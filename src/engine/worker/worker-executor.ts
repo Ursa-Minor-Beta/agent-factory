@@ -1,28 +1,34 @@
-import type { Agent } from '../domain/entities/Agent.js';
-import type { Run, NodeErrorDetails } from '../domain/entities/Run.js';
-import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
-import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
-import { ExecutionContext } from './context.js';
-import { topologicalSort, validateWorkflow } from './graph.js';
-import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
-import { NodeExecutionError } from '../utils/errors.js';
-import { extractFiles, replaceFileRefsInObject, type ExtractedFile } from '../utils/file-extractor.js';
+/**
+ * WorkerExecutor - Workflow executor designed for child process context.
+ * Similar to WorkflowExecutor but with:
+ * - Cancellation support (checks shouldStop before each node)
+ * - Progress callbacks for IPC updates
+ * - Works with pre-created run record
+ */
+import type { Agent } from '../../domain/entities/Agent.js';
+import type { NodeState, NodeErrorDetails } from '../../domain/entities/Run.js';
+import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRepository.js';
+import type { IFileRepository } from '../../domain/interfaces/repositories/IFileRepository.js';
+import type { IAgentRepository } from '../../domain/interfaces/repositories/IAgentRepository.js';
+import type { IMessageRepository } from '../../domain/interfaces/repositories/IMessageRepository.js';
+import { ExecutionContext } from '../context.js';
+import { topologicalSort, validateWorkflow } from '../graph.js';
+import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
+import { NodeExecutionError } from '../../utils/errors.js';
+import { extractFiles, replaceFileRefsInObject, type ExtractedFile } from '../../utils/file-extractor.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
  * and functions with '[Function]'. Preserves Date objects.
- * This is needed before saving to MongoDB which doesn't handle circular refs
  */
 function safeClone<T>(obj: T, seen = new WeakSet<object>()): T {
   if (obj === null || typeof obj !== 'object') {
-    // Handle functions
     if (typeof obj === 'function') {
       return '[Function]' as unknown as T;
     }
     return obj;
   }
 
-  // Preserve Date objects
   if (obj instanceof Date) {
     return new Date(obj.getTime()) as unknown as T;
   }
@@ -43,105 +49,94 @@ function safeClone<T>(obj: T, seen = new WeakSet<object>()): T {
   return result as T;
 }
 
-export interface ExecutorOptions {
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface WorkerExecutorCallbacks {
+  /** Check if execution should stop */
+  shouldStop: () => boolean;
+  /** Called when a node starts executing */
+  onNodeStarted: (nodeId: string, nodeType: string) => void;
+  /** Called when a node completes successfully */
+  onNodeCompleted: (nodeId: string, nodeType: string, state: Partial<NodeState>) => void;
+  /** Called when a node fails */
+  onNodeFailed: (nodeId: string, nodeType: string, error: string) => void;
+  /** Called when a node is skipped */
+  onNodeSkipped: (nodeId: string, nodeType: string) => void;
+  /** Called when agent wants to save notes (for session context) */
+  onSaveNotes?: (sessionId: string, notes: string) => void;
+}
+
+export interface SessionContext {
+  sessionId: string;
+  messages?: ChatMessage[];
+  agentNotes?: string;
+}
+
+export interface WorkerExecutorOptions {
   providers: ProviderConfig;
+  resolvedSecrets?: Record<string, string>;
+  /** Session context for chat-based execution */
+  sessionContext?: SessionContext;
 }
 
-export interface InternalExecutionOptions extends ExecutionOptions {
-  // All fields from ExecutionOptions
-}
-
-interface InternalResult {
+export interface WorkerExecutionResult {
   output: Record<string, unknown>;
-  files: string[];
-  status: 'completed' | 'failed';
+  files?: string[];
+  status: 'completed' | 'failed' | 'cancelled';
   error?: string;
 }
 
-export class WorkflowExecutor {
+export class WorkerExecutor {
+  private stopRequested = false;
+
   constructor(
     private runRepo: IRunRepository,
-    private fileRepo?: IFileRepository
+    private fileRepo: IFileRepository | undefined,
+    private agentRepo: IAgentRepository,
+    private messageRepo: IMessageRepository,
+    private callbacks: WorkerExecutorCallbacks
   ) {}
 
   /**
-   * Check if a node should be skipped due to being in an unselected if-else branch
-   *
-   * A node should be skipped only if ALL incoming edges come from skipped sources.
-   * This allows converging branches to work correctly - the node executes if at least
-   * one branch reaches it.
+   * Request the executor to stop at the next opportunity
    */
-  private shouldSkipNode(
-    nodeId: string,
-    edges: Agent['edges'],
-    context: ExecutionContext,
-    skippedNodes: Set<string>
-  ): boolean {
-    // Find all incoming edges to this node
-    const incomingEdges = edges.filter((e) => e.target === nodeId);
-
-    // If no incoming edges, don't skip (e.g., input node)
-    if (incomingEdges.length === 0) {
-      return false;
-    }
-
-    // Check each incoming edge - if ANY edge comes from an active source, don't skip
-    let hasActiveSource = false;
-
-    for (const edge of incomingEdges) {
-      // Check if source node was skipped
-      if (skippedNodes.has(edge.source)) {
-        continue; // This edge is inactive, check others
-      }
-
-      // Check if this edge comes from an if-else node's true/false output
-      if (edge.sourceHandle === 'true' || edge.sourceHandle === 'false') {
-        const sourceOutputs = context.getNodeOutputs(edge.source);
-        const value = sourceOutputs[edge.sourceHandle];
-
-        // If the if-else branch output is null/undefined, this edge is inactive
-        if (value === null || value === undefined) {
-          continue;
-        }
-      }
-
-      // This edge has an active source
-      hasActiveSource = true;
-      break;
-    }
-
-    // Skip only if NO incoming edges are active
-    return !hasActiveSource;
+  requestStop(): void {
+    this.stopRequested = true;
   }
 
   /**
-   * Execute a workflow and create a run record
+   * Check if stop has been requested
+   */
+  private shouldStop(): boolean {
+    return this.stopRequested || this.callbacks.shouldStop();
+  }
+
+  /**
+   * Execute a workflow for an existing run record
    */
   async execute(
+    runId: string,
     agent: Agent,
     input: Record<string, unknown>,
     userId: string,
-    options: ExecutorOptions & Partial<InternalExecutionOptions>
-  ): Promise<Run> {
+    options: WorkerExecutorOptions
+  ): Promise<WorkerExecutionResult> {
     // Validate workflow
     const validation = validateWorkflow(agent.nodes, agent.edges);
     if (!validation.valid) {
-      throw new Error(`Invalid workflow: ${validation.errors.join(', ')}`);
+      return {
+        output: {},
+        status: 'failed',
+        error: `Invalid workflow: ${validation.errors.join(', ')}`,
+      };
     }
-
-    // Create run record
-    let run = await this.runRepo.create({
-      agentId: agent.id,
-      userId,
-      input,
-    });
-
-    // Update status to running
-    run = (await this.runRepo.updateStatus(run.id, 'running'))!;
 
     // Initialize node states
     for (const node of agent.nodes) {
-      await this.runRepo.updateNodeState(run.id, node.id, {
+      await this.runRepo.updateNodeState(runId, node.id, {
         status: 'pending',
         input: null,
         output: null,
@@ -151,63 +146,7 @@ export class WorkflowExecutor {
       });
     }
 
-    try {
-      const result = await this.executeWorkflow(agent, input, userId, run.id, options);
-
-      if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output, result.files.length > 0 ? result.files : undefined))!;
-      } else {
-        run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
-      }
-
-      return run;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      run = (await this.runRepo.fail(run.id, errorMessage))!;
-      return run;
-    }
-  }
-
-  /**
-   * Execute a workflow internally (for sub-agent calls)
-   * Does not create a run record - used by AgentNode
-   */
-  async executeInternal(
-    agent: Agent,
-    input: Record<string, unknown>,
-    userId: string,
-    options: InternalExecutionOptions
-  ): Promise<Run> {
-    // Validate workflow
-    const validation = validateWorkflow(agent.nodes, agent.edges);
-    if (!validation.valid) {
-      throw new Error(`Invalid workflow: ${validation.errors.join(', ')}`);
-    }
-
-    // Create a minimal run record for sub-agent
-    let run = await this.runRepo.create({
-      agentId: agent.id,
-      userId,
-      input,
-    });
-
-    run = (await this.runRepo.updateStatus(run.id, 'running'))!;
-
-    try {
-      const result = await this.executeWorkflow(agent, input, userId, run.id, options);
-
-      if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output, result.files.length > 0 ? result.files : undefined))!;
-      } else {
-        run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
-      }
-
-      return run;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      run = (await this.runRepo.fail(run.id, errorMessage))!;
-      return run;
-    }
+    return this.executeWorkflow(agent, input, userId, runId, options);
   }
 
   /**
@@ -218,37 +157,52 @@ export class WorkflowExecutor {
     input: Record<string, unknown>,
     userId: string,
     runId: string,
-    options: ExecutorOptions & Partial<InternalExecutionOptions>
-  ): Promise<InternalResult> {
+    options: WorkerExecutorOptions
+  ): Promise<WorkerExecutionResult> {
     const context = new ExecutionContext(agent.edges);
     const executionOrder = topologicalSort(agent.nodes, agent.edges);
 
-    // Build full execution options
+    // Build saveNotes callback if session context is provided
+    const saveNotes = options.sessionContext && this.callbacks.onSaveNotes
+      ? (notes: string) => {
+          this.callbacks.onSaveNotes!(options.sessionContext!.sessionId, notes);
+          return Promise.resolve();
+        }
+      : undefined;
+
+    // Build execution options
     const execOptions: ExecutionOptions = {
       providers: options.providers,
       workflowInput: input,
-      agentRepo: options.agentRepo,
-      runRepo: options.runRepo ?? this.runRepo,
-      callStack: options.callStack,
-      userId: options.userId ?? userId,
-      sessionId: options.sessionId,
-      messageRepo: options.messageRepo,
-      saveNotes: options.saveNotes,
+      runRepo: this.runRepo,
+      agentRepo: this.agentRepo,
+      messageRepo: this.messageRepo,
+      userId,
       resolvedSecrets: options.resolvedSecrets,
+      callStack: new Set([agent.id]), // Initialize call stack with current agent
+      sessionId: options.sessionContext?.sessionId,
+      messages: options.sessionContext?.messages,
+      agentNotes: options.sessionContext?.agentNotes,
+      saveNotes,
     };
 
-    // Track skipped nodes (nodes in unselected if-else branches)
+    // Track skipped nodes
     const skippedNodes = new Set<string>();
     // Track all files from this run
     const allFiles: string[] = [];
 
     try {
-      // Execute nodes in order
       for (const nodeId of executionOrder) {
+        // Check for cancellation before each node
+        if (this.shouldStop()) {
+          await this.runRepo.updateStatus(runId, 'cancelled');
+          return { output: {}, files: allFiles, status: 'cancelled' };
+        }
+
         const node = agent.nodes.find((n) => n.id === nodeId);
         if (!node) continue;
 
-        // Check if this node should be skipped (connected to unselected if-else branch)
+        // Check if this node should be skipped
         const shouldSkip = this.shouldSkipNode(nodeId, agent.edges, context, skippedNodes);
         if (shouldSkip) {
           skippedNodes.add(nodeId);
@@ -256,6 +210,7 @@ export class WorkflowExecutor {
             status: 'skipped',
             completedAt: new Date(),
           });
+          this.callbacks.onNodeSkipped(nodeId, node.type);
           continue;
         }
 
@@ -264,12 +219,19 @@ export class WorkflowExecutor {
           status: 'running',
           startedAt: new Date(),
         });
+        this.callbacks.onNodeStarted(nodeId, node.type);
 
         const nodeHandler = getNode(node.type);
         const nodeInputs = context.getAllInputs(nodeId);
 
         try {
           const result = await nodeHandler.execute(node, context, execOptions);
+
+          // Check for cancellation after node execution
+          if (this.shouldStop()) {
+            await this.runRepo.updateStatus(runId, 'cancelled');
+            return { output: {}, files: allFiles, status: 'cancelled' };
+          }
 
           // Extract files from output and save to DB
           let finalOutput = result.outputs;
@@ -279,12 +241,10 @@ export class WorkflowExecutor {
             const { cleanedOutput, files } = extractFiles(result.outputs);
 
             if (files.length > 0) {
-              // Save files to DB
               const savedFiles = await this.saveFiles(files, userId);
               nodeFiles = savedFiles;
               allFiles.push(...savedFiles);
 
-              // Replace placeholders with actual file refs
               const fileIdMap = new Map<number, { id: string; field: string }>();
               files.forEach((f, idx) => {
                 const ref = savedFiles[idx];
@@ -295,8 +255,6 @@ export class WorkflowExecutor {
               });
               finalOutput = replaceFileRefsInObject(cleanedOutput, fileIdMap);
 
-              // Update context with cleaned output (file references instead of base64)
-              // This ensures downstream nodes receive file refs, not raw base64
               for (const [handle, value] of Object.entries(finalOutput)) {
                 context.setOutput(nodeId, handle, value);
               }
@@ -304,19 +262,20 @@ export class WorkflowExecutor {
           }
 
           // Update node state to completed
-          // Use safeClone to handle circular references before saving to MongoDB
-          await this.runRepo.updateNodeState(runId, nodeId, {
+          const nodeState: Partial<NodeState> = {
             status: 'completed',
             input: safeClone(nodeInputs),
             output: safeClone(finalOutput),
             state: safeClone(result.state),
             files: nodeFiles,
             completedAt: new Date(),
-          });
+          };
+          await this.runRepo.updateNodeState(runId, nodeId, nodeState);
+          this.callbacks.onNodeCompleted(nodeId, node.type, nodeState);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
 
-          // Build error details for debugging
+          // Build error details
           let errorDetails: NodeErrorDetails | undefined;
           if (error instanceof NodeExecutionError) {
             errorDetails = {
@@ -341,26 +300,67 @@ export class WorkflowExecutor {
             errorDetails,
             completedAt: new Date(),
           });
+          this.callbacks.onNodeFailed(nodeId, node.type, errorMessage);
 
+          await this.runRepo.fail(runId, errorMessage);
           return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
         }
       }
 
-      // Get output from output nodes - store references instead of duplicating data
+      // Get output from output nodes
       const outputNodes = agent.nodes.filter((n) => n.type === 'output');
       const output: Record<string, unknown> = {};
 
       for (const outputNode of outputNodes) {
         const key = (outputNode.data?.name as string) ?? outputNode.id;
-        // Store reference to node output instead of actual value
         output[key] = `nodeRef:${outputNode.id}:value`;
       }
 
+      await this.runRepo.complete(runId, output, allFiles.length > 0 ? allFiles : undefined);
       return { output, files: allFiles, status: 'completed' };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.runRepo.fail(runId, errorMessage);
       return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
     }
+  }
+
+  /**
+   * Check if a node should be skipped due to being in an unselected if-else branch
+   */
+  private shouldSkipNode(
+    nodeId: string,
+    edges: Agent['edges'],
+    context: ExecutionContext,
+    skippedNodes: Set<string>
+  ): boolean {
+    const incomingEdges = edges.filter((e) => e.target === nodeId);
+
+    if (incomingEdges.length === 0) {
+      return false;
+    }
+
+    let hasActiveSource = false;
+
+    for (const edge of incomingEdges) {
+      if (skippedNodes.has(edge.source)) {
+        continue;
+      }
+
+      if (edge.sourceHandle === 'true' || edge.sourceHandle === 'false') {
+        const sourceOutputs = context.getNodeOutputs(edge.source);
+        const value = sourceOutputs[edge.sourceHandle];
+
+        if (value === null || value === undefined) {
+          continue;
+        }
+      }
+
+      hasActiveSource = true;
+      break;
+    }
+
+    return !hasActiveSource;
   }
 
   /**

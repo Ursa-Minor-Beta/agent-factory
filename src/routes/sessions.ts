@@ -69,7 +69,7 @@ export async function sessionRoutes(app: FastifyInstance) {
     container.messageRepository,
     container.agentRepository,
     container.runRepository,
-    container.fileRepository,
+    container.runManager,
     container.providerConfigRepository,
     container.userSecretRepository
   );

@@ -105,7 +105,7 @@ export class MongoRunRepository implements IRunRepository {
     if (error !== undefined) {
       update['error'] = error;
     }
-    if (status === 'completed' || status === 'failed') {
+    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
       update['completedAt'] = new Date();
     }
 
@@ -163,6 +163,28 @@ export class MongoRunRepository implements IRunRepository {
           completedAt: new Date(),
         },
       },
+      { new: true }
+    );
+    return doc ? this.toEntity(doc) : null;
+  }
+
+  async cancel(id: string): Promise<Run | null> {
+    // Atomic cancel: pending -> cancelled, running -> cancelling
+    // Uses aggregation pipeline update (MongoDB 4.2+) for conditional logic
+    const doc = await RunModel.findOneAndUpdate(
+      { _id: id, status: { $in: ['pending', 'running'] } },
+      [
+        {
+          $set: {
+            status: {
+              $cond: { if: { $eq: ['$status', 'pending'] }, then: 'cancelled', else: 'cancelling' },
+            },
+            completedAt: {
+              $cond: { if: { $eq: ['$status', 'pending'] }, then: new Date(), else: '$completedAt' },
+            },
+          },
+        },
+      ],
       { new: true }
     );
     return doc ? this.toEntity(doc) : null;

@@ -189,6 +189,24 @@ async function bootstrap() {
     });
 
     app.log.info(`Docs available at http://${config.server.host}:${config.server.port}/docs`);
+
+    // Graceful shutdown handlers
+    const shutdown = async (signal: string) => {
+      app.log.info(`Received ${signal}, shutting down gracefully...`);
+
+      // Stop accepting new requests
+      await app.close();
+
+      // Cancel all running agent executions
+      app.log.info('Stopping active agent runs...');
+      await container.runManager.shutdown();
+
+      app.log.info('Shutdown complete');
+      process.exit(0);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   } catch (err) {
     app.log.error(err);
     process.exit(1);

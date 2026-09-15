@@ -60,7 +60,7 @@ const runSchema = new Schema<RunDocument>(
     },
     status: {
       type: String,
-      enum: ['pending', 'running', 'completed', 'failed'],
+      enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'],
       default: 'pending',
     },
     nodeStates: {

@@ -53,6 +53,7 @@ export async function testRoutes(app: FastifyInstance) {
   const runService = new RunService(
     container.runRepository,
     container.agentRepository,
+    container.runManager,
     container.providerConfigRepository,
     container.userSecretRepository
   );

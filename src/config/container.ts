@@ -7,6 +7,8 @@ import { MongoSessionRepository } from '../infrastructure/database/mongodb/repos
 import { MongoMessageRepository } from '../infrastructure/database/mongodb/repositories/MongoMessageRepository.js';
 import { MongoUserSecretRepository } from '../infrastructure/database/mongodb/repositories/MongoUserSecretRepository.js';
 import { MongoFileRepository } from '../infrastructure/database/mongodb/repositories/MongoFileRepository.js';
+import { RunManager } from '../engine/worker/index.js';
+import { config } from './index.js';
 
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
 import type { IApiKeyRepository } from '../domain/interfaces/repositories/IApiKeyRepository.js';
@@ -28,7 +30,11 @@ export interface Container {
   messageRepository: IMessageRepository;
   userSecretRepository: IUserSecretRepository;
   fileRepository: IFileRepository;
+  runManager: RunManager;
 }
+
+// Create singleton repository instances
+const runRepository = new MongoRunRepository();
 
 // Create singleton instances
 // To switch databases, replace these with PostgreSQL implementations
@@ -37,9 +43,12 @@ export const container: Container = {
   apiKeyRepository: new MongoApiKeyRepository(),
   providerConfigRepository: new MongoProviderConfigRepository(),
   agentRepository: new MongoAgentRepository(),
-  runRepository: new MongoRunRepository(),
+  runRepository,
   sessionRepository: new MongoSessionRepository(),
   messageRepository: new MongoMessageRepository(),
   userSecretRepository: new MongoUserSecretRepository(),
   fileRepository: new MongoFileRepository(),
+  runManager: new RunManager(runRepository, {
+    mongoUri: config.mongodb.uri,
+  }),
 };

@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { AgentService } from '../services/agent.service.js';
 import { SessionService } from '../services/session.service.js';
+import { RunService } from '../services/run.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js';
@@ -95,7 +96,14 @@ export async function agentRoutes(app: FastifyInstance) {
     container.messageRepository,
     container.agentRepository,
     container.runRepository,
-    container.fileRepository,
+    container.runManager,
+    container.providerConfigRepository,
+    container.userSecretRepository
+  );
+  const runService = new RunService(
+    container.runRepository,
+    container.agentRepository,
+    container.runManager,
     container.providerConfigRepository,
     container.userSecretRepository
   );
@@ -451,6 +459,7 @@ export async function agentRoutes(app: FastifyInstance) {
                 },
                 runId: { type: 'string' },
                 isNewSession: { type: 'boolean' },
+                cancelled: { type: 'boolean', description: 'True if the request was cancelled' },
               },
             },
           },
@@ -497,6 +506,261 @@ export async function agentRoutes(app: FastifyInstance) {
     }
   });
 
+  // Chat with agent (SSE streaming mode)
+  app.post('/api/agents/:id/chat/stream', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Chat with agent (streaming)',
+      description: 'Send input to an agent and get streaming updates via SSE. Returns runId immediately so you can cancel.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['input'],
+        properties: {
+          input: { type: 'object', additionalProperties: true },
+          sessionId: { type: 'string' },
+          incognito: { type: 'boolean', default: false },
+        },
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id: agentId } = request.params as { id: string };
+    const { input, sessionId, incognito } = request.body as {
+      input: Record<string, unknown>;
+      sessionId?: string;
+      incognito?: boolean;
+    };
+
+    // Set SSE headers with CORS
+    const origin = request.headers.origin || '*';
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Credentials': 'true',
+    });
+
+    const sendEvent = (event: string, data: unknown) => {
+      if (reply.raw.writable) {
+        reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      }
+    };
+
+    // Track all listeners for cleanup
+    type NodeEventHandler = (e: { runId: string; nodeId: string; nodeType: string }) => void;
+    type RunEventHandler = (e: { runId: string; error?: string }) => void;
+    const listeners: Array<{ event: string; handler: NodeEventHandler | RunEventHandler }> = [];
+    let cleanedUp = false;
+
+    const cleanupAll = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      for (const { event, handler } of listeners) {
+        container.runManager.removeListener(event, handler);
+      }
+    };
+
+    // Set up close handler early to ensure cleanup on disconnect
+    request.raw.on('close', cleanupAll);
+
+    try {
+      // Start chat (returns immediately with runId)
+      const ctx = await sessionService.chatStream(userId, agentId, input, {
+        sessionId,
+        incognito,
+      });
+
+      // Send init event with runId
+      sendEvent('init', ctx.init);
+
+      const runId = ctx.init.runId;
+
+      // Map node type to human-readable status text
+      const getStatusText = (nodeType: string, status: string): string => {
+        if (status !== 'started') return '';
+        switch (nodeType) {
+          case 'llm': return 'Thinking...';
+          case 'http': return 'Fetching...';
+          case 'js': return 'Executing code...';
+          case 'agent': return 'Running agent...';
+          case 'if-else': return 'Evaluating condition...';
+          case 'input': return 'Processing input...';
+          case 'output': return 'Preparing output...';
+          default: return 'Processing...';
+        }
+      };
+
+      // Set up event listeners for this run
+      const onNodeStarted: NodeEventHandler = (e) => {
+        if (e.runId === runId) sendEvent('status', { nodeId: e.nodeId, status: 'started', statusText: getStatusText(e.nodeType, 'started') });
+      };
+      const onNodeCompleted: NodeEventHandler = (e) => {
+        if (e.runId === runId) sendEvent('status', { nodeId: e.nodeId, status: 'completed', statusText: '' });
+      };
+      const onNodeFailed: NodeEventHandler = (e) => {
+        if (e.runId === runId) sendEvent('status', { nodeId: e.nodeId, status: 'failed', statusText: '' });
+      };
+      const onNodeSkipped: NodeEventHandler = (e) => {
+        if (e.runId === runId) sendEvent('status', { nodeId: e.nodeId, status: 'skipped', statusText: '' });
+      };
+
+      // Wait for run to complete
+      const onComplete: RunEventHandler = (e) => {
+        if (e.runId !== runId) return;
+        cleanupAll();
+
+        ctx.finalize().then((result) => {
+          sendEvent('done', result);
+          reply.raw.end();
+        }).catch((err) => {
+          sendEvent('error', {
+            code: err.code ?? 'AGENT_EXECUTION_ERROR',
+            message: err.message,
+            runId,
+          });
+          reply.raw.end();
+        });
+      };
+
+      const onFail: RunEventHandler = (e) => {
+        if (e.runId !== runId) return;
+        cleanupAll();
+
+        sendEvent('error', {
+          code: 'AGENT_EXECUTION_ERROR',
+          message: e.error,
+          runId,
+        });
+        reply.raw.end();
+      };
+
+      const onCancel: RunEventHandler = (e) => {
+        if (e.runId !== runId) return;
+        cleanupAll();
+
+        ctx.finalize().then((result) => {
+          sendEvent('done', result);
+          reply.raw.end();
+        }).catch(() => {
+          sendEvent('done', {
+            sessionId: ctx.init.sessionId,
+            response: '',
+            files: [],
+            runId,
+            isNewSession: ctx.init.isNewSession,
+            cancelled: true,
+          });
+          reply.raw.end();
+        });
+      };
+
+      // Register all listeners and track them for cleanup
+      container.runManager.on('node-started', onNodeStarted);
+      container.runManager.on('node-completed', onNodeCompleted);
+      container.runManager.on('node-failed', onNodeFailed);
+      container.runManager.on('node-skipped', onNodeSkipped);
+      container.runManager.on('run-completed', onComplete);
+      container.runManager.on('run-failed', onFail);
+      container.runManager.on('run-cancelled', onCancel);
+
+      listeners.push(
+        { event: 'node-started', handler: onNodeStarted },
+        { event: 'node-completed', handler: onNodeCompleted },
+        { event: 'node-failed', handler: onNodeFailed },
+        { event: 'node-skipped', handler: onNodeSkipped },
+        { event: 'run-completed', handler: onComplete },
+        { event: 'run-failed', handler: onFail },
+        { event: 'run-cancelled', handler: onCancel }
+      );
+
+    } catch (error) {
+      cleanupAll();
+      const err = error as Error & { code?: string; runId?: string };
+      sendEvent('error', {
+        code: err.code ?? 'INTERNAL_ERROR',
+        message: err.message,
+        runId: err.runId,
+      });
+      reply.raw.end();
+    }
+  });
+
+  // Cancel a chat/run
+  app.post('/api/agents/:id/cancel', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Cancel a running chat/execution',
+      description: 'Cancel a pending or running execution. Returns the updated run status.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Agent ID' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['runId'],
+        properties: {
+          runId: { type: 'string', description: 'The run ID to cancel' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            cancelled: { type: 'boolean' },
+            message: { type: 'string' },
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { runId } = request.body as { runId: string };
+
+    try {
+      const cancelledRun = await runService.cancel(userId, runId);
+
+      const cancelled = cancelledRun.status === 'cancelled';
+      const message = cancelled
+        ? 'Run cancelled'
+        : 'Cancellation requested. Run will stop after current node completes.';
+
+      return reply.send({
+        success: true,
+        cancelled,
+        message,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Cannot cancel')) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'CANNOT_CANCEL',
+            message: error.message,
+          },
+        });
+      }
+      throw error;
+    }
+  });
+
   // Chat with Agent Creator (convenience route)
   app.post('/api/agents/agent-creator/chat', {
     schema: {
@@ -536,6 +800,7 @@ export async function agentRoutes(app: FastifyInstance) {
                 },
                 runId: { type: 'string' },
                 isNewSession: { type: 'boolean' },
+                cancelled: { type: 'boolean', description: 'True if the request was cancelled' },
               },
             },
           },

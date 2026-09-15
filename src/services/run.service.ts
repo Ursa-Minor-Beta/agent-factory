@@ -3,23 +3,22 @@ import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentR
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
 import type { Run } from '../domain/entities/Run.js';
-import { WorkflowExecutor } from '../engine/executor.js';
+import type { RunManager } from '../engine/worker/index.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
 export class RunService {
-  private executor: WorkflowExecutor;
   private providerConfigService: ProviderConfigService;
   private userSecretService: UserSecretService;
 
   constructor(
     private runRepo: IRunRepository,
     private agentRepo: IAgentRepository,
+    private runManager: RunManager,
     providerConfigRepo: IProviderConfigRepository,
     userSecretRepo: IUserSecretRepository
   ) {
-    this.executor = new WorkflowExecutor(runRepo);
     this.providerConfigService = new ProviderConfigService(providerConfigRepo);
     this.userSecretService = new UserSecretService(userSecretRepo);
   }
@@ -43,15 +42,59 @@ export class RunService {
     // Pre-resolve all user secrets for {{secret:KEY}} interpolation
     const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId);
 
-    // Pass repositories for sub-agent execution support
-    return this.executor.execute(agent, input, userId, {
-      providers,
-      agentRepo: this.agentRepo,
-      runRepo: this.runRepo,
+    // Create run record
+    let run = await this.runRepo.create({
+      agentId: agent.id,
       userId,
-      callStack: new Set([agentId]), // Initialize call stack with current agent
+      input,
+    });
+
+    // Update status to running
+    run = (await this.runRepo.updateStatus(run.id, 'running'))!;
+
+    // Execute in worker and wait for completion
+    await this.runManager.executeAndWait(run.id, {
+      agent,
+      input,
+      userId,
+      providers,
       resolvedSecrets,
     });
+
+    // Fetch final run state from DB
+    const finalRun = await this.runRepo.findById(run.id);
+    if (!finalRun) {
+      throw new Error('Run not found after execution');
+    }
+
+    return finalRun;
+  }
+
+  /**
+   * Cancel a running execution
+   */
+  async cancel(userId: string, runId: string): Promise<Run> {
+    // Verify ownership
+    const run = await this.getById(userId, runId);
+
+    // Check if run can be cancelled
+    if (run.status !== 'pending' && run.status !== 'running') {
+      throw new Error(`Cannot cancel run with status '${run.status}'`);
+    }
+
+    // Cancel via RunManager (handles both in-memory and DB-only cases)
+    const cancelled = await this.runManager.cancelRun(runId);
+    if (!cancelled) {
+      throw new Error('Failed to cancel run');
+    }
+
+    // Return updated run
+    const updatedRun = await this.runRepo.findById(runId);
+    if (!updatedRun) {
+      throw new Error('Run not found after cancellation');
+    }
+
+    return updatedRun;
   }
 
   async getById(userId: string, runId: string): Promise<Run> {
