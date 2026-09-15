@@ -7,7 +7,6 @@ import { generateNodeDocsForPrompt, NODE_DEFINITIONS } from "../nodes/definition
 import { CREATE_AGENT_TOOL } from "../tools/create-agent.js";
 import { GET_AGENT_TOOL } from "../tools/get-agent.js";
 import { UPDATE_AGENT_TOOL } from "../tools/update-agent.js";
-import { SAVE_NOTE_TOOL } from "../tools/save-note.js";
 
 
 const NODE_DOCS = generateNodeDocsForPrompt();
@@ -119,7 +118,6 @@ Example response when finding unsupported nodes:
 Please tell me what each of these nodes should do, and I'll rebuild the workflow using supported node types."
 
 ## Important Notes
-- Use save_note to remember important details from the conversation. Saved notes will appear at the start of subsequent user messages.
 - Always validate user requirements before building
 - Suggest simpler solutions when possible
 - If creating sub-agents, create them first and use their IDs
@@ -145,7 +143,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
       userPrompt: `{{message}}`,
       temperature: 0.7,
       maxTokens: 4000,
-      tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL, SAVE_NOTE_TOOL],
+      tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL],
       maxToolCalls: 5,
     },
   },

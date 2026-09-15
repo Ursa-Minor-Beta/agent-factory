@@ -7,7 +7,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Node Graph Workflows** - Define agents as connected nodes
 - **Multi-Provider LLM** - OpenAI, Anthropic, Ollama
 - **Agent Creator** - System agent that builds custom agents through conversation
-- **Builtin Tools** - LLM function calling (`save_note`, `create_agent`)
+- **Builtin Tools** - LLM function calling (`create_agent`, `get_agent`, `update_agent`)
 - **Multi-User** - JWT auth + API keys
 - **Encrypted Secrets** - Provider API keys encrypted at rest (AES-256-GCM)
 - **Swagger Docs** - Full API documentation at `/docs`

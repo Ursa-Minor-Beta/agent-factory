@@ -26,7 +26,6 @@ const sessionSchema = {
     title: { type: 'string', nullable: true },
     status: { type: 'string', enum: ['active', 'archived'] },
     incognito: { type: 'boolean' },
-    agentNotes: { type: 'string' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },

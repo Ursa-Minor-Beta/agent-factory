@@ -233,7 +233,6 @@ export class WorkflowExecutor {
       userId: options.userId ?? userId,
       sessionId: options.sessionId,
       messageRepo: options.messageRepo,
-      saveNotes: options.saveNotes,
       resolvedSecrets: options.resolvedSecrets,
     };
 

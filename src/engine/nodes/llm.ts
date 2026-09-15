@@ -134,10 +134,6 @@ export class LlmNode extends BaseNode {
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
-    // Add agent notes as system message if present
-    if (options.agentNotes) {
-      messages.push({ role: 'system', content: `Agent notes from previous conversation:\n${options.agentNotes}` });
-    }
     // Add conversation history before current message
     for (const msg of conversationHistory) {
       messages.push({ role: msg.role, content: msg.content });
@@ -339,14 +335,6 @@ export class LlmNode extends BaseNode {
     options: ExecutionOptions
   ): Promise<unknown> {
     switch (toolName) {
-      case 'save_note': {
-        if (!options.saveNotes) {
-          throw new Error('save_note tool requires saveNotes callback in options');
-        }
-        const notes = String(args.notes ?? '');
-        await options.saveNotes(notes);
-        return { success: true, message: 'Notes saved successfully' };
-      }
       case 'create_agent': {
         if (!options.agentRepo) {
           throw new Error('create_agent tool requires agentRepo in options');
@@ -547,13 +535,6 @@ export class LlmNode extends BaseNode {
     }
     messages.push({ role: 'user', content: userPrompt });
 
-    // Combine system prompt with agent notes if present
-    let fullSystemPrompt = systemPrompt;
-    if (options.agentNotes) {
-      const notesSection = `\n\nAgent notes from previous conversation:\n${options.agentNotes}`;
-      fullSystemPrompt = systemPrompt ? systemPrompt + notesSection : notesSection.trim();
-    }
-
     const maxIterations = data.maxToolCalls ?? 5;
     let totalUsage = { inputTokens: 0, outputTokens: 0 };
     const executedToolCalls: Array<{ name: string; result: unknown }> = [];
@@ -563,7 +544,7 @@ export class LlmNode extends BaseNode {
         const response = await client.messages.create({
           model: data.model || 'claude-sonnet-4-20250514',
           max_tokens: data.maxTokens ?? 1000,
-          system: fullSystemPrompt,
+          system: systemPrompt,
           messages,
           tools: anthropicTools,
         });
@@ -675,10 +656,6 @@ export class LlmNode extends BaseNode {
     const messages: Array<{ role: string; content: string }> = [];
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
-    }
-    // Add agent notes as system message if present
-    if (options.agentNotes) {
-      messages.push({ role: 'system', content: `Agent notes from previous conversation:\n${options.agentNotes}` });
     }
     // Add conversation history before current message
     for (const msg of conversationHistory) {

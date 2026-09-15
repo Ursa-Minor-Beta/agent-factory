@@ -57,7 +57,6 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
       onNodeCompleted: (nodeId, nodeType, state) => sendMessage({ type: 'node-completed', nodeId, nodeType, state }),
       onNodeFailed: (nodeId, nodeType, error) => sendMessage({ type: 'node-failed', nodeId, nodeType, error }),
       onNodeSkipped: (nodeId, nodeType) => sendMessage({ type: 'node-skipped', nodeId, nodeType }),
-      onSaveNotes: (sessionId, notes) => sendMessage({ type: 'save-notes', sessionId, notes }),
     });
 
     sendMessage({ type: 'started' });
@@ -67,7 +66,6 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
       ? {
           sessionId: config.sessionContext.sessionId,
           messages: config.sessionContext.messages,
-          agentNotes: config.sessionContext.agentNotes,
         }
       : undefined;
 

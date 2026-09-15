@@ -16,7 +16,6 @@ export interface ChatMessageContext {
 export interface SessionContext {
   sessionId: string;
   messages?: ChatMessageContext[];
-  agentNotes?: string;
 }
 
 /**
@@ -52,8 +51,7 @@ export type WorkerMessage =
   | { type: 'node-skipped'; nodeId: string; nodeType: string }
   | { type: 'completed'; output: Record<string, unknown>; files?: string[] }
   | { type: 'failed'; error: string }
-  | { type: 'cancelled' }
-  | { type: 'save-notes'; sessionId: string; notes: string };
+  | { type: 'cancelled' };
 
 /**
  * Type guard for ParentMessage

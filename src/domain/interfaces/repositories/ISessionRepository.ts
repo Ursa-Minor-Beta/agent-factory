@@ -10,5 +10,4 @@ export interface ISessionRepository {
   deleteByAgentId(agentId: string): Promise<number>;
   archive(id: string): Promise<Session | null>;
   count(userId: string): Promise<number>;
-  setAgentNotes(id: string, notes: string): Promise<Session | null>;
 }

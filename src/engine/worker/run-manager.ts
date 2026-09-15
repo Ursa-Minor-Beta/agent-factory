@@ -323,10 +323,6 @@ export class RunManager extends EventEmitter {
         this.emit('run-cancelled', { runId });
         this.cleanup(runId);
         break;
-
-      case 'save-notes':
-        this.emit('save-notes', { runId, sessionId: msg.sessionId, notes: msg.notes });
-        break;
     }
   }
 

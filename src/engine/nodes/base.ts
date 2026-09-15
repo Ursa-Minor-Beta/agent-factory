@@ -15,9 +15,6 @@ export interface ProviderConfig {
   ollama?: { baseUrl: string };
 }
 
-// Callback for built-in tools to save agent notes
-export type SaveNotesCallback = (notes: string) => Promise<void>;
-
 // Chat message format for session context
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -32,15 +29,13 @@ export interface ExecutionOptions {
   runRepo?: IRunRepository;
   callStack?: Set<string>; // Track agent IDs to detect circular calls
   userId?: string; // Current user for permission checks
-  // For built-in tools (save_note) and LLM multi-turn conversations
+  // For LLM multi-turn conversations
   sessionId?: string;
-  saveNotes?: SaveNotesCallback;
   messageRepo?: IMessageRepository;
   // Pre-resolved secrets for {{secret:KEY}} interpolation in HTTP nodes
   resolvedSecrets?: Record<string, string>;
   // Session context (separate from user input)
   messages?: ChatMessage[]; // For incognito sessions - conversation history
-  agentNotes?: string; // Notes from previous conversations
 }
 
 export abstract class BaseNode {

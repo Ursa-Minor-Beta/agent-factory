@@ -65,14 +65,11 @@ export interface WorkerExecutorCallbacks {
   onNodeFailed: (nodeId: string, nodeType: string, error: string) => void;
   /** Called when a node is skipped */
   onNodeSkipped: (nodeId: string, nodeType: string) => void;
-  /** Called when agent wants to save notes (for session context) */
-  onSaveNotes?: (sessionId: string, notes: string) => void;
 }
 
 export interface SessionContext {
   sessionId: string;
   messages?: ChatMessage[];
-  agentNotes?: string;
 }
 
 export interface WorkerExecutorOptions {
@@ -162,14 +159,6 @@ export class WorkerExecutor {
     const context = new ExecutionContext(agent.edges);
     const executionOrder = topologicalSort(agent.nodes, agent.edges);
 
-    // Build saveNotes callback if session context is provided
-    const saveNotes = options.sessionContext && this.callbacks.onSaveNotes
-      ? (notes: string) => {
-          this.callbacks.onSaveNotes!(options.sessionContext!.sessionId, notes);
-          return Promise.resolve();
-        }
-      : undefined;
-
     // Build execution options
     const execOptions: ExecutionOptions = {
       providers: options.providers,
@@ -182,8 +171,6 @@ export class WorkerExecutor {
       callStack: new Set([agent.id]), // Initialize call stack with current agent
       sessionId: options.sessionContext?.sessionId,
       messages: options.sessionContext?.messages,
-      agentNotes: options.sessionContext?.agentNotes,
-      saveNotes,
     };
 
     // Track skipped nodes
