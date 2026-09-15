@@ -9,9 +9,17 @@ export class MongoFileRepository implements IFileRepository {
       userId: doc.userId.toString(),
       name: doc.name,
       mimeType: doc.mimeType,
+      size: doc.size,
       data: doc.data,
       createdAt: doc.createdAt,
     };
+  }
+
+  /**
+   * Calculate actual byte size from base64 string
+   */
+  private calculateSize(base64: string): number {
+    return Buffer.from(base64, 'base64').length;
   }
 
   async findById(id: string): Promise<File | null> {
@@ -40,7 +48,7 @@ export class MongoFileRepository implements IFileRepository {
     options?: { limit?: number; offset?: number }
   ): Promise<FileListItem[]> {
     const docs = await FileModel.find({ userId })
-      .select({ _id: 1, name: 1, mimeType: 1, createdAt: 1 })
+      .select({ _id: 1, name: 1, mimeType: 1, size: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
       .skip(options?.offset ?? 0)
       .limit(options?.limit ?? 100);
@@ -48,6 +56,7 @@ export class MongoFileRepository implements IFileRepository {
       id: doc._id.toString(),
       name: doc.name,
       mimeType: doc.mimeType,
+      size: doc.size,
       createdAt: doc.createdAt,
     }));
   }
@@ -57,6 +66,7 @@ export class MongoFileRepository implements IFileRepository {
       userId: data.userId,
       name: data.name,
       mimeType: data.mimeType,
+      size: this.calculateSize(data.data),
       data: data.data,
     });
     return this.toEntity(doc);
@@ -68,6 +78,7 @@ export class MongoFileRepository implements IFileRepository {
         userId: d.userId,
         name: d.name,
         mimeType: d.mimeType,
+        size: this.calculateSize(d.data),
         data: d.data,
       }))
     );

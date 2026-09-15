@@ -3,6 +3,7 @@ export interface File {
   userId: string;
   name: string;
   mimeType: string;
+  size: number; // bytes
   data: string; // base64
   createdAt: Date;
 }
@@ -11,6 +12,7 @@ export interface FileListItem {
   id: string;
   name: string;
   mimeType: string;
+  size: number; // bytes
   createdAt: Date;
 }
 

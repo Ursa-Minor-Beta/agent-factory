@@ -5,6 +5,7 @@ export interface FileDocument extends Document {
   userId: mongoose.Types.ObjectId;
   name: string;
   mimeType: string;
+  size: number;
   data: string;
   createdAt: Date;
 }
@@ -22,6 +23,10 @@ const fileSchema = new Schema<FileDocument>(
     },
     mimeType: {
       type: String,
+      required: true,
+    },
+    size: {
+      type: Number,
       required: true,
     },
     data: {

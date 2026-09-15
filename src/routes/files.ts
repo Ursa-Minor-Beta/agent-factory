@@ -23,6 +23,7 @@ const fileSchema = {
     userId: { type: 'string' },
     name: { type: 'string' },
     mimeType: { type: 'string' },
+    size: { type: 'integer' },
     data: { type: 'string' },
     createdAt: { type: 'string', format: 'date-time' },
   },
@@ -34,6 +35,7 @@ const fileListItemSchema = {
     id: { type: 'string' },
     name: { type: 'string' },
     mimeType: { type: 'string' },
+    size: { type: 'integer' },
     createdAt: { type: 'string', format: 'date-time' },
   },
 };
