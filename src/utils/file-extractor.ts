@@ -11,12 +11,20 @@ export interface ExtractionResult {
 
 /**
  * Extract base64 files from an object, replacing them with placeholders
+ * Handles circular references by tracking seen objects
  */
 export function extractFilesFromObject(
   obj: Record<string, unknown>,
   files: ExtractedFile[] = [],
-  parentKey?: string
+  parentKey?: string,
+  seen: WeakSet<object> = new WeakSet()
 ): Record<string, unknown> {
+  // Check for circular reference
+  if (seen.has(obj)) {
+    return '[Circular]' as unknown as Record<string, unknown>;
+  }
+  seen.add(obj);
+
   const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(obj)) {
@@ -31,7 +39,7 @@ export function extractFilesFromObject(
         result[key] = value;
       }
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      result[key] = extractFilesFromObject(value as Record<string, unknown>, files, fieldName);
+      result[key] = extractFilesFromObject(value as Record<string, unknown>, files, fieldName, seen);
     } else if (Array.isArray(value)) {
       result[key] = value.map((item, idx) => {
         if (typeof item === 'string') {
@@ -42,7 +50,10 @@ export function extractFilesFromObject(
           }
           return item;
         } else if (item && typeof item === 'object') {
-          return extractFilesFromObject(item as Record<string, unknown>, files, `${fieldName}[${idx}]`);
+          if (seen.has(item)) {
+            return '[Circular]';
+          }
+          return extractFilesFromObject(item as Record<string, unknown>, files, `${fieldName}[${idx}]`, seen);
         }
         return item;
       });
@@ -113,11 +124,19 @@ export function extractFiles(output: unknown): ExtractionResult {
 /**
  * Replace file placeholders with actual file references
  * Converts [file:0:image/png] to inner:<fileId>:<fieldName>
+ * Handles circular references by tracking seen objects
  */
 export function replaceFileRefsInObject(
   obj: Record<string, unknown>,
-  fileIdMap: Map<number, { id: string; field: string }>
+  fileIdMap: Map<number, { id: string; field: string }>,
+  seen: WeakSet<object> = new WeakSet()
 ): Record<string, unknown> {
+  // Check for circular reference
+  if (seen.has(obj)) {
+    return '[Circular]' as unknown as Record<string, unknown>;
+  }
+  seen.add(obj);
+
   const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(obj)) {
@@ -135,7 +154,7 @@ export function replaceFileRefsInObject(
         result[key] = value;
       }
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      result[key] = replaceFileRefsInObject(value as Record<string, unknown>, fileIdMap);
+      result[key] = replaceFileRefsInObject(value as Record<string, unknown>, fileIdMap, seen);
     } else if (Array.isArray(value)) {
       result[key] = value.map((item) => {
         if (typeof item === 'string') {
@@ -149,7 +168,10 @@ export function replaceFileRefsInObject(
           }
           return item;
         } else if (item && typeof item === 'object') {
-          return replaceFileRefsInObject(item as Record<string, unknown>, fileIdMap);
+          if (seen.has(item)) {
+            return '[Circular]';
+          }
+          return replaceFileRefsInObject(item as Record<string, unknown>, fileIdMap, seen);
         }
         return item;
       });

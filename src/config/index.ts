@@ -23,6 +23,12 @@ export const config = {
     password: process.env['ADMIN_PASSWORD'],
     name: process.env['ADMIN_NAME'] ?? 'Admin',
   },
+  jsNode: {
+    defaultTimeoutMs: parseInt(process.env['JS_NODE_DEFAULT_TIMEOUT_MS'] ?? '5000', 10),
+    maxTimeoutMs: parseInt(process.env['JS_NODE_MAX_TIMEOUT_MS'] ?? '30000', 10),
+    defaultMemoryMb: parseInt(process.env['JS_NODE_DEFAULT_MEMORY_MB'] ?? '64', 10),
+    maxMemoryMb: parseInt(process.env['JS_NODE_MAX_MEMORY_MB'] ?? '256', 10),
+  },
 } as const;
 
 // Validate required config

@@ -8,6 +8,41 @@ import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/ind
 import { NodeExecutionError } from '../utils/errors.js';
 import { extractFiles, replaceFileRefsInObject, type ExtractedFile } from '../utils/file-extractor.js';
 
+/**
+ * Safely clone an object, replacing circular references with '[Circular]'
+ * and functions with '[Function]'. Preserves Date objects.
+ * This is needed before saving to MongoDB which doesn't handle circular refs
+ */
+function safeClone<T>(obj: T, seen = new WeakSet<object>()): T {
+  if (obj === null || typeof obj !== 'object') {
+    // Handle functions
+    if (typeof obj === 'function') {
+      return '[Function]' as unknown as T;
+    }
+    return obj;
+  }
+
+  // Preserve Date objects
+  if (obj instanceof Date) {
+    return new Date(obj.getTime()) as unknown as T;
+  }
+
+  if (seen.has(obj as object)) {
+    return '[Circular]' as unknown as T;
+  }
+  seen.add(obj as object);
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => safeClone(item, seen)) as unknown as T;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[key] = safeClone(value, seen);
+  }
+  return result as T;
+}
+
 export interface ExecutorOptions {
   providers: ProviderConfig;
 }
@@ -269,11 +304,12 @@ export class WorkflowExecutor {
           }
 
           // Update node state to completed
+          // Use safeClone to handle circular references before saving to MongoDB
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'completed',
-            input: nodeInputs,
-            output: finalOutput,
-            state: result.state,
+            input: safeClone(nodeInputs),
+            output: safeClone(finalOutput),
+            state: safeClone(result.state),
             files: nodeFiles,
             completedAt: new Date(),
           });
@@ -300,7 +336,7 @@ export class WorkflowExecutor {
           // Update node state to failed
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'failed',
-            input: nodeInputs,
+            input: safeClone(nodeInputs),
             error: errorMessage,
             errorDetails,
             completedAt: new Date(),

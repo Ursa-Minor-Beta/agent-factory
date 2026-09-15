@@ -1,3 +1,6 @@
+import { config } from '../../config/index.js';
+import { JS_NODE_AVAILABLE_GLOBALS } from './js.js';
+
 /**
  * Node type definitions with metadata for documentation and tooling
  */
@@ -222,7 +225,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   },
   {
     type: 'js',
-    description: 'JavaScript transform node. Executes custom code to transform data.',
+    description: 'JavaScript transform node. Executes custom code in a sandboxed environment with memory/timeout limits.',
     inputs: ['input'],
     outputs: ['output'],
     options: [
@@ -230,22 +233,48 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         name: 'code',
         type: 'string',
         required: true,
-        description: 'JavaScript code. Receives `input` variable, should return output.',
+        description: 'JavaScript code. Receives `input` variable, assign result to `output` or use return.',
       },
+      {
+        name: 'timeout',
+        type: 'number',
+        description: `Execution timeout in milliseconds (max: ${config.jsNode.maxTimeoutMs}).`,
+        default: config.jsNode.defaultTimeoutMs,
+      },
+      {
+        name: 'memoryMb',
+        type: 'number',
+        description: `Memory limit in megabytes (max: ${config.jsNode.maxMemoryMb}).`,
+        default: config.jsNode.defaultMemoryMb,
+      },
+    ],
+    features: [
+      'Sandboxed execution (no require, fs, process access)',
+      'Memory and timeout limits enforced',
+      `Available globals: ${JS_NODE_AVAILABLE_GLOBALS.join(', ')}`,
     ],
     examples: [
       {
         name: 'Transform data',
         description: 'Transform input data',
         data: {
-          code: 'return { result: input.text.toUpperCase() };',
+          code: 'output = { result: input.text.toUpperCase() };',
         },
       },
       {
         name: 'Parse JSON',
         description: 'Parse JSON string',
         data: {
-          code: 'return JSON.parse(input.response);',
+          code: 'output = JSON.parse(input.response);',
+        },
+      },
+      {
+        name: 'With custom limits',
+        description: 'Custom timeout and memory',
+        data: {
+          code: 'output = input.data.map(x => x * 2);',
+          timeout: 10000,
+          memoryMb: 128,
         },
       },
     ],
