@@ -38,6 +38,80 @@ export async function userRoutes(app: FastifyInstance) {
     (payload, options) => app.jwt.sign(payload, options)
   );
 
+  // List users with pagination and filtering (admin only)
+  app.get('/api/users', {
+    schema: {
+      tags: ['users'],
+      summary: 'List users with pagination and filtering (admin only)',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      querystring: {
+        type: 'object',
+        properties: {
+          email: { type: 'string', description: 'Filter by email (partial match)' },
+          name: { type: 'string', description: 'Filter by name (partial match)' },
+          skip: { type: 'integer', minimum: 0, default: 0 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+          sortBy: { type: 'string', enum: ['createdAt', 'email', 'name'], default: 'createdAt' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                users: { type: 'array', items: userSchema },
+                total: { type: 'integer' },
+                skip: { type: 'integer' },
+                limit: { type: 'integer' },
+              },
+            },
+          },
+        },
+        403: errorSchema,
+      },
+    },
+    preHandler: requireAdmin,
+  }, async (request, reply) => {
+    const { email, name, skip, limit, sortBy, sortOrder } = request.query as {
+      email?: string;
+      name?: string;
+      skip?: number;
+      limit?: number;
+      sortBy?: 'createdAt' | 'email' | 'name';
+      sortOrder?: 'asc' | 'desc';
+    };
+
+    const result = await container.userRepository.findAll({
+      email,
+      name,
+      skip: skip ?? 0,
+      limit: limit ?? 50,
+      sortBy,
+      sortOrder,
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        users: result.users.map((u) => ({
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          role: u.role,
+          createdAt: u.createdAt,
+          updatedAt: u.updatedAt,
+        })),
+        total: result.total,
+        skip: skip ?? 0,
+        limit: limit ?? 50,
+      },
+    });
+  });
+
   // Create user (admin only)
   app.post('/api/users', {
     schema: {
