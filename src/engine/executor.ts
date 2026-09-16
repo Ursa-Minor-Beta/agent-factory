@@ -195,9 +195,10 @@ export class WorkflowExecutor {
         const node = agent.nodes.find((n) => n.id === nodeId);
         if (!node) continue;
 
-        // Update node state to running
+        // Update node state to running with input data
         await this.runRepo.updateNodeState(runId, nodeId, {
           status: 'running',
+          input: safeClone(node.data),
           startedAt: new Date(),
         });
 
