@@ -1,14 +1,9 @@
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
-import type { WorkflowNode } from '../domain/entities/Agent.js';
 import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
 import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
 import { DEFAULT_AGENT } from '../engine/agents/default.js';
-import { BASIC_TEST_AGENT } from '../engine/agents/test-basic.js';
-import { FULL_TEST_AGENT } from '../engine/agents/test-full.js';
-import { MATH_SKILL_AGENT } from '../engine/agents/test-skill-math.js';
-import { SKILLS_TEST_AGENT } from '../engine/agents/test-skills.js';
 
 
 export class SeedService {
@@ -50,60 +45,6 @@ export class SeedService {
 
     const created: string[] = [];
 
-    // Check and create Basic Test Agent
-    const existingBasic = await this.agentRepo.findSystemAgentByName(BASIC_TEST_AGENT.name);
-    if (!existingBasic) {
-      await this.agentRepo.createSystemAgent({
-        userId: admin.id,
-        name: BASIC_TEST_AGENT.name,
-        description: BASIC_TEST_AGENT.description,
-        nodes: BASIC_TEST_AGENT.nodes,
-      });
-      created.push(BASIC_TEST_AGENT.name);
-    }
-
-    // Check and create Full Test Agent
-    const existingFull = await this.agentRepo.findSystemAgentByName(FULL_TEST_AGENT.name);
-    if (!existingFull) {
-      await this.agentRepo.createSystemAgent({
-        userId: admin.id,
-        name: FULL_TEST_AGENT.name,
-        description: FULL_TEST_AGENT.description,
-        nodes: FULL_TEST_AGENT.nodes,
-      });
-      created.push(FULL_TEST_AGENT.name);
-    }
-
-    // Check and create Math Skill Agent (must be created before Skills Test Agent)
-    let mathSkillAgent = await this.agentRepo.findSystemAgentByName(MATH_SKILL_AGENT.name);
-    if (!mathSkillAgent) {
-      mathSkillAgent = await this.agentRepo.createSystemAgent({
-        userId: admin.id,
-        name: MATH_SKILL_AGENT.name,
-        description: MATH_SKILL_AGENT.description,
-        nodes: MATH_SKILL_AGENT.nodes,
-      });
-      created.push(MATH_SKILL_AGENT.name);
-    }
-
-    // Check and create Skills Test Agent (with resolved tool agentIds)
-    const existingSkills = await this.agentRepo.findSystemAgentByName(SKILLS_TEST_AGENT.name);
-    if (!existingSkills) {
-      // Inject the actual Math Skill agent ID into the LLM node's tools
-      const resolvedNodes = this.resolveToolAgentIds(
-        SKILLS_TEST_AGENT.nodes,
-        { '{{MATH_SKILL_AGENT_ID}}': mathSkillAgent.id }
-      );
-
-      await this.agentRepo.createSystemAgent({
-        userId: admin.id,
-        name: SKILLS_TEST_AGENT.name,
-        description: SKILLS_TEST_AGENT.description,
-        nodes: resolvedNodes,
-      });
-      created.push(SKILLS_TEST_AGENT.name);
-    }
-
     // Check and create Agent Creator
     const existingCreator = await this.agentRepo.findSystemAgentByName(AGENT_CREATOR.name);
     if (!existingCreator) {
@@ -117,33 +58,6 @@ export class SeedService {
     }
 
     return { created };
-  }
-
-  /**
-   * Replace placeholder agentIds in tool definitions with actual IDs
-   */
-  private resolveToolAgentIds(
-    nodes: WorkflowNode[],
-    idMap: Record<string, string>
-  ): WorkflowNode[] {
-    return nodes.map((node) => {
-      if (node.type !== 'llm' || !node.data.tools) {
-        return node;
-      }
-
-      const resolvedTools = (node.data.tools as Array<{ agentId: string }>).map((tool) => {
-        const resolvedId = idMap[tool.agentId] ?? tool.agentId;
-        return { ...tool, agentId: resolvedId };
-      });
-
-      return {
-        ...node,
-        data: {
-          ...node.data,
-          tools: resolvedTools,
-        },
-      };
-    });
   }
 
   /**
@@ -182,61 +96,23 @@ export class SeedService {
     const updated: string[] = [];
     const created: string[] = [];
 
-    // Helper to update or create an agent
-    const upsertAgent = async (agentDef: { name: string; description?: string; nodes: WorkflowNode[] }) => {
-      const existing = await this.agentRepo.findSystemAgentByName(agentDef.name);
-      if (existing) {
-        await this.agentRepo.update(existing.id, {
-          description: agentDef.description,
-          nodes: agentDef.nodes,
-        });
-        updated.push(agentDef.name);
-        return existing;
-      } else {
-        const newAgent = await this.agentRepo.createSystemAgent({
-          userId: admin.id,
-          name: agentDef.name,
-          description: agentDef.description,
-          nodes: agentDef.nodes,
-        });
-        created.push(agentDef.name);
-        return newAgent;
-      }
-    };
-
-    // Update/create Basic Test Agent
-    await upsertAgent(BASIC_TEST_AGENT);
-
-    // Update/create Full Test Agent
-    await upsertAgent(FULL_TEST_AGENT);
-
-    // Update/create Math Skill Agent (must be done before Skills Test Agent)
-    const mathSkillAgent = await upsertAgent(MATH_SKILL_AGENT);
-
-    // Update/create Skills Test Agent (with resolved tool agentIds)
-    const resolvedNodes = this.resolveToolAgentIds(
-      SKILLS_TEST_AGENT.nodes,
-      { '{{MATH_SKILL_AGENT_ID}}': mathSkillAgent.id }
-    );
-    const existingSkills = await this.agentRepo.findSystemAgentByName(SKILLS_TEST_AGENT.name);
-    if (existingSkills) {
-      await this.agentRepo.update(existingSkills.id, {
-        description: SKILLS_TEST_AGENT.description,
-        nodes: resolvedNodes,
+    // Update/create Agent Creator
+    const existingCreator = await this.agentRepo.findSystemAgentByName(AGENT_CREATOR.name);
+    if (existingCreator) {
+      await this.agentRepo.update(existingCreator.id, {
+        description: AGENT_CREATOR.description,
+        nodes: AGENT_CREATOR.nodes,
       });
-      updated.push(SKILLS_TEST_AGENT.name);
+      updated.push(AGENT_CREATOR.name);
     } else {
       await this.agentRepo.createSystemAgent({
         userId: admin.id,
-        name: SKILLS_TEST_AGENT.name,
-        description: SKILLS_TEST_AGENT.description,
-        nodes: resolvedNodes,
+        name: AGENT_CREATOR.name,
+        description: AGENT_CREATOR.description,
+        nodes: AGENT_CREATOR.nodes,
       });
-      created.push(SKILLS_TEST_AGENT.name);
+      created.push(AGENT_CREATOR.name);
     }
-
-    // Update/create Agent Creator
-    await upsertAgent(AGENT_CREATOR);
 
     return { updated, created };
   }

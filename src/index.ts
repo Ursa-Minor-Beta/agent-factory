@@ -13,7 +13,6 @@ import { agentRoutes } from './routes/agents.js';
 import { runRoutes } from './routes/runs.js';
 import { settingsRoutes } from './routes/settings.js';
 import { nodeRoutes } from './routes/nodes.js';
-import { testRoutes } from './routes/test.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { toolRoutes } from './routes/tools.js';
 import { secretRoutes } from './routes/secrets.js';
@@ -43,7 +42,7 @@ async function bootstrap() {
         },
       ],
       tags: [
-        { name: 'system', description: 'Health check, API info, and test agents' },
+        { name: 'system', description: 'Health check and API info' },
         { name: 'auth', description: 'Authentication and API keys' },
         { name: 'users', description: 'User management (admin)' },
         { name: 'agents', description: 'Agent CRUD operations' },
@@ -149,7 +148,6 @@ async function bootstrap() {
   await app.register(fileRoutes);
   await app.register(nodeRoutes);
   await app.register(toolRoutes);
-  await app.register(testRoutes);
 
   try {
     // Connect to MongoDB
