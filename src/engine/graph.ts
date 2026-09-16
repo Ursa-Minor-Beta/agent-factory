@@ -27,7 +27,9 @@ function extractNodeRefs(value: unknown, key?: string): Set<string> {
     const regex = /\{\{node:([^.}]+)\./g;
     let match;
     while ((match = regex.exec(value)) !== null) {
-      refs.add(match[1]);
+      if (match[1]) {
+        refs.add(match[1]);
+      }
     }
   } else if (Array.isArray(value)) {
     for (const item of value) {
