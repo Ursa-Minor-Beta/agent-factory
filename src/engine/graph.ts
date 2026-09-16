@@ -1,4 +1,4 @@
-import type { WorkflowNode, WorkflowEdge } from '../domain/entities/Agent.js';
+import type { WorkflowNode } from '../domain/entities/Agent.js';
 
 export class CycleError extends Error {
   constructor(message = 'Workflow contains a cycle') {
@@ -8,24 +8,76 @@ export class CycleError extends Error {
 }
 
 /**
- * Build adjacency list from nodes and edges
+ * Keys to skip when extracting node refs (may contain example templates)
  */
-export function buildAdjacencyList(
-  nodes: WorkflowNode[],
-  edges: WorkflowEdge[]
-): Map<string, string[]> {
+const SKIP_KEYS = new Set(['systemPrompt', 'description']);
+
+/**
+ * Extract node IDs referenced in {{node:id.path}} templates from any string value
+ */
+function extractNodeRefs(value: unknown, key?: string): Set<string> {
+  const refs = new Set<string>();
+
+  // Skip keys that may contain example templates
+  if (key && SKIP_KEYS.has(key)) {
+    return refs;
+  }
+
+  if (typeof value === 'string') {
+    const regex = /\{\{node:([^.}]+)\./g;
+    let match;
+    while ((match = regex.exec(value)) !== null) {
+      refs.add(match[1]);
+    }
+  } else if (Array.isArray(value)) {
+    for (const item of value) {
+      for (const ref of extractNodeRefs(item)) {
+        refs.add(ref);
+      }
+    }
+  } else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) {
+      for (const ref of extractNodeRefs(v, k)) {
+        refs.add(ref);
+      }
+    }
+  }
+
+  return refs;
+}
+
+/**
+ * Extract dependencies from a node's data by scanning for {{node:id...}} templates
+ */
+export function extractTemplateDependencies(node: WorkflowNode): Set<string> {
+  return extractNodeRefs(node.data);
+}
+
+/**
+ * Build adjacency list from nodes by extracting template dependencies
+ * Dependencies flow from referenced node → referencing node
+ */
+export function buildAdjacencyList(nodes: WorkflowNode[]): Map<string, string[]> {
   const adjacency = new Map<string, string[]>();
+  const nodeIds = new Set(nodes.map((n) => n.id));
 
   // Initialize all nodes
   for (const node of nodes) {
     adjacency.set(node.id, []);
   }
 
-  // Add edges
-  for (const edge of edges) {
-    const targets = adjacency.get(edge.source);
-    if (targets) {
-      targets.push(edge.target);
+  // Build dependencies from templates
+  for (const node of nodes) {
+    const deps = extractTemplateDependencies(node);
+    for (const depId of deps) {
+      // depId must execute before node.id
+      // So depId -> node.id in the adjacency list
+      if (nodeIds.has(depId)) {
+        const targets = adjacency.get(depId);
+        if (targets && !targets.includes(node.id)) {
+          targets.push(node.id);
+        }
+      }
     }
   }
 
@@ -37,23 +89,20 @@ export function buildAdjacencyList(
  * Returns nodes in execution order (dependencies first)
  * Throws CycleError if graph contains a cycle
  */
-export function topologicalSort(
-  nodes: WorkflowNode[],
-  edges: WorkflowEdge[]
-): string[] {
+export function topologicalSort(nodes: WorkflowNode[]): string[] {
   const nodeIds = new Set(nodes.map((n) => n.id));
   const inDegree = new Map<string, number>();
-  const adjacency = buildAdjacencyList(nodes, edges);
+  const adjacency = buildAdjacencyList(nodes);
 
   // Initialize in-degrees
   for (const nodeId of nodeIds) {
     inDegree.set(nodeId, 0);
   }
 
-  // Calculate in-degrees
-  for (const edge of edges) {
-    if (nodeIds.has(edge.target)) {
-      inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
+  // Calculate in-degrees from adjacency list
+  for (const [, targets] of adjacency) {
+    for (const target of targets) {
+      inDegree.set(target, (inDegree.get(target) ?? 0) + 1);
     }
   }
 
@@ -93,10 +142,7 @@ export function topologicalSort(
 /**
  * Validate workflow structure
  */
-export function validateWorkflow(
-  nodes: WorkflowNode[],
-  edges: WorkflowEdge[]
-): { valid: boolean; errors: string[] } {
+export function validateWorkflow(nodes: WorkflowNode[]): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
   const nodeIds = new Set(nodes.map((n) => n.id));
 
@@ -112,19 +158,19 @@ export function validateWorkflow(
     errors.push('Workflow must have at least one output node');
   }
 
-  // Check edges reference valid nodes
-  for (const edge of edges) {
-    if (!nodeIds.has(edge.source)) {
-      errors.push(`Edge references non-existent source node: ${edge.source}`);
-    }
-    if (!nodeIds.has(edge.target)) {
-      errors.push(`Edge references non-existent target node: ${edge.target}`);
+  // Check template references point to valid nodes
+  for (const node of nodes) {
+    const deps = extractTemplateDependencies(node);
+    for (const depId of deps) {
+      if (!nodeIds.has(depId)) {
+        errors.push(`Node "${node.id}" references non-existent node: ${depId}`);
+      }
     }
   }
 
   // Check for cycles
   try {
-    topologicalSort(nodes, edges);
+    topologicalSort(nodes);
   } catch (e) {
     if (e instanceof CycleError) {
       errors.push('Workflow contains a cycle');

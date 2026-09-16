@@ -1,6 +1,7 @@
-import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
+import type { WorkflowNode } from '../../domain/entities/Agent.js';
 
 // Default workflow: Input (text) -> LLM -> Output
+// Uses template-based data flow with {{node:id.path}} syntax
 export const DEFAULT_NODES: WorkflowNode[] = [
   {
     id: 'input-1',
@@ -18,7 +19,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
       provider: 'openai',
       model: 'gpt-4o-mini',
       systemPrompt: 'You are a helpful assistant.',
-      userPrompt: '{{message}}',
+      userPrompt: '{{node:input-1.message}}',
       temperature: 0.7,
       maxTokens: 1000,
     },
@@ -26,24 +27,9 @@ export const DEFAULT_NODES: WorkflowNode[] = [
   {
     id: 'output-1',
     type: 'output',
-    data: {},
-  },
-];
-
-export const DEFAULT_EDGES: WorkflowEdge[] = [
-  {
-    id: 'edge-1',
-    source: 'input-1',
-    sourceHandle: 'message',
-    target: 'llm-1',
-    targetHandle: 'prompt',
-  },
-  {
-    id: 'edge-2',
-    source: 'llm-1',
-    sourceHandle: 'response',
-    target: 'output-1',
-    targetHandle: 'value',
+    data: {
+      value: '{{node:llm-1.response}}',
+    },
   },
 ];
 
@@ -51,5 +37,4 @@ export const DEFAULT_AGENT = {
   name: 'Default Agent',
   description: 'A simple text-to-LLM workflow',
   nodes: DEFAULT_NODES,
-  edges: DEFAULT_EDGES,
 };

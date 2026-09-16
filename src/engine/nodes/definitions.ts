@@ -110,12 +110,12 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'systemPrompt',
         type: 'string',
-        description: 'System prompt. Supports {{variable}} template syntax.',
+        description: 'System prompt. Supports {{node:id.path}} template syntax.',
       },
       {
         name: 'userPrompt',
         type: 'string',
-        description: 'User prompt. Supports {{variable}} template syntax.',
+        description: 'User prompt. Supports {{node:id.path}} template syntax.',
       },
       {
         name: 'temperature',
@@ -142,7 +142,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       },
     ],
     features: [
-      'Template interpolation with {{variable}} syntax',
+      'Template interpolation with {{node:id.path}} syntax',
     ],
     examples: [
       {
@@ -152,7 +152,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           provider: 'openai',
           model: 'gpt-4o-mini',
           systemPrompt: 'You are a helpful assistant.',
-          userPrompt: '{{text}}',
+          userPrompt: '{{node:input-1.text}}',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -176,17 +176,17 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         name: 'url',
         type: 'string',
         required: true,
-        description: 'Request URL. Supports {{variable}} template syntax.',
+        description: 'Request URL. Supports {{node:id.path}} template syntax.',
       },
       {
         name: 'headers',
         type: 'object',
-        description: 'Request headers. Values support {{variable}} template syntax.',
+        description: 'Request headers. Values support {{node:id.path}} template syntax.',
       },
       {
         name: 'body',
         type: 'object',
-        description: 'Request body for POST/PUT/PATCH. Supports {{variable}} in strings.',
+        description: 'Request body for POST/PUT/PATCH. Supports {{node:id.path}} in strings.',
       },
       {
         name: 'timeout',
@@ -201,14 +201,14 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         values: ['url', 'method', 'headers', 'body', 'status', 'responseHeaders'],
       },
     ],
-    features: ['Template interpolation with {{variable}} syntax'],
+    features: ['Template interpolation with {{node:id.path}} syntax'],
     examples: [
       {
         name: 'GET request',
         description: 'Simple GET request',
         data: {
           method: 'GET',
-          url: 'https://api.example.com/data/{{id}}',
+          url: 'https://api.example.com/data/{{node:input-1.id}}',
         },
       },
       {
@@ -218,7 +218,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           method: 'POST',
           url: 'https://api.example.com/items',
           headers: { 'Content-Type': 'application/json' },
-          body: { name: '{{name}}', value: '{{value}}' },
+          body: { name: '{{node:input-1.name}}', value: '{{node:input-1.value}}' },
         },
       },
     ],

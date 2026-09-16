@@ -34,8 +34,6 @@ export class InputNode extends BaseNode {
       context.setOutput(node.id, handle, value);
     }
 
-    console.log('outputs', outputs)
-
     return { outputs };
   }
 }

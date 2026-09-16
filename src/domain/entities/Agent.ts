@@ -7,28 +7,12 @@ export interface WorkflowNode {
   data: Record<string, unknown>;
 }
 
-export interface WorkflowEdge {
-  id: string;
-  source: string;
-  sourceHandle: string;
-  target: string;
-  targetHandle: string;
-}
-
-export interface WorkflowVariable {
-  name: string;
-  type: 'string' | 'number' | 'boolean';
-  defaultValue: unknown;
-}
-
 export interface Agent {
   id: string;
   userId: string;
   name: string;
   description: string;
   nodes: WorkflowNode[];
-  edges: WorkflowEdge[];
-  variables: WorkflowVariable[];
   isSystem: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -39,8 +23,6 @@ export interface CreateAgentDTO {
   name: string;
   description?: string;
   nodes?: WorkflowNode[];
-  edges?: WorkflowEdge[];
-  variables?: WorkflowVariable[];
   isSystem?: boolean;
 }
 
@@ -48,8 +30,6 @@ export interface UpdateAgentDTO {
   name?: string;
   description?: string;
   nodes?: WorkflowNode[];
-  edges?: WorkflowEdge[];
-  variables?: WorkflowVariable[];
 }
 
 export interface AgentQueryOptions {

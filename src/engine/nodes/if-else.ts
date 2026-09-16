@@ -1,20 +1,20 @@
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
+import { interpolateAll } from './utils.js';
 
 /**
  * If-Else node - Conditional branching based on expression evaluation
  *
- * Inputs:
- *   - input: The value to evaluate and pass through
+ * Data config:
+ *   - input: Template for input value, e.g., "{{node:http-1.response.status}}"
+ *   - expression: JavaScript expression to evaluate (has access to `input` variable)
+ *                 Examples: "input > 5", "input.status === 'approved'", "input.length > 0"
  *
  * Outputs:
  *   - true: Output when condition is true (passes input value)
  *   - false: Output when condition is false (passes input value)
- *
- * Data config:
- *   - expression: JavaScript expression to evaluate (has access to `input` variable)
- *                 Examples: "input > 5", "input.status === 'approved'", "input.length > 0"
+ *   - result: The boolean result of the condition
  */
 export class IfElseNode extends BaseNode {
   readonly type = 'if-else';
@@ -22,11 +22,22 @@ export class IfElseNode extends BaseNode {
   async execute(
     node: WorkflowNode,
     context: ExecutionContext,
-    _options: ExecutionOptions
+    options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
     const expression = (node.data.expression as string) ?? 'true';
-    const inputs = context.getAllInputs(node.id);
-    const input = inputs.input ?? inputs;
+
+    // Get input from template or workflow input
+    let input: unknown;
+    if (node.data.input && typeof node.data.input === 'string') {
+      const interpolated = interpolateAll(node.data.input, { context });
+      try {
+        input = JSON.parse(interpolated);
+      } catch {
+        input = interpolated;
+      }
+    } else {
+      input = options.workflowInput;
+    }
 
     // Evaluate the condition
     let conditionResult: boolean;

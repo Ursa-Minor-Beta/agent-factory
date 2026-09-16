@@ -3,6 +3,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { config } from '../../config/index.js';
+import { interpolateAll } from './utils.js';
 
 /**
  * Available globals in JS node sandbox (for documentation)
@@ -85,6 +86,8 @@ try {
 /**
  * JS Transform node - Execute JavaScript code to transform data
  * Uses Worker Threads for isolation with memory/CPU limits
+ *
+ * Use data.input with {{node:id.path}} template to specify input source
  */
 export class JsNode extends BaseNode {
   readonly type = 'js';
@@ -92,15 +95,27 @@ export class JsNode extends BaseNode {
   async execute(
     node: WorkflowNode,
     context: ExecutionContext,
-    _options: ExecutionOptions
+    options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
     const code = (node.data.code as string) ?? 'output = input;';
-    const input = context.getAllInputs(node.id);
     const { defaultTimeoutMs, maxTimeoutMs, defaultMemoryMb, maxMemoryMb } = config.jsNode;
     const timeout = Math.min((node.data.timeout as number) ?? defaultTimeoutMs, maxTimeoutMs);
     const memoryMb = Math.min((node.data.memoryMb as number) ?? defaultMemoryMb, maxMemoryMb);
 
-    const output = await this.runInWorker(code, input.input ?? input, timeout, memoryMb);
+    // Get input from template or workflow input
+    let input: unknown;
+    if (node.data.input && typeof node.data.input === 'string') {
+      const interpolated = interpolateAll(node.data.input, { context });
+      try {
+        input = JSON.parse(interpolated);
+      } catch {
+        input = interpolated;
+      }
+    } else {
+      input = options.workflowInput;
+    }
+
+    const output = await this.runInWorker(code, input, timeout, memoryMb);
 
     const outputs = { output };
     context.setOutput(node.id, 'output', output);

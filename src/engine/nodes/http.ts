@@ -2,7 +2,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { NodeExecutionError } from '../../utils/errors.js';
-import { interpolateWithSecrets } from './utils.js';
+import { interpolateAll } from './utils.js';
 
 type HttpPersistedField = 'url' | 'method' | 'headers' | 'body' | 'status' | 'responseHeaders';
 
@@ -27,14 +27,11 @@ export class HttpNode extends BaseNode {
     options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
     const data = node.data as unknown as HttpNodeData;
-    const inputs = context.getAllInputs(node.id);
-
-    // Merge workflow input with edge-resolved inputs for template interpolation
-    const templateValues = { ...options.workflowInput, ...inputs };
     const secrets = options.resolvedSecrets ?? {};
+    const interpolateOpts = { secrets, context };
 
-    // Interpolate URL with input values and secrets
-    const url = interpolateWithSecrets(data.url, templateValues, secrets);
+    // Interpolate URL with input values, secrets, and node references
+    const url = interpolateAll(data.url, interpolateOpts);
     const method = data.method ?? 'GET';
     const timeout = data.timeout ?? 30000;
 
@@ -44,21 +41,18 @@ export class HttpNode extends BaseNode {
       headers['Content-Type'] = 'application/json';
     }
 
-    // Interpolate header values (supports {{secret:KEY}} syntax)
+    // Interpolate header values (supports {{secret:KEY}} and {{node:id.path}} syntax)
     for (const [key, value] of Object.entries(headers)) {
-      headers[key] = interpolateWithSecrets(value, templateValues, secrets);
+      headers[key] = interpolateAll(value, interpolateOpts);
     }
 
     // Prepare body
     let body: string | undefined;
-    if (method !== 'GET') {
-      const requestBody = inputs.body ?? data.body;
-      if (requestBody !== undefined) {
-        body =
-          typeof requestBody === 'string'
-            ? interpolateWithSecrets(requestBody, templateValues, secrets)
-            : JSON.stringify(requestBody);
-      }
+    if (method !== 'GET' && data.body !== undefined) {
+      body =
+        typeof data.body === 'string'
+          ? interpolateAll(data.body, interpolateOpts)
+          : JSON.stringify(data.body);
     }
 
     // Create abort controller for timeout

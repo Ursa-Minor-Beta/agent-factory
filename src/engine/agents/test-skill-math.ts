@@ -1,8 +1,9 @@
-import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
+import type { WorkflowNode } from '../../domain/entities/Agent.js';
 
 /**
  * Math Skill Agent: A simple skill that performs math operations
  * Used as a tool by the Skills Test Agent
+ * Uses template-based data flow with {{node:id.path}} syntax
  */
 export const MATH_SKILL_NODES: WorkflowNode[] = [
   {
@@ -10,9 +11,9 @@ export const MATH_SKILL_NODES: WorkflowNode[] = [
     type: 'input',
     data: {
       schema: {
-        operation: { type: 'string', required: true }, // add, subtract, multiply, divide
-        a: { type: 'number', required: true },
-        b: { type: 'number', required: true },
+        operation: { type: 'string', required: true, default: 'add' }, // add, subtract, multiply, divide
+        a: { type: 'number', required: true, default: 5 },
+        b: { type: 'number', required: true, default: 3 },
       },
     },
   },
@@ -20,6 +21,7 @@ export const MATH_SKILL_NODES: WorkflowNode[] = [
     id: 'js-calc',
     type: 'js',
     data: {
+      // input comes from workflow input (operation, a, b)
       code: `
 const { operation, a, b } = input;
 let result;
@@ -62,18 +64,14 @@ return {
   {
     id: 'output-1',
     type: 'output',
-    data: {},
+    data: {
+      value: '{{node:js-calc.output}}',
+    },
   },
-];
-
-export const MATH_SKILL_EDGES: WorkflowEdge[] = [
-  { id: 'e1', source: 'input-1', sourceHandle: 'value', target: 'js-calc', targetHandle: 'input' },
-  { id: 'e2', source: 'js-calc', sourceHandle: 'output', target: 'output-1', targetHandle: 'value' },
 ];
 
 export const MATH_SKILL_AGENT = {
   name: 'Math Skill',
   description: 'A skill that performs basic math operations (add, subtract, multiply, divide)',
   nodes: MATH_SKILL_NODES,
-  edges: MATH_SKILL_EDGES,
 };

@@ -16,8 +16,6 @@ export class MongoAgentRepository implements IAgentRepository {
       name: doc.name,
       description: doc.description,
       nodes: doc.nodes,
-      edges: doc.edges,
-      variables: doc.variables,
       isSystem: doc.isSystem,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
@@ -88,8 +86,6 @@ export class MongoAgentRepository implements IAgentRepository {
       name: data.name,
       description: data.description ?? '',
       nodes: data.nodes ?? [],
-      edges: data.edges ?? [],
-      variables: data.variables ?? [],
       isSystem: false,
     });
     return this.toEntity(doc);
@@ -101,8 +97,6 @@ export class MongoAgentRepository implements IAgentRepository {
       name: data.name,
       description: data.description ?? '',
       nodes: data.nodes ?? [],
-      edges: data.edges ?? [],
-      variables: data.variables ?? [],
       isSystem: true,
     });
     return this.toEntity(doc);

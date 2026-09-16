@@ -7,7 +7,7 @@ import type { BuiltinToolDefinition } from './types.js';
 export const GET_AGENT_TOOL: BuiltinToolDefinition = {
   type: 'builtin',
   name: 'get_agent',
-  description: `Fetch an existing agent's definition including its nodes and edges. Use this to understand an agent's current structure before editing it.`,
+  description: `Fetch an existing agent's definition including its nodes. Use this to understand an agent's current structure before editing it.`,
   parameters: {
     type: 'object',
     properties: {

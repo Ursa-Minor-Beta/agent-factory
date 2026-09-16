@@ -1,17 +1,10 @@
-import type { WorkflowEdge } from '../domain/entities/Agent.js';
-
 /**
  * ExecutionContext manages data flow between nodes during workflow execution.
- * Each node stores its outputs, and inputs are resolved from connected edges.
+ * Nodes store their outputs, which are accessed via {{node:id.path}} templates.
  */
 export class ExecutionContext {
   // nodeId -> handleName -> value
   private outputs: Map<string, Map<string, unknown>> = new Map();
-  private edges: WorkflowEdge[];
-
-  constructor(edges: WorkflowEdge[]) {
-    this.edges = edges;
-  }
 
   /**
    * Store output from a node
@@ -24,7 +17,7 @@ export class ExecutionContext {
   }
 
   /**
-   * Get all outputs from a node
+   * Get all outputs from a node (used by template interpolation)
    */
   getNodeOutputs(nodeId: string): Record<string, unknown> {
     const nodeOutputs = this.outputs.get(nodeId);
@@ -38,46 +31,19 @@ export class ExecutionContext {
   }
 
   /**
-   * Get input for a specific handle by following the edge connection
+   * Get a specific output from a node
    */
-  getInput(nodeId: string, handle: string): unknown {
-    // Find edge that connects to this node's input handle
-    const edge = this.edges.find(
-      (e) => e.target === nodeId && e.targetHandle === handle
-    );
-
-    if (!edge) {
-      return undefined;
-    }
-
-    // Get output from the source node
-    const sourceOutputs = this.outputs.get(edge.source);
-    if (!sourceOutputs) {
-      return undefined;
-    }
-
-    return sourceOutputs.get(edge.sourceHandle);
+  getOutput(nodeId: string, handle: string): unknown {
+    const nodeOutputs = this.outputs.get(nodeId);
+    if (!nodeOutputs) return undefined;
+    return nodeOutputs.get(handle);
   }
 
   /**
-   * Get all inputs for a node by resolving all incoming edges
+   * @deprecated Use {{node:id.path}} templates instead
+   * Returns empty object - data flow now uses template interpolation
    */
-  getAllInputs(nodeId: string): Record<string, unknown> {
-    const inputs: Record<string, unknown> = {};
-
-    // Find all edges targeting this node
-    const incomingEdges = this.edges.filter((e) => e.target === nodeId);
-
-    for (const edge of incomingEdges) {
-      const sourceOutputs = this.outputs.get(edge.source);
-      if (sourceOutputs) {
-        const value = sourceOutputs.get(edge.sourceHandle);
-        if (value !== undefined) {
-          inputs[edge.targetHandle] = value;
-        }
-      }
-    }
-
-    return inputs;
+  getAllInputs(_nodeId: string): Record<string, unknown> {
+    return {};
   }
 }

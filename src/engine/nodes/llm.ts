@@ -4,7 +4,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { NodeExecutionError } from '../../utils/errors.js';
-import { interpolate } from './utils.js';
+import { interpolateAll } from './utils.js';
 import { WorkflowExecutor } from '../executor.js';
 import { resolveRunOutput } from '../../utils/node-ref.js';
 import type { ToolDefinition } from '../tools/index.js';
@@ -36,19 +36,15 @@ export class LlmNode extends BaseNode {
     options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
     const data = node.data as unknown as LLMNodeData;
-    const inputs = context.getAllInputs(node.id);
+    const interpolateOpts = { context };
 
-    // Merge workflow input with edge-resolved inputs for template interpolation
-    // This allows using either original field names ({{text}}) or edge handles ({{prompt}})
-    const templateValues = { ...options.workflowInput, ...inputs };
-
-    // Interpolate prompts with input values
+    // Interpolate prompts with workflow input and node references
     const systemPrompt = data.systemPrompt
-      ? interpolate(data.systemPrompt, templateValues)
+      ? interpolateAll(data.systemPrompt, interpolateOpts)
       : undefined;
     const userPrompt = data.userPrompt
-      ? interpolate(data.userPrompt, templateValues)
-      : String(inputs.prompt ?? inputs.input ?? '');
+      ? interpolateAll(data.userPrompt, interpolateOpts)
+      : '';
 
     // Get conversation history for multi-turn conversations
     const maxMessages = data.maxMessages ?? 20;
@@ -346,16 +342,12 @@ export class LlmNode extends BaseNode {
         const name = String(args.name ?? '');
         const description = String(args.description ?? '');
         const nodes = args.nodes as Array<Record<string, unknown>> | undefined;
-        const edges = args.edges as Array<Record<string, unknown>> | undefined;
 
         if (!name) {
           return { success: false, error: 'Agent name is required' };
         }
         if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
           return { success: false, error: 'At least one node is required' };
-        }
-        if (!edges || !Array.isArray(edges)) {
-          return { success: false, error: 'Edges array is required' };
         }
 
         // Basic validation
@@ -374,8 +366,6 @@ export class LlmNode extends BaseNode {
           name,
           description,
           nodes: nodes as unknown as import('../../domain/entities/Agent.js').WorkflowNode[],
-          edges: edges as unknown as import('../../domain/entities/Agent.js').WorkflowEdge[],
-          variables: [],
         });
 
         return {
@@ -415,7 +405,6 @@ export class LlmNode extends BaseNode {
             name: agent.name,
             description: agent.description,
             nodes: agent.nodes,
-            edges: agent.edges,
             isSystem: agent.isSystem,
           },
         };
@@ -468,13 +457,6 @@ export class LlmNode extends BaseNode {
             return { success: false, error: 'Workflow must have at least one output node' };
           }
           updates.nodes = nodes;
-        }
-        if (args.edges !== undefined) {
-          const edges = args.edges as Array<Record<string, unknown>>;
-          if (!Array.isArray(edges)) {
-            return { success: false, error: 'Edges must be an array' };
-          }
-          updates.edges = edges;
         }
 
         if (Object.keys(updates).length === 0) {

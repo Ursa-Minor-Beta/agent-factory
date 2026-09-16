@@ -49,26 +49,6 @@ const nodeSchema = {
   },
 };
 
-const edgeSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    source: { type: 'string' },
-    sourceHandle: { type: 'string' },
-    target: { type: 'string' },
-    targetHandle: { type: 'string' },
-  },
-};
-
-const variableSchema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    type: { type: 'string', enum: ['string', 'number', 'boolean'] },
-    defaultValue: {},
-  },
-};
-
 const agentSchema = {
   type: 'object',
   properties: {
@@ -77,8 +57,6 @@ const agentSchema = {
     name: { type: 'string' },
     description: { type: 'string' },
     nodes: { type: 'array', items: nodeSchema },
-    edges: { type: 'array', items: edgeSchema },
-    variables: { type: 'array', items: variableSchema },
     isSystem: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -200,8 +178,6 @@ export async function agentRoutes(app: FastifyInstance) {
           name: { type: 'string', minLength: 1 },
           description: { type: 'string' },
           nodes: { type: 'array', items: nodeSchema },
-          edges: { type: 'array', items: edgeSchema },
-          variables: { type: 'array', items: variableSchema },
         },
       },
       response: {
@@ -223,8 +199,6 @@ export async function agentRoutes(app: FastifyInstance) {
       name: string;
       description?: string;
       nodes?: any[];
-      edges?: any[];
-      variables?: any[];
     };
 
     const agent = await agentService.create(userId, body);
@@ -291,8 +265,6 @@ export async function agentRoutes(app: FastifyInstance) {
           name: { type: 'string', minLength: 1 },
           description: { type: 'string' },
           nodes: { type: 'array', items: nodeSchema },
-          edges: { type: 'array', items: edgeSchema },
-          variables: { type: 'array', items: variableSchema },
         },
       },
       response: {
@@ -317,8 +289,6 @@ export async function agentRoutes(app: FastifyInstance) {
       name?: string;
       description?: string;
       nodes?: any[];
-      edges?: any[];
-      variables?: any[];
     };
 
     const agent = await agentService.update(userId, id, body);
@@ -366,7 +336,7 @@ export async function agentRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     const agent = await agentService.getById(userId, id);
-    const validation = validateWorkflow(agent.nodes, agent.edges);
+    const validation = validateWorkflow(agent.nodes);
 
     return reply.send({
       success: true,

@@ -122,7 +122,7 @@ export class WorkerExecutor {
     options: WorkerExecutorOptions
   ): Promise<WorkerExecutionResult> {
     // Validate workflow
-    const validation = validateWorkflow(agent.nodes, agent.edges);
+    const validation = validateWorkflow(agent.nodes);
     if (!validation.valid) {
       return {
         output: {},
@@ -156,8 +156,8 @@ export class WorkerExecutor {
     runId: string,
     options: WorkerExecutorOptions
   ): Promise<WorkerExecutionResult> {
-    const context = new ExecutionContext(agent.edges);
-    const executionOrder = topologicalSort(agent.nodes, agent.edges);
+    const context = new ExecutionContext();
+    const executionOrder = topologicalSort(agent.nodes);
 
     // Build execution options
     const execOptions: ExecutionOptions = {
@@ -173,8 +173,6 @@ export class WorkerExecutor {
       messages: options.sessionContext?.messages,
     };
 
-    // Track skipped nodes
-    const skippedNodes = new Set<string>();
     // Track all files from this run
     const allFiles: string[] = [];
 
@@ -189,18 +187,6 @@ export class WorkerExecutor {
         const node = agent.nodes.find((n) => n.id === nodeId);
         if (!node) continue;
 
-        // Check if this node should be skipped
-        const shouldSkip = this.shouldSkipNode(nodeId, agent.edges, context, skippedNodes);
-        if (shouldSkip) {
-          skippedNodes.add(nodeId);
-          await this.runRepo.updateNodeState(runId, nodeId, {
-            status: 'skipped',
-            completedAt: new Date(),
-          });
-          this.callbacks.onNodeSkipped(nodeId, node.type);
-          continue;
-        }
-
         // Update node state to running
         await this.runRepo.updateNodeState(runId, nodeId, {
           status: 'running',
@@ -209,7 +195,6 @@ export class WorkerExecutor {
         this.callbacks.onNodeStarted(nodeId, node.type);
 
         const nodeHandler = getNode(node.type);
-        const nodeInputs = context.getAllInputs(nodeId);
 
         try {
           const result = await nodeHandler.execute(node, context, execOptions);
@@ -251,7 +236,6 @@ export class WorkerExecutor {
           // Update node state to completed
           const nodeState: Partial<NodeState> = {
             status: 'completed',
-            input: safeClone(nodeInputs),
             output: safeClone(finalOutput),
             state: safeClone(result.state),
             files: nodeFiles,
@@ -282,7 +266,6 @@ export class WorkerExecutor {
           // Update node state to failed
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'failed',
-            input: safeClone(nodeInputs),
             error: errorMessage,
             errorDetails,
             completedAt: new Date(),
@@ -310,44 +293,6 @@ export class WorkerExecutor {
       await this.runRepo.fail(runId, errorMessage);
       return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
     }
-  }
-
-  /**
-   * Check if a node should be skipped due to being in an unselected if-else branch
-   */
-  private shouldSkipNode(
-    nodeId: string,
-    edges: Agent['edges'],
-    context: ExecutionContext,
-    skippedNodes: Set<string>
-  ): boolean {
-    const incomingEdges = edges.filter((e) => e.target === nodeId);
-
-    if (incomingEdges.length === 0) {
-      return false;
-    }
-
-    let hasActiveSource = false;
-
-    for (const edge of incomingEdges) {
-      if (skippedNodes.has(edge.source)) {
-        continue;
-      }
-
-      if (edge.sourceHandle === 'true' || edge.sourceHandle === 'false') {
-        const sourceOutputs = context.getNodeOutputs(edge.source);
-        const value = sourceOutputs[edge.sourceHandle];
-
-        if (value === null || value === undefined) {
-          continue;
-        }
-      }
-
-      hasActiveSource = true;
-      break;
-    }
-
-    return !hasActiveSource;
   }
 
   /**

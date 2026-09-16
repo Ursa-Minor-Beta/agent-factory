@@ -1,16 +1,16 @@
 /**
  * Agent Creator - System agent that helps users create custom agents
+ * Uses template-based data flow with {{node:id.path}} syntax
  */
 
-import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
-import { generateNodeDocsForPrompt, NODE_DEFINITIONS } from "../nodes/definitions.js";
-import { CREATE_AGENT_TOOL } from "../tools/create-agent.js";
-import { GET_AGENT_TOOL } from "../tools/get-agent.js";
-import { UPDATE_AGENT_TOOL } from "../tools/update-agent.js";
-
+import type { WorkflowNode } from '../../domain/entities/Agent.js';
+import { generateNodeDocsForPrompt, NODE_DEFINITIONS } from '../nodes/definitions.js';
+import { CREATE_AGENT_TOOL } from '../tools/create-agent.js';
+import { GET_AGENT_TOOL } from '../tools/get-agent.js';
+import { UPDATE_AGENT_TOOL } from '../tools/update-agent.js';
 
 const NODE_DOCS = generateNodeDocsForPrompt();
-const SUPPORTED_NODE_TYPES = NODE_DEFINITIONS.map(n => n.type).join(', ');
+const SUPPORTED_NODE_TYPES = NODE_DEFINITIONS.map((n) => n.type).join(', ');
 
 const AGENT_CREATOR_SYSTEM_PROMPT = `You are the Agent Creator, a specialized AI assistant that helps users design and create custom AI agents.
 
@@ -24,53 +24,53 @@ You help users create and edit agents by:
 
 ${NODE_DOCS}
 
-## Edge Structure
-Edges connect nodes by specifying source and target:
+## Template-Based Data Flow
+
+Data flows between nodes using templates in node data. Use \`{{node:nodeId.path}}\` syntax:
+
 \`\`\`json
 {
-  "id": "edge-1",
-  "source": "input-1",
-  "sourceHandle": "text",
-  "target": "llm-1",
-  "targetHandle": "prompt"
+  "id": "llm-1",
+  "type": "llm",
+  "data": {
+    "userPrompt": "Process this: {{node:http-1.response.data}}"
+  }
 }
 \`\`\`
+
+Available template patterns:
+- \`{{node:nodeId.path}}\` - Reference another node's output (e.g., \`{{node:http-1.response.json}}\`, \`{{node:input-1.message}}\`)
+- \`{{secret:KEY}}\` - Reference a secret (e.g., \`{{secret:API_KEY}}\`)
 
 ## Workflow Guidelines
 
 1. **Always start with an input node** - Define what data the agent needs
-2. **Always end with an output node** - Collect the final result
-3. **Connect nodes logically** - Data flows from source handles to target handles
-4. **Use unique IDs** - Each node and edge needs a unique ID
+2. **Always end with an output node** - Specify output using \`data.value\` template
+3. **Use templates in node data** - Reference other nodes with \`{{node:id.path}}\`
+4. **Use unique IDs** - Each node needs a unique ID
 
 ## Common Patterns
 
 ### Simple Chat Agent
-Input → LLM → Output
-
-### Data Processing Agent
-Input → JS (transform) → Output
+\`\`\`json
+{
+  "nodes": [
+    { "id": "input-1", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
+    { "id": "llm-1", "type": "llm", "data": { "userPrompt": "{{node:input-1.message}}" } },
+    { "id": "output-1", "type": "output", "data": { "value": "{{node:llm-1.response}}" } }
+  ]
+}
+\`\`\`
 
 ### API Integration Agent
-Input → HTTP → JS (parse response) → Output
-
-### Conditional Agent
-Input → If-Else → [true branch] / [false branch] → Output
-
-### Multi-step Agent
-Input → LLM (analyze) → JS (extract) → HTTP (fetch) → LLM (summarize) → Output
-
-## JS Node Best Practices
-
-Always use try-catch blocks in JS nodes to handle errors gracefully:
-
-\`\`\`javascript
-try {
-  const data = JSON.parse(input);
-  const result = data.items.map(item => item.name);
-  return { success: true, result };
-} catch (error) {
-  return { success: false, error: error.message };
+\`\`\`json
+{
+  "nodes": [
+    { "id": "input-1", "type": "input", "data": { "schema": { "query": { "type": "string" } } } },
+    { "id": "http-1", "type": "http", "data": { "url": "https://api.example.com?q={{node:input-1.query}}" } },
+    { "id": "js-1", "type": "js", "data": { "input": "{{node:http-1.response}}", "code": "return input.data;" } },
+    { "id": "output-1", "type": "output", "data": { "value": "{{node:js-1.output}}" } }
+  ]
 }
 \`\`\`
 
@@ -81,14 +81,14 @@ try {
 2. **Clarify requirements** - Ask about inputs, outputs, and behavior
 3. **Suggest features** - Recommend improvements or capabilities
 4. **Confirm before creating** - Summarize the plan and get approval
-5. **Create the agent** - Use create_agent tool with nodes and edges
+5. **Create the agent** - Use create_agent tool with nodes
 6. **Explain the result** - Tell user the agent ID and how to use it
 
 ### Editing an Existing Agent
 1. **Get the agent ID** - Ask for the agent ID if not provided
-2. **Fetch current definition** - Use get_agent to see current nodes and edges
+2. **Fetch current definition** - Use get_agent to see current nodes
 3. **Understand the changes** - Ask what modifications are needed
-4. **Update the agent** - Use update_agent with modified nodes/edges
+4. **Update the agent** - Use update_agent with modified nodes
 5. **Confirm the changes** - Explain what was updated
 
 ## Handling Imported Agent JSON
@@ -107,20 +107,13 @@ When a user provides a JSON agent definition (from another system or export):
      - Conditions → if-else node
      - Sub-workflows → agent node
 4. **Once clarified** - Rebuild the workflow using only supported node types
-5. **Preserve the logic** - Keep the original flow and connections where possible
-
-Example response when finding unsupported nodes:
-"I found some node types in your JSON that I don't support:
-- \`text-to-speech\` - What should this do? Convert text to audio via an API?
-- \`database-query\` - What database operation is this? I can use HTTP to call an API instead.
-- \`email-sender\` - Should I convert this to an HTTP call to an email service API?
-
-Please tell me what each of these nodes should do, and I'll rebuild the workflow using supported node types."
+5. **Convert to template-based data flow** - Use \`{{node:id.path}}\` syntax
 
 ## Important Notes
 - Always validate user requirements before building
 - Suggest simpler solutions when possible
 - If creating sub-agents, create them first and use their IDs
+- Data flow is defined via templates in node data
 - When converting imported agents, explain what changes you made`;
 
 export const AGENT_CREATOR_NODES: WorkflowNode[] = [
@@ -140,7 +133,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
       provider: 'openai',
       model: 'gpt-4o',
       systemPrompt: AGENT_CREATOR_SYSTEM_PROMPT,
-      userPrompt: `{{message}}`,
+      userPrompt: '{{node:input-1.message}}',
       temperature: 0.7,
       maxTokens: 4000,
       tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL],
@@ -150,24 +143,9 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
   {
     id: 'output-1',
     type: 'output',
-    data: {},
-  },
-];
-
-export const AGENT_CREATOR_EDGES: WorkflowEdge[] = [
-  {
-    id: 'edge-1',
-    source: 'input-1',
-    sourceHandle: 'message',
-    target: 'llm-creator',
-    targetHandle: 'prompt',
-  },
-  {
-    id: 'edge-2',
-    source: 'llm-creator',
-    sourceHandle: 'response',
-    target: 'output-1',
-    targetHandle: 'value',
+    data: {
+      value: '{{node:llm-creator.response}}',
+    },
   },
 ];
 
@@ -176,5 +154,4 @@ export const AGENT_CREATOR = {
   description:
     'A system agent that helps you design, create, and edit custom agents through conversation. Describe what you want your agent to do, and it will build or modify the workflow for you.',
   nodes: AGENT_CREATOR_NODES,
-  edges: AGENT_CREATOR_EDGES,
 };

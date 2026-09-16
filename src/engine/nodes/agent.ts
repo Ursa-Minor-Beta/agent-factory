@@ -3,13 +3,19 @@ import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { WorkflowExecutor } from '../executor.js';
 import { resolveRunOutput } from '../../utils/node-ref.js';
+import { interpolateAll } from './utils.js';
 
 interface AgentNodeData {
   agentId: string;
+  input?: string; // Template for input, e.g., "{{node:http-1.response}}"
 }
 
 /**
  * Agent node - Execute another agent as a sub-workflow
+ *
+ * Data config:
+ *   - agentId: ID of the agent to execute
+ *   - input: Template for input, e.g., "{{node:http-1.response}}"
  */
 export class AgentNode extends BaseNode {
   readonly type = 'agent';
@@ -20,7 +26,6 @@ export class AgentNode extends BaseNode {
     options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
     const data = node.data as unknown as AgentNodeData;
-    const inputs = context.getAllInputs(node.id);
 
     if (!data.agentId) {
       throw new Error('Agent node requires agentId in data');
@@ -56,9 +61,21 @@ export class AgentNode extends BaseNode {
     const newCallStack = new Set(callStack);
     newCallStack.add(data.agentId);
 
+    // Get input from template or workflow input
+    let subInput: Record<string, unknown>;
+    if (data.input && typeof data.input === 'string') {
+      const interpolated = interpolateAll(data.input, { context });
+      try {
+        subInput = JSON.parse(interpolated);
+      } catch {
+        subInput = { value: interpolated };
+      }
+    } else {
+      subInput = options.workflowInput;
+    }
+
     // Execute the sub-agent
     const executor = new WorkflowExecutor(options.runRepo);
-    const subInput = (inputs.input ?? inputs) as Record<string, unknown>;
     const run = await executor.executeInternal(
       targetAgent,
       subInput,

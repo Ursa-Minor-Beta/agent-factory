@@ -1,10 +1,10 @@
-
 /**
- * Basic Test Agent: Input -> JS -> If-Else -> Output
+ * Basic Test Agent: Input -> JS -> Output
  * No external dependencies - tests core node functionality
+ * Uses template-based data flow with {{node:id.path}} syntax
  */
 
-import { WorkflowNode, WorkflowEdge } from "../../domain/entities/Agent.js";
+import type { WorkflowNode } from '../../domain/entities/Agent.js';
 
 export const BASIC_TEST_NODES: WorkflowNode[] = [
   {
@@ -12,8 +12,8 @@ export const BASIC_TEST_NODES: WorkflowNode[] = [
     type: 'input',
     data: {
       schema: {
-        text: { type: 'string', required: true },
-        score: { type: 'number', required: false },
+        text: { type: 'string', required: true, default: 'Hello World' },
+        score: { type: 'number', required: false, default: 75 },
       },
     },
   },
@@ -21,61 +21,35 @@ export const BASIC_TEST_NODES: WorkflowNode[] = [
     id: 'js-1',
     type: 'js',
     data: {
-      // input contains full object {text, score} from 'value' handle
+      // input comes from workflow input (text, score)
       code: `
 const text = input.text || '';
 const score = input.score ?? 50;
+const status = score >= 50 ? 'PASS' : 'FAIL';
+const message = score >= 50 ? 'Score is passing' : 'Score is below threshold';
 return {
   original: text,
   uppercase: text.toUpperCase(),
   length: text.length,
   score: score,
+  status: status,
+  message: message,
   timestamp: new Date().toISOString()
 };
       `.trim(),
     },
   },
   {
-    id: 'if-else-1',
-    type: 'if-else',
-    data: {
-      expression: 'input.score >= 50',
-    },
-  },
-  {
-    id: 'js-pass',
-    type: 'js',
-    data: {
-      code: 'return { ...input, status: "PASS", message: "Score is passing" };',
-    },
-  },
-  {
-    id: 'js-fail',
-    type: 'js',
-    data: {
-      code: 'return { ...input, status: "FAIL", message: "Score is below threshold" };',
-    },
-  },
-  {
     id: 'output-1',
     type: 'output',
-    data: {},
+    data: {
+      value: '{{node:js-1.output}}',
+    },
   },
-];
-
-export const BASIC_TEST_EDGES: WorkflowEdge[] = [
-  // Use 'value' handle to get full input object {text, score}
-  { id: 'e1', source: 'input-1', sourceHandle: 'value', target: 'js-1', targetHandle: 'input' },
-  { id: 'e2', source: 'js-1', sourceHandle: 'output', target: 'if-else-1', targetHandle: 'input' },
-  { id: 'e3', source: 'if-else-1', sourceHandle: 'true', target: 'js-pass', targetHandle: 'input' },
-  { id: 'e4', source: 'if-else-1', sourceHandle: 'false', target: 'js-fail', targetHandle: 'input' },
-  { id: 'e5', source: 'js-pass', sourceHandle: 'output', target: 'output-1', targetHandle: 'value' },
-  { id: 'e6', source: 'js-fail', sourceHandle: 'output', target: 'output-1', targetHandle: 'value' },
 ];
 
 export const BASIC_TEST_AGENT = {
   name: 'Test Agent (Basic)',
-  description: 'Tests input, js, if-else, output nodes - no external dependencies',
+  description: 'Tests input, js, output nodes - no external dependencies',
   nodes: BASIC_TEST_NODES,
-  edges: BASIC_TEST_EDGES,
 };

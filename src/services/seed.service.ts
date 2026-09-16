@@ -58,8 +58,6 @@ export class SeedService {
         name: BASIC_TEST_AGENT.name,
         description: BASIC_TEST_AGENT.description,
         nodes: BASIC_TEST_AGENT.nodes,
-        edges: BASIC_TEST_AGENT.edges,
-        variables: [],
       });
       created.push(BASIC_TEST_AGENT.name);
     }
@@ -72,8 +70,6 @@ export class SeedService {
         name: FULL_TEST_AGENT.name,
         description: FULL_TEST_AGENT.description,
         nodes: FULL_TEST_AGENT.nodes,
-        edges: FULL_TEST_AGENT.edges,
-        variables: [],
       });
       created.push(FULL_TEST_AGENT.name);
     }
@@ -86,8 +82,6 @@ export class SeedService {
         name: MATH_SKILL_AGENT.name,
         description: MATH_SKILL_AGENT.description,
         nodes: MATH_SKILL_AGENT.nodes,
-        edges: MATH_SKILL_AGENT.edges,
-        variables: [],
       });
       created.push(MATH_SKILL_AGENT.name);
     }
@@ -106,8 +100,6 @@ export class SeedService {
         name: SKILLS_TEST_AGENT.name,
         description: SKILLS_TEST_AGENT.description,
         nodes: resolvedNodes,
-        edges: SKILLS_TEST_AGENT.edges,
-        variables: [],
       });
       created.push(SKILLS_TEST_AGENT.name);
     }
@@ -120,8 +112,6 @@ export class SeedService {
         name: AGENT_CREATOR.name,
         description: AGENT_CREATOR.description,
         nodes: AGENT_CREATOR.nodes,
-        edges: AGENT_CREATOR.edges,
-        variables: [],
       });
       created.push(AGENT_CREATOR.name);
     }
@@ -175,8 +165,6 @@ export class SeedService {
       name: DEFAULT_AGENT.name,
       description: DEFAULT_AGENT.description,
       nodes: DEFAULT_AGENT.nodes,
-      edges: DEFAULT_AGENT.edges,
-      variables: [],
     });
 
     return { created: true, id: defaultAgent.id };

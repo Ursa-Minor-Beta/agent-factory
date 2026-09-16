@@ -65,56 +65,6 @@ export class WorkflowExecutor {
   ) {}
 
   /**
-   * Check if a node should be skipped due to being in an unselected if-else branch
-   *
-   * A node should be skipped only if ALL incoming edges come from skipped sources.
-   * This allows converging branches to work correctly - the node executes if at least
-   * one branch reaches it.
-   */
-  private shouldSkipNode(
-    nodeId: string,
-    edges: Agent['edges'],
-    context: ExecutionContext,
-    skippedNodes: Set<string>
-  ): boolean {
-    // Find all incoming edges to this node
-    const incomingEdges = edges.filter((e) => e.target === nodeId);
-
-    // If no incoming edges, don't skip (e.g., input node)
-    if (incomingEdges.length === 0) {
-      return false;
-    }
-
-    // Check each incoming edge - if ANY edge comes from an active source, don't skip
-    let hasActiveSource = false;
-
-    for (const edge of incomingEdges) {
-      // Check if source node was skipped
-      if (skippedNodes.has(edge.source)) {
-        continue; // This edge is inactive, check others
-      }
-
-      // Check if this edge comes from an if-else node's true/false output
-      if (edge.sourceHandle === 'true' || edge.sourceHandle === 'false') {
-        const sourceOutputs = context.getNodeOutputs(edge.source);
-        const value = sourceOutputs[edge.sourceHandle];
-
-        // If the if-else branch output is null/undefined, this edge is inactive
-        if (value === null || value === undefined) {
-          continue;
-        }
-      }
-
-      // This edge has an active source
-      hasActiveSource = true;
-      break;
-    }
-
-    // Skip only if NO incoming edges are active
-    return !hasActiveSource;
-  }
-
-  /**
    * Execute a workflow and create a run record
    */
   async execute(
@@ -124,7 +74,7 @@ export class WorkflowExecutor {
     options: ExecutorOptions & Partial<InternalExecutionOptions>
   ): Promise<Run> {
     // Validate workflow
-    const validation = validateWorkflow(agent.nodes, agent.edges);
+    const validation = validateWorkflow(agent.nodes);
     if (!validation.valid) {
       throw new Error(`Invalid workflow: ${validation.errors.join(', ')}`);
     }
@@ -179,7 +129,7 @@ export class WorkflowExecutor {
     options: InternalExecutionOptions
   ): Promise<Run> {
     // Validate workflow
-    const validation = validateWorkflow(agent.nodes, agent.edges);
+    const validation = validateWorkflow(agent.nodes);
     if (!validation.valid) {
       throw new Error(`Invalid workflow: ${validation.errors.join(', ')}`);
     }
@@ -220,8 +170,8 @@ export class WorkflowExecutor {
     runId: string,
     options: ExecutorOptions & Partial<InternalExecutionOptions>
   ): Promise<InternalResult> {
-    const context = new ExecutionContext(agent.edges);
-    const executionOrder = topologicalSort(agent.nodes, agent.edges);
+    const context = new ExecutionContext();
+    const executionOrder = topologicalSort(agent.nodes);
 
     // Build full execution options
     const execOptions: ExecutionOptions = {
@@ -236,8 +186,6 @@ export class WorkflowExecutor {
       resolvedSecrets: options.resolvedSecrets,
     };
 
-    // Track skipped nodes (nodes in unselected if-else branches)
-    const skippedNodes = new Set<string>();
     // Track all files from this run
     const allFiles: string[] = [];
 
@@ -247,17 +195,6 @@ export class WorkflowExecutor {
         const node = agent.nodes.find((n) => n.id === nodeId);
         if (!node) continue;
 
-        // Check if this node should be skipped (connected to unselected if-else branch)
-        const shouldSkip = this.shouldSkipNode(nodeId, agent.edges, context, skippedNodes);
-        if (shouldSkip) {
-          skippedNodes.add(nodeId);
-          await this.runRepo.updateNodeState(runId, nodeId, {
-            status: 'skipped',
-            completedAt: new Date(),
-          });
-          continue;
-        }
-
         // Update node state to running
         await this.runRepo.updateNodeState(runId, nodeId, {
           status: 'running',
@@ -265,7 +202,6 @@ export class WorkflowExecutor {
         });
 
         const nodeHandler = getNode(node.type);
-        const nodeInputs = context.getAllInputs(nodeId);
 
         try {
           const result = await nodeHandler.execute(node, context, execOptions);
@@ -306,7 +242,6 @@ export class WorkflowExecutor {
           // Use safeClone to handle circular references before saving to MongoDB
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'completed',
-            input: safeClone(nodeInputs),
             output: safeClone(finalOutput),
             state: safeClone(result.state),
             files: nodeFiles,
@@ -335,7 +270,6 @@ export class WorkflowExecutor {
           // Update node state to failed
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'failed',
-            input: safeClone(nodeInputs),
             error: errorMessage,
             errorDetails,
             completedAt: new Date(),

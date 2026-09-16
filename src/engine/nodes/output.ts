@@ -1,9 +1,16 @@
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
+import { interpolateAll } from './utils.js';
+
+interface OutputNodeData {
+  name?: string;
+  value?: string; // Template like "{{node:llm-1.response}}"
+}
 
 /**
  * Output node - Collects final workflow results
+ * Use data.value with {{node:id.path}} template to specify output source
  */
 export class OutputNode extends BaseNode {
   readonly type = 'output';
@@ -11,16 +18,31 @@ export class OutputNode extends BaseNode {
   async execute(
     node: WorkflowNode,
     context: ExecutionContext,
-    _options: ExecutionOptions
+    options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
-    // Get all inputs connected to this output node
-    const inputs = context.getAllInputs(node.id);
+    const data = node.data as OutputNodeData;
 
-    // The output is whatever is connected to this node
-    const outputs = { value: inputs['value'] ?? inputs };
+    let value: unknown;
+
+    if (data.value) {
+      // Interpolate the value template
+      const interpolated = interpolateAll(data.value, { context });
+
+      // Try to parse as JSON if it looks like JSON
+      try {
+        value = JSON.parse(interpolated);
+      } catch {
+        value = interpolated;
+      }
+    } else {
+      // Fallback: use workflow input
+      value = options.workflowInput;
+    }
+
+    const outputs = { value };
 
     // Store in context
-    context.setOutput(node.id, 'value', outputs.value);
+    context.setOutput(node.id, 'value', value);
 
     return { outputs };
   }
