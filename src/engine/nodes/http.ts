@@ -65,6 +65,28 @@ export class HttpNode extends BaseNode {
       body: body ? (body.length > 500 ? `${body.slice(0, 500)}...` : body) : undefined,
     };
 
+    // Build state for request fields before fetch (so they persist even on error)
+    let state: Record<string, unknown> | undefined;
+    if (data.persistedFields?.length) {
+      state = {};
+      for (const field of data.persistedFields) {
+        switch (field) {
+          case 'url':
+            state.url = url;
+            break;
+          case 'method':
+            state.method = method;
+            break;
+          case 'headers':
+            state.headers = headers;
+            break;
+          case 'body':
+            state.body = body;
+            break;
+        }
+      }
+    }
+
     try {
       const res = await fetch(url, {
         method,
@@ -89,25 +111,10 @@ export class HttpNode extends BaseNode {
       context.setOutput(node.id, 'response', response);
       context.setOutput(node.id, 'status', status);
 
-      // Build state based on persistedFields config
-      // TODO make base
-      let state: Record<string, unknown> | undefined;
-      if (data.persistedFields?.length) {
-        state = {};
+      // Add response fields to state (request fields already added above)
+      if (data.persistedFields?.length && state) {
         for (const field of data.persistedFields) {
           switch (field) {
-            case 'url':
-              state.url = url;
-              break;
-            case 'method':
-              state.method = method;
-              break;
-            case 'headers':
-              state.headers = headers;
-              break;
-            case 'body':
-              state.body = body;
-              break;
             case 'status':
               state.status = status;
               break;
@@ -126,13 +133,15 @@ export class HttpNode extends BaseNode {
         throw new NodeExecutionError(
           `HTTP request timed out after ${timeout}ms`,
           { request: requestContext },
-          error
+          error,
+          state
         );
       }
       throw new NodeExecutionError(
         `HTTP request failed: ${error instanceof Error ? error.message : String(error)}`,
         { request: requestContext },
-        error
+        error,
+        state
       );
     }
   }

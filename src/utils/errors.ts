@@ -72,11 +72,18 @@ export interface NodeErrorContext {
 export class NodeExecutionError extends Error {
   public context: NodeErrorContext;
   public originalError?: Error;
+  public state?: Record<string, unknown>;
 
-  constructor(message: string, context: NodeErrorContext = {}, cause?: unknown) {
+  constructor(
+    message: string,
+    context: NodeErrorContext = {},
+    cause?: unknown,
+    state?: Record<string, unknown>
+  ) {
     super(message);
     this.name = 'NodeExecutionError';
     this.context = context;
+    this.state = state;
     if (cause instanceof Error) {
       this.originalError = cause;
     }

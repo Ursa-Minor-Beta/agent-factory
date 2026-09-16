@@ -268,11 +268,14 @@ export class WorkflowExecutor {
             };
           }
 
-          // Update node state to failed
+          // Update node state to failed (include state if available from error)
+          const errorState =
+            error instanceof NodeExecutionError ? safeClone(error.state) : undefined;
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'failed',
             error: errorMessage,
             errorDetails,
+            state: errorState,
             completedAt: new Date(),
           });
 
