@@ -2,8 +2,9 @@ import { FastifyInstance } from 'fastify';
 import { AgentService } from '../services/agent.service.js';
 import { SessionService } from '../services/session.service.js';
 import { RunService } from '../services/run.service.js';
+import { SeedService } from '../services/seed.service.js';
 import { container } from '../config/container.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js';
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
@@ -814,5 +815,41 @@ export async function agentRoutes(app: FastifyInstance) {
       }
       throw error;
     }
+  });
+
+  // Reseed/update system agents (admin only)
+  app.post('/api/agents/system/reseed', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Reseed system agents',
+      description: 'Update all built-in system agents with the latest definitions from code. Admin only.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                updated: { type: 'array', items: { type: 'string' } },
+                created: { type: 'array', items: { type: 'string' } },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+      },
+    },
+    preHandler: requireAdmin,
+  }, async (request, reply) => {
+    const seedService = new SeedService(container.userRepository, container.agentRepository);
+    const result = await seedService.updateSystemAgents();
+
+    return reply.send({
+      success: true,
+      data: result,
+    });
   });
 }

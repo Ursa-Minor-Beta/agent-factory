@@ -171,6 +171,77 @@ export class SeedService {
   }
 
   /**
+   * Update existing system agents with latest definitions (force reseed)
+   */
+  async updateSystemAgents(): Promise<{ updated: string[]; created: string[] }> {
+    const admin = await this.userRepo.findByEmail(config.admin.email!);
+    if (!admin) {
+      return { updated: [], created: [] };
+    }
+
+    const updated: string[] = [];
+    const created: string[] = [];
+
+    // Helper to update or create an agent
+    const upsertAgent = async (agentDef: { name: string; description?: string; nodes: WorkflowNode[] }) => {
+      const existing = await this.agentRepo.findSystemAgentByName(agentDef.name);
+      if (existing) {
+        await this.agentRepo.update(existing.id, {
+          description: agentDef.description,
+          nodes: agentDef.nodes,
+        });
+        updated.push(agentDef.name);
+        return existing;
+      } else {
+        const newAgent = await this.agentRepo.createSystemAgent({
+          userId: admin.id,
+          name: agentDef.name,
+          description: agentDef.description,
+          nodes: agentDef.nodes,
+        });
+        created.push(agentDef.name);
+        return newAgent;
+      }
+    };
+
+    // Update/create Basic Test Agent
+    await upsertAgent(BASIC_TEST_AGENT);
+
+    // Update/create Full Test Agent
+    await upsertAgent(FULL_TEST_AGENT);
+
+    // Update/create Math Skill Agent (must be done before Skills Test Agent)
+    const mathSkillAgent = await upsertAgent(MATH_SKILL_AGENT);
+
+    // Update/create Skills Test Agent (with resolved tool agentIds)
+    const resolvedNodes = this.resolveToolAgentIds(
+      SKILLS_TEST_AGENT.nodes,
+      { '{{MATH_SKILL_AGENT_ID}}': mathSkillAgent.id }
+    );
+    const existingSkills = await this.agentRepo.findSystemAgentByName(SKILLS_TEST_AGENT.name);
+    if (existingSkills) {
+      await this.agentRepo.update(existingSkills.id, {
+        description: SKILLS_TEST_AGENT.description,
+        nodes: resolvedNodes,
+      });
+      updated.push(SKILLS_TEST_AGENT.name);
+    } else {
+      await this.agentRepo.createSystemAgent({
+        userId: admin.id,
+        name: SKILLS_TEST_AGENT.name,
+        description: SKILLS_TEST_AGENT.description,
+        nodes: resolvedNodes,
+      });
+      created.push(SKILLS_TEST_AGENT.name);
+    }
+
+    // Update/create Agent Creator
+    await upsertAgent(AGENT_CREATOR);
+
+    return { updated, created };
+  }
+
+  /**
    * Get all agent IDs for logging
    */
   async getAllAgentIds(): Promise<{ name: string; id: string; isSystem: boolean }[]> {
