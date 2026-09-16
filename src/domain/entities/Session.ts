@@ -7,6 +7,8 @@ export interface Session {
   title: string | null;
   status: SessionStatus;
   incognito: boolean;
+  /** LLM-managed notes/scratchpad - persists important context across conversation */
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,4 +23,5 @@ export interface CreateSessionDTO {
 export interface UpdateSessionDTO {
   title?: string;
   status?: SessionStatus;
+  notes?: string | null;
 }

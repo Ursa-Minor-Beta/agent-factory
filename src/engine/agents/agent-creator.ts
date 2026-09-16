@@ -8,6 +8,7 @@ import { generateNodeDocsForPrompt, NODE_DEFINITIONS } from '../nodes/definition
 import { CREATE_AGENT_TOOL } from '../tools/create-agent.js';
 import { GET_AGENT_TOOL } from '../tools/get-agent.js';
 import { UPDATE_AGENT_TOOL } from '../tools/update-agent.js';
+import { SESSION_NOTES_TOOLS } from '../tools/session-notes.js';
 
 const NODE_DOCS = generateNodeDocsForPrompt();
 const SUPPORTED_NODE_TYPES = NODE_DEFINITIONS.map((n) => n.type).join(', ');
@@ -136,7 +137,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
       userPrompt: '{{node:input-1.message}}',
       temperature: 0.7,
       maxTokens: 4000,
-      tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL],
+      tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL, ...SESSION_NOTES_TOOLS],
       maxToolCalls: 5,
     },
   },

@@ -14,10 +14,20 @@ export type {
 export { CREATE_AGENT_TOOL } from './create-agent.js';
 export { GET_AGENT_TOOL } from './get-agent.js';
 export { UPDATE_AGENT_TOOL } from './update-agent.js';
+export {
+  UPDATE_SESSION_NOTES_TOOL,
+  APPEND_SESSION_NOTES_TOOL,
+  SESSION_NOTES_TOOLS,
+  MAX_SESSION_NOTES_LENGTH,
+} from './session-notes.js';
 
 import { CREATE_AGENT_TOOL } from './create-agent.js';
 import { GET_AGENT_TOOL } from './get-agent.js';
 import { UPDATE_AGENT_TOOL } from './update-agent.js';
+import {
+  UPDATE_SESSION_NOTES_TOOL,
+  APPEND_SESSION_NOTES_TOOL,
+} from './session-notes.js';
 import type { BuiltinToolDefinition } from './types.js';
 
 /**
@@ -27,6 +37,8 @@ export const BUILTIN_TOOLS: Record<string, BuiltinToolDefinition> = {
   create_agent: CREATE_AGENT_TOOL,
   get_agent: GET_AGENT_TOOL,
   update_agent: UPDATE_AGENT_TOOL,
+  update_session_notes: UPDATE_SESSION_NOTES_TOOL,
+  append_session_notes: APPEND_SESSION_NOTES_TOOL,
 };
 
 /**

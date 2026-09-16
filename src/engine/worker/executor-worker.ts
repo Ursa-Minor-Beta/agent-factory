@@ -9,6 +9,7 @@ import { MongoRunRepository } from '../../infrastructure/database/mongodb/reposi
 import { MongoFileRepository } from '../../infrastructure/database/mongodb/repositories/MongoFileRepository.js';
 import { MongoAgentRepository } from '../../infrastructure/database/mongodb/repositories/MongoAgentRepository.js';
 import { MongoMessageRepository } from '../../infrastructure/database/mongodb/repositories/MongoMessageRepository.js';
+import { MongoSessionRepository } from '../../infrastructure/database/mongodb/repositories/MongoSessionRepository.js';
 
 let shouldStop = false;
 let currentExecutor: WorkerExecutor | null = null;
@@ -49,6 +50,7 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
     const fileRepo = new MongoFileRepository();
     const agentRepo = new MongoAgentRepository();
     const messageRepo = new MongoMessageRepository();
+    const sessionRepo = new MongoSessionRepository();
 
     // Create executor with callbacks
     currentExecutor = new WorkerExecutor(runRepo, fileRepo, agentRepo, messageRepo, {
@@ -61,11 +63,24 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
 
     sendMessage({ type: 'started' });
 
+    // Track current notes for append operations
+    let currentNotes = config.sessionContext?.notes ?? '';
+
     // Build session context if provided
     const sessionContext = config.sessionContext
       ? {
           sessionId: config.sessionContext.sessionId,
           messages: config.sessionContext.messages,
+          notes: config.sessionContext.notes,
+          maxNotesLength: config.sessionContext.maxNotesLength,
+          onNotesUpdate: async (notes: string) => {
+            // Update local cache for append operations
+            currentNotes = notes;
+            // Persist to database (skip for incognito sessions)
+            if (!config.sessionContext!.sessionId.startsWith('incognito_')) {
+              await sessionRepo.update(config.sessionContext!.sessionId, { notes });
+            }
+          },
         }
       : undefined;
 

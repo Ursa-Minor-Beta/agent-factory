@@ -8,6 +8,7 @@ import { interpolateAll } from './utils.js';
 import { WorkflowExecutor } from '../executor.js';
 import { resolveRunOutput } from '../../utils/node-ref.js';
 import type { ToolDefinition } from '../tools/index.js';
+import { MAX_SESSION_NOTES_LENGTH } from '../tools/session-notes.js';
 
 interface LLMNodeData {
   provider: 'openai' | 'anthropic' | 'ollama';
@@ -29,6 +30,30 @@ import type { ChatMessage } from './base.js';
  */
 export class LlmNode extends BaseNode {
   readonly type = 'llm';
+
+  /**
+   * Build system prompt with session notes injected if available
+   */
+  private buildSystemPrompt(
+    systemPrompt: string | undefined,
+    sessionNotes: string | undefined,
+    hasSession: boolean
+  ): string | undefined {
+    // No session context - return system prompt as-is
+    if (!hasSession) {
+      return systemPrompt;
+    }
+
+    const notesInstruction = `\n\n## Session Notes (persistent memory)
+Extract facts and call the update_session_notes tool.`;
+// REQUIRED: After each response, use update_session_notes to save a brief overview of the current conversation context. Include: user info, current task/topic, key decisions, and any data needed for continuity. Always keep notes up-to-date - they persist even when older messages are truncated.`;
+
+    const notesSection = sessionNotes
+      ? `${notesInstruction}\n\nCurrent notes:\n${sessionNotes}`
+      : `${notesInstruction}\n\n(No notes yet)`;
+
+    return systemPrompt ? systemPrompt + notesSection : notesSection.trim();
+  }
 
   async execute(
     node: WorkflowNode,
@@ -56,18 +81,18 @@ export class LlmNode extends BaseNode {
     let usage = { inputTokens: 0, outputTokens: 0 };
     let toolCalls: Array<{ name: string; result: unknown }> | undefined;
 
-    switch (data.provider) {
-      case 'openai':
-        ({ response, usage, toolCalls } = await this.callOpenAI(data, systemPrompt, userPrompt, conversationHistory, options));
-        break;
-      case 'anthropic':
-        ({ response, usage, toolCalls } = await this.callAnthropic(data, systemPrompt, userPrompt, conversationHistory, options));
-        break;
-      case 'ollama':
-        ({ response, usage } = await this.callOllama(data, systemPrompt, userPrompt, conversationHistory, options));
-        break;
-      default:
-        throw new Error(`Unknown LLM provider: ${data.provider}`);
+      switch (data.provider) {
+        case 'openai':
+          ({ response, usage, toolCalls } = await this.callOpenAI(data, systemPrompt, userPrompt, conversationHistory, options));
+          break;
+        case 'anthropic':
+          ({ response, usage, toolCalls } = await this.callAnthropic(data, systemPrompt, userPrompt, conversationHistory, options));
+          break;
+        case 'ollama':
+          ({ response, usage } = await this.callOllama(data, systemPrompt, userPrompt, conversationHistory, options));
+          break;
+        default:
+          throw new Error(`Unknown LLM provider: ${data.provider}`);
     }
 
     const outputs: Record<string, unknown> = { response, usage };
@@ -126,9 +151,11 @@ export class LlmNode extends BaseNode {
       baseURL: options.providers.openai?.baseUrl,
     });
 
+    const finalSystemPrompt = this.buildSystemPrompt(systemPrompt, options.sessionNotes, !!options.sessionId);
+
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-    if (systemPrompt) {
-      messages.push({ role: 'system', content: systemPrompt });
+    if (finalSystemPrompt) {
+      messages.push({ role: 'system', content: finalSystemPrompt });
     }
     // Add conversation history before current message
     for (const msg of conversationHistory) {
@@ -409,6 +436,48 @@ export class LlmNode extends BaseNode {
           },
         };
       }
+      case 'update_session_notes': {
+        const maxLength = options.maxNotesLength ?? MAX_SESSION_NOTES_LENGTH;
+        let notes = String(args.notes ?? '');
+        const wasTruncated = notes.length > maxLength;
+        if (wasTruncated) {
+          notes = notes.slice(0, maxLength);
+        }
+        if (options.onSessionNotesUpdate) {
+          await options.onSessionNotesUpdate(notes);
+        }
+        return {
+          success: true,
+          message: wasTruncated
+            ? `Session notes updated (truncated from ${String(args.notes).length} to ${maxLength} chars)`
+            : 'Session notes updated',
+          length: notes.length,
+          maxLength,
+        };
+      }
+
+      case 'append_session_notes': {
+        const maxLength = options.maxNotesLength ?? MAX_SESSION_NOTES_LENGTH;
+        const toAppend = String(args.notes ?? '');
+        const current = options.sessionNotes ?? '';
+        let newNotes = current ? `${current}\n${toAppend}` : toAppend;
+        const wasTruncated = newNotes.length > maxLength;
+        if (wasTruncated) {
+          newNotes = newNotes.slice(0, maxLength);
+        }
+        if (options.onSessionNotesUpdate) {
+          await options.onSessionNotesUpdate(newNotes);
+        }
+        return {
+          success: true,
+          message: wasTruncated
+            ? `Notes appended but truncated to ${maxLength} chars`
+            : 'Notes appended',
+          length: newNotes.length,
+          maxLength,
+        };
+      }
+
       case 'update_agent': {
         if (!options.agentRepo) {
           throw new Error('update_agent tool requires agentRepo in options');
@@ -510,6 +579,8 @@ export class LlmNode extends BaseNode {
       toolMap.set(tool.name, tool);
     });
 
+    const finalSystemPrompt = this.buildSystemPrompt(systemPrompt, options.sessionNotes, !!options.sessionId);
+
     // Build messages array with conversation history
     const messages: Anthropic.MessageParam[] = [];
     for (const msg of conversationHistory) {
@@ -526,7 +597,7 @@ export class LlmNode extends BaseNode {
         const response = await client.messages.create({
           model: data.model || 'claude-sonnet-4-20250514',
           max_tokens: data.maxTokens ?? 1000,
-          system: systemPrompt,
+          system: finalSystemPrompt,
           messages,
           tools: anthropicTools,
         });
@@ -635,9 +706,11 @@ export class LlmNode extends BaseNode {
       throw new NodeExecutionError('Ollama base URL not configured', {});
     }
 
+    const finalSystemPrompt = this.buildSystemPrompt(systemPrompt, options.sessionNotes, !!options.sessionId);
+
     const messages: Array<{ role: string; content: string }> = [];
-    if (systemPrompt) {
-      messages.push({ role: 'system', content: systemPrompt });
+    if (finalSystemPrompt) {
+      messages.push({ role: 'system', content: finalSystemPrompt });
     }
     // Add conversation history before current message
     for (const msg of conversationHistory) {

@@ -11,6 +11,7 @@ export class MongoSessionRepository implements ISessionRepository {
       title: doc.title,
       status: doc.status,
       incognito: doc.incognito,
+      notes: doc.notes,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };

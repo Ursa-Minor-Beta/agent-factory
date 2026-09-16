@@ -8,6 +8,8 @@ export interface SessionDocument extends Document {
   title: string | null;
   status: SessionStatus;
   incognito: boolean;
+  /** LLM-managed notes/scratchpad - persists important context */
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +38,10 @@ const sessionSchema = new Schema<SessionDocument>(
     incognito: {
       type: Boolean,
       default: false,
+    },
+    notes: {
+      type: String,
+      default: null,
     },
   },
   {

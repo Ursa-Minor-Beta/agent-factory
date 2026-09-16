@@ -36,6 +36,10 @@ export interface ExecutionOptions {
   resolvedSecrets?: Record<string, string>;
   // Session context (separate from user input)
   messages?: ChatMessage[]; // For incognito sessions - conversation history
+  // Session notes (scratchpad) - persists important context across conversation
+  sessionNotes?: string;
+  onSessionNotesUpdate?: (notes: string) => Promise<void>; // Callback to persist notes
+  maxNotesLength?: number; // Max length for session notes (default: 8000)
 }
 
 export abstract class BaseNode {

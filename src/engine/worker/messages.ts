@@ -16,6 +16,10 @@ export interface ChatMessageContext {
 export interface SessionContext {
   sessionId: string;
   messages?: ChatMessageContext[];
+  /** LLM-managed notes/scratchpad - persists important context */
+  notes?: string;
+  /** Max length for session notes (default: 8000) */
+  maxNotesLength?: number;
 }
 
 /**

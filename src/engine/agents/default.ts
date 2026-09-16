@@ -1,4 +1,5 @@
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
+import { SESSION_NOTES_TOOLS } from '../tools/session-notes.js';
 
 // Default workflow: Input (text) -> LLM -> Output
 // Uses template-based data flow with {{node:id.path}} syntax
@@ -22,6 +23,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
       userPrompt: '{{node:input-1.message}}',
       temperature: 0.7,
       maxTokens: 1000,
+      tools: [...SESSION_NOTES_TOOLS],
     },
   },
   {
@@ -34,7 +36,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
 ];
 
 export const DEFAULT_AGENT = {
-  name: 'Default Agent',
+  name: 'Chat Agent',
   description: 'A simple text-to-LLM workflow',
   nodes: DEFAULT_NODES,
 };

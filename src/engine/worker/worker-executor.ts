@@ -70,6 +70,12 @@ export interface WorkerExecutorCallbacks {
 export interface SessionContext {
   sessionId: string;
   messages?: ChatMessage[];
+  /** LLM-managed notes/scratchpad - persists important context */
+  notes?: string;
+  /** Callback to persist updated notes */
+  onNotesUpdate?: (notes: string) => Promise<void>;
+  /** Max length for session notes (default: 8000) */
+  maxNotesLength?: number;
 }
 
 export interface WorkerExecutorOptions {
@@ -171,6 +177,9 @@ export class WorkerExecutor {
       callStack: new Set([agent.id]), // Initialize call stack with current agent
       sessionId: options.sessionContext?.sessionId,
       messages: options.sessionContext?.messages,
+      sessionNotes: options.sessionContext?.notes,
+      onSessionNotesUpdate: options.sessionContext?.onNotesUpdate,
+      maxNotesLength: options.sessionContext?.maxNotesLength,
     };
 
     // Track all files from this run

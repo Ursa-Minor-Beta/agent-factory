@@ -26,6 +26,8 @@ interface SessionSetupResult {
   effectiveSessionId: string | null;
   isNewSession: boolean;
   messagesHistory: ChatMessage[];
+  /** LLM-managed notes/scratchpad for this session */
+  sessionNotes: string | null;
 }
 
 export interface ChatMessage {
@@ -42,6 +44,8 @@ export interface ExtractedFile {
 export interface ChatOptions {
   sessionId?: string;
   incognito?: boolean;
+  /** Max length for session notes (default: 8000) */
+  maxNotesLength?: number;
 }
 
 export interface ChatResult {
@@ -69,6 +73,8 @@ interface IncognitoSession {
   userId: string;
   agentId: string;
   messages: ChatMessage[];
+  /** LLM-managed notes/scratchpad - persists during session lifetime */
+  notes: string | null;
   createdAt: number;
   lastAccessedAt: number;
 }
@@ -136,6 +142,7 @@ export class SessionService {
       effectiveSessionId,
       isNewSession,
       messagesHistory,
+      sessionNotes,
     } = await this.initChatSession(userId, agent, inputContent, options, providers);
 
     // Save user message
@@ -157,6 +164,8 @@ export class SessionService {
       ? {
           sessionId: effectiveSessionId,
           messages: messagesHistory,
+          notes: sessionNotes ?? undefined,
+          maxNotesLength: options.maxNotesLength,
         }
       : undefined;
 
@@ -264,6 +273,7 @@ export class SessionService {
       effectiveSessionId,
       isNewSession,
       messagesHistory,
+      sessionNotes,
     } = await this.initChatSession(userId, agent, inputContent, options, providers);
 
     // Save user message
@@ -279,7 +289,7 @@ export class SessionService {
     run = (await this.runRepo.updateStatus(run.id, 'running'))!;
 
     const sessionContext = effectiveSessionId
-      ? { sessionId: effectiveSessionId, messages: messagesHistory }
+      ? { sessionId: effectiveSessionId, messages: messagesHistory, notes: sessionNotes ?? undefined, maxNotesLength: options.maxNotesLength }
       : undefined;
 
     // Start execution (non-blocking)
@@ -543,6 +553,7 @@ export class SessionService {
         userId,
         agentId: agent.id,
         messages: [],
+        notes: null,
         createdAt: Date.now(),
         lastAccessedAt: Date.now(),
       };
@@ -563,12 +574,16 @@ export class SessionService {
       isNewSession = true;
     }
 
+    // Get session notes from persisted session or incognito session
+    const sessionNotes = session?.notes ?? incognitoSession?.notes ?? null;
+
     return {
       session,
       incognitoSession,
       effectiveSessionId,
       isNewSession,
       messagesHistory,
+      sessionNotes,
     };
   }
 
