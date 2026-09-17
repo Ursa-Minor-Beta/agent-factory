@@ -89,6 +89,8 @@ export interface WorkerExecutionResult {
   output: Record<string, unknown>;
   status: 'completed' | 'failed' | 'cancelled';
   error?: string;
+  /** File references created during execution (for output nodes with file data) */
+  files?: string[];
 }
 
 export class WorkerExecutor {

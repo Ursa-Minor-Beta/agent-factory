@@ -37,6 +37,7 @@ export function extractImagesFromText(text: string): {
 
     while ((match = standaloneRegex.exec(text)) !== null) {
       const base64 = match[1];
+      if (!base64) continue;
       const mimeType = detectMimeTypeFromBase64(base64);
       // Only extract if it's actually an image
       if (mimeType && mimeType.startsWith('image/')) {
