@@ -12,6 +12,10 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Encrypted Secrets** - Provider API keys encrypted at rest (AES-256-GCM)
 - **Swagger Docs** - Full API documentation at `/docs`
 
+## UI Client
+
+A web-based UI client is available at [agent-factory-ui](https://github.com/Ursa-Minor-Beta/agent-factory-ui).
+
 ## Environment Variables
 
 ```bash
