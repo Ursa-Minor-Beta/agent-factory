@@ -4,6 +4,64 @@ export interface ExtractedFile {
   field: string;
 }
 
+export interface ExtractedImage {
+  mimeType: string;
+  data: string; // raw base64 without data URL prefix
+}
+
+/**
+ * Extract base64 images from a text string for vision API usage
+ * Returns the text with images removed and an array of extracted images
+ */
+export function extractImagesFromText(text: string): {
+  text: string;
+  images: ExtractedImage[];
+} {
+  const images: ExtractedImage[] = [];
+
+  // Match data URL format: data:image/type;base64,<data>
+  const dataUrlRegex = /data:(image\/[^;]+);base64,([A-Za-z0-9+/=]+)/g;
+
+  // Extract all data URLs and replace with placeholder
+  const cleanedText = text.replace(dataUrlRegex, (match, mimeType, data) => {
+    images.push({ mimeType, data });
+    return ''; // Remove from text
+  });
+
+  // Also check for standalone base64 that looks like an image (min 1000 chars)
+  // Only if no data URLs were found
+  if (images.length === 0) {
+    const standaloneRegex = /([A-Za-z0-9+/=]{1000,})/g;
+    let match;
+    const standaloneImages: { start: number; end: number; image: ExtractedImage }[] = [];
+
+    while ((match = standaloneRegex.exec(text)) !== null) {
+      const base64 = match[1];
+      const mimeType = detectMimeTypeFromBase64(base64);
+      // Only extract if it's actually an image
+      if (mimeType && mimeType.startsWith('image/')) {
+        standaloneImages.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          image: { mimeType, data: base64 },
+        });
+      }
+    }
+
+    // Replace from end to start to preserve indices
+    let result = text;
+    for (let i = standaloneImages.length - 1; i >= 0; i--) {
+      const { start, end, image } = standaloneImages[i]!;
+      images.unshift(image); // Add to front to maintain order
+      result = result.slice(0, start) + result.slice(end);
+    }
+
+    return { text: result.trim(), images };
+  }
+
+  return { text: cleanedText.trim(), images };
+}
+
 export interface ExtractionResult {
   cleanedOutput: Record<string, unknown>;
   files: ExtractedFile[];
@@ -119,6 +177,59 @@ export function extractFiles(output: unknown): ExtractionResult {
   const cleanedOutput = extractFilesFromObject(output as Record<string, unknown>, files);
 
   return { cleanedOutput, files };
+}
+
+/**
+ * Strip base64 data from object for MongoDB storage
+ * Replaces base64 strings with [base64:size:mimeType] placeholders
+ * This prevents bloating the run document while preserving metadata
+ */
+export function stripBase64ForStorage(
+  obj: Record<string, unknown>,
+  seen: WeakSet<object> = new WeakSet()
+): Record<string, unknown> {
+  if (seen.has(obj)) {
+    return '[Circular]' as unknown as Record<string, unknown>;
+  }
+  seen.add(obj);
+
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      const base64Info = extractBase64FromString(value, key);
+      if (base64Info) {
+        // Replace with placeholder showing size and type
+        const sizeKb = Math.round(base64Info.data.length * 0.75 / 1024);
+        result[key] = `[base64:${sizeKb}kb:${base64Info.mimeType}]`;
+      } else {
+        result[key] = value;
+      }
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      result[key] = stripBase64ForStorage(value as Record<string, unknown>, seen);
+    } else if (Array.isArray(value)) {
+      result[key] = value.map((item) => {
+        if (typeof item === 'string') {
+          const base64Info = extractBase64FromString(item, key);
+          if (base64Info) {
+            const sizeKb = Math.round(base64Info.data.length * 0.75 / 1024);
+            return `[base64:${sizeKb}kb:${base64Info.mimeType}]`;
+          }
+          return item;
+        } else if (item && typeof item === 'object') {
+          if (seen.has(item)) {
+            return '[Circular]';
+          }
+          return stripBase64ForStorage(item as Record<string, unknown>, seen);
+        }
+        return item;
+      });
+    } else {
+      result[key] = value;
+    }
+  }
+
+  return result;
 }
 
 /**

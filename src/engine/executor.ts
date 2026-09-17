@@ -6,7 +6,7 @@ import { ExecutionContext } from './context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths } from './graph.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
 import { NodeExecutionError } from '../utils/errors.js';
-import { extractFiles, replaceFileRefsInObject, type ExtractedFile } from '../utils/file-extractor.js';
+import { stripBase64ForStorage } from '../utils/file-extractor.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -53,7 +53,6 @@ export interface InternalExecutionOptions extends ExecutionOptions {
 
 interface InternalResult {
   output: Record<string, unknown>;
-  files: string[];
   status: 'completed' | 'failed';
   error?: string;
 }
@@ -105,7 +104,7 @@ export class WorkflowExecutor {
       const result = await this.executeWorkflow(agent, input, userId, run.id, options);
 
       if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output, result.files.length > 0 ? result.files : undefined))!;
+        run = (await this.runRepo.complete(run.id, result.output))!;
       } else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
@@ -147,7 +146,7 @@ export class WorkflowExecutor {
       const result = await this.executeWorkflow(agent, input, userId, run.id, options);
 
       if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output, result.files.length > 0 ? result.files : undefined))!;
+        run = (await this.runRepo.complete(run.id, result.output))!;
       } else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
@@ -186,9 +185,6 @@ export class WorkflowExecutor {
       resolvedSecrets: options.resolvedSecrets,
     };
 
-    // Track all files from this run
-    const allFiles: string[] = [];
-
     try {
       // Execute nodes in order
       for (const nodeId of executionOrder) {
@@ -207,51 +203,27 @@ export class WorkflowExecutor {
         // Compute which output paths downstream nodes need (for SSE early termination)
         const requiredOutputPaths = extractRequiredOutputPaths(agent.nodes, nodeId);
         const nodeExecOptions = requiredOutputPaths.length > 0
-          ? { ...execOptions, requiredOutputPaths }
-          : execOptions;
+          ? { ...execOptions, requiredOutputPaths, fileRepo: this.fileRepo }
+          : { ...execOptions, fileRepo: this.fileRepo };
 
         try {
           const result = await nodeHandler.execute(node, context, nodeExecOptions);
 
-          // Extract files from output and save to DB
-          let finalOutput = result.outputs;
-          let nodeFiles: string[] | undefined;
+          // Keep raw output in context (including base64) for downstream nodes
+          // This allows LLM nodes to use images for vision, etc.
+          // File extraction happens only at output node when needed
 
-          if (this.fileRepo && result.outputs && typeof result.outputs === 'object') {
-            const { cleanedOutput, files } = extractFiles(result.outputs);
-
-            if (files.length > 0) {
-              // Save files to DB
-              const savedFiles = await this.saveFiles(files, userId);
-              nodeFiles = savedFiles;
-              allFiles.push(...savedFiles);
-
-              // Replace placeholders with actual file refs
-              const fileIdMap = new Map<number, { id: string; field: string }>();
-              files.forEach((f, idx) => {
-                const ref = savedFiles[idx];
-                if (ref) {
-                  const parts = ref.split(':');
-                  fileIdMap.set(idx, { id: parts[1] ?? '', field: f.field });
-                }
-              });
-              finalOutput = replaceFileRefsInObject(cleanedOutput, fileIdMap);
-
-              // Update context with cleaned output (file references instead of base64)
-              // This ensures downstream nodes receive file refs, not raw base64
-              for (const [handle, value] of Object.entries(finalOutput)) {
-                context.setOutput(nodeId, handle, value);
-              }
-            }
-          }
+          // For MongoDB storage, strip base64 to avoid bloating the run document
+          const outputForStorage = result.outputs && typeof result.outputs === 'object'
+            ? stripBase64ForStorage(result.outputs as Record<string, unknown>)
+            : result.outputs;
 
           // Update node state to completed
           // Use safeClone to handle circular references before saving to MongoDB
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'completed',
-            output: safeClone(finalOutput),
+            output: safeClone(outputForStorage),
             state: safeClone(result.state),
-            files: nodeFiles,
             completedAt: new Date(),
           });
         } catch (error) {
@@ -285,7 +257,7 @@ export class WorkflowExecutor {
             completedAt: new Date(),
           });
 
-          return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
+          return { output: {}, status: 'failed', error: errorMessage };
         }
       }
 
@@ -299,30 +271,10 @@ export class WorkflowExecutor {
         output[key] = `nodeRef:${outputNode.id}:value`;
       }
 
-      return { output, files: allFiles, status: 'completed' };
+      return { output, status: 'completed' };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
+      return { output: {}, status: 'failed', error: errorMessage };
     }
-  }
-
-  /**
-   * Save extracted files to DB and return file references
-   */
-  private async saveFiles(files: ExtractedFile[], userId: string): Promise<string[]> {
-    if (!this.fileRepo || files.length === 0) {
-      return [];
-    }
-
-    const savedFiles = await this.fileRepo.createMany(
-      files.map((f) => ({
-        userId,
-        name: f.field,
-        mimeType: f.mimeType,
-        data: f.data,
-      }))
-    );
-
-    return savedFiles.map((f) => `inner:${f.id}:${f.name}`);
   }
 }

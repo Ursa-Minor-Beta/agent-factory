@@ -9,6 +9,7 @@ import { WorkflowExecutor } from '../executor.js';
 import { resolveRunOutput } from '../../utils/node-ref.js';
 import type { ToolDefinition } from '../tools/index.js';
 import { MAX_SESSION_NOTES_LENGTH } from '../tools/session-notes.js';
+import { extractImagesFromText } from '../../utils/file-extractor.js';
 
 interface LLMNodeData {
   provider: 'openai' | 'anthropic' | 'ollama';
@@ -161,7 +162,25 @@ Extract facts and call the update_session_notes tool.`;
     for (const msg of conversationHistory) {
       messages.push({ role: msg.role, content: msg.content });
     }
-    messages.push({ role: 'user', content: userPrompt });
+
+    // Check for images in user prompt for vision support
+    const { text: cleanedPrompt, images } = extractImagesFromText(userPrompt);
+    if (images.length > 0) {
+      // Build multi-part content with images for vision
+      const content: OpenAI.Chat.ChatCompletionContentPart[] = [];
+      for (const img of images) {
+        content.push({
+          type: 'image_url',
+          image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+        });
+      }
+      if (cleanedPrompt) {
+        content.push({ type: 'text', text: cleanedPrompt });
+      }
+      messages.push({ role: 'user', content });
+    } else {
+      messages.push({ role: 'user', content: userPrompt });
+    }
 
     // Convert tools to OpenAI format
     const openaiTools: OpenAI.Chat.ChatCompletionTool[] | undefined = data.tools?.map((tool) => ({
@@ -586,7 +605,29 @@ Extract facts and call the update_session_notes tool.`;
     for (const msg of conversationHistory) {
       messages.push({ role: msg.role, content: msg.content });
     }
-    messages.push({ role: 'user', content: userPrompt });
+
+    // Check for images in user prompt for vision support
+    const { text: cleanedPrompt, images } = extractImagesFromText(userPrompt);
+    if (images.length > 0) {
+      // Build multi-part content with images for vision
+      const content: Array<Anthropic.ImageBlockParam | Anthropic.TextBlockParam> = [];
+      for (const img of images) {
+        content.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: img.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+            data: img.data,
+          },
+        });
+      }
+      if (cleanedPrompt) {
+        content.push({ type: 'text', text: cleanedPrompt });
+      }
+      messages.push({ role: 'user', content });
+    } else {
+      messages.push({ role: 'user', content: userPrompt });
+    }
 
     const maxIterations = data.maxToolCalls ?? 5;
     let totalUsage = { inputTokens: 0, outputTokens: 0 };

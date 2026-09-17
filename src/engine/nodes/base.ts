@@ -3,6 +3,7 @@ import type { ExecutionContext } from '../context.js';
 import type { IAgentRepository } from '../../domain/interfaces/repositories/IAgentRepository.js';
 import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRepository.js';
 import type { IMessageRepository } from '../../domain/interfaces/repositories/IMessageRepository.js';
+import type { IFileRepository } from '../../domain/interfaces/repositories/IFileRepository.js';
 
 export interface NodeExecutionResult {
   outputs: Record<string, unknown>;
@@ -42,6 +43,8 @@ export interface ExecutionOptions {
   maxNotesLength?: number; // Max length for session notes (default: 8000)
   // SSE: Output paths that downstream nodes need (for early termination)
   requiredOutputPaths?: string[];
+  // File storage - for output node to save files when referenced
+  fileRepo?: IFileRepository;
 }
 
 export abstract class BaseNode {

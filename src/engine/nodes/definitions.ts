@@ -86,6 +86,29 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         description: 'Output with default key name',
         data: {},
       },
+      {
+        name: 'Single node reference',
+        description: 'Output value from a single node',
+        data: {
+          value: '{{node:llm-1.response}}',
+        },
+      },
+      {
+        name: 'Multiple node results',
+        description: 'Combine outputs from multiple nodes into a JSON object',
+        data: {
+          value:
+            '{"response": "{{node:http-1.response}}", "verdict": "{{node:llm-2.response}}", "sessionClosed": "{{node:http-2.response}}"}',
+        },
+      },
+      {
+        name: 'Nested path access',
+        description: 'Access nested fields from node outputs',
+        data: {
+          value:
+            '{"screenshot": "{{node:http-1.response.screenshots.screenshot}}", "error": "{{node:http-1.response.error}}", "status": "{{node:http-1.status}}"}',
+        },
+      },
     ],
   },
   {

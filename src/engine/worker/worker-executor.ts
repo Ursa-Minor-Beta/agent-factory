@@ -15,7 +15,7 @@ import { ExecutionContext } from '../context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths } from '../graph.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
 import { NodeExecutionError } from '../../utils/errors.js';
-import { extractFiles, replaceFileRefsInObject, type ExtractedFile } from '../../utils/file-extractor.js';
+import { stripBase64ForStorage } from '../../utils/file-extractor.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -87,7 +87,6 @@ export interface WorkerExecutorOptions {
 
 export interface WorkerExecutionResult {
   output: Record<string, unknown>;
-  files?: string[];
   status: 'completed' | 'failed' | 'cancelled';
   error?: string;
 }
@@ -182,15 +181,12 @@ export class WorkerExecutor {
       maxNotesLength: options.sessionContext?.maxNotesLength,
     };
 
-    // Track all files from this run
-    const allFiles: string[] = [];
-
     try {
       for (const nodeId of executionOrder) {
         // Check for cancellation before each node
         if (this.shouldStop()) {
           await this.runRepo.updateStatus(runId, 'cancelled');
-          return { output: {}, files: allFiles, status: 'cancelled' };
+          return { output: {}, status: 'cancelled' };
         }
 
         const node = agent.nodes.find((n) => n.id === nodeId);
@@ -209,8 +205,8 @@ export class WorkerExecutor {
         // Compute which output paths downstream nodes need (for SSE early termination)
         const requiredOutputPaths = extractRequiredOutputPaths(agent.nodes, nodeId);
         const nodeExecOptions = requiredOutputPaths.length > 0
-          ? { ...execOptions, requiredOutputPaths }
-          : execOptions;
+          ? { ...execOptions, requiredOutputPaths, fileRepo: this.fileRepo }
+          : { ...execOptions, fileRepo: this.fileRepo };
 
         try {
           const result = await nodeHandler.execute(node, context, nodeExecOptions);
@@ -218,43 +214,23 @@ export class WorkerExecutor {
           // Check for cancellation after node execution
           if (this.shouldStop()) {
             await this.runRepo.updateStatus(runId, 'cancelled');
-            return { output: {}, files: allFiles, status: 'cancelled' };
+            return { output: {}, status: 'cancelled' };
           }
 
-          // Extract files from output and save to DB
-          let finalOutput = result.outputs;
-          let nodeFiles: string[] | undefined;
+          // Keep raw output in context (including base64) for downstream nodes
+          // This allows LLM nodes to use images for vision, etc.
+          // File extraction happens only at output node when needed
 
-          if (this.fileRepo && result.outputs && typeof result.outputs === 'object') {
-            const { cleanedOutput, files } = extractFiles(result.outputs);
-
-            if (files.length > 0) {
-              const savedFiles = await this.saveFiles(files, userId);
-              nodeFiles = savedFiles;
-              allFiles.push(...savedFiles);
-
-              const fileIdMap = new Map<number, { id: string; field: string }>();
-              files.forEach((f, idx) => {
-                const ref = savedFiles[idx];
-                if (ref) {
-                  const parts = ref.split(':');
-                  fileIdMap.set(idx, { id: parts[1] ?? '', field: f.field });
-                }
-              });
-              finalOutput = replaceFileRefsInObject(cleanedOutput, fileIdMap);
-
-              for (const [handle, value] of Object.entries(finalOutput)) {
-                context.setOutput(nodeId, handle, value);
-              }
-            }
-          }
+          // For MongoDB storage, strip base64 to avoid bloating the run document
+          const outputForStorage = result.outputs && typeof result.outputs === 'object'
+            ? stripBase64ForStorage(result.outputs as Record<string, unknown>)
+            : result.outputs;
 
           // Update node state to completed
           const nodeState: Partial<NodeState> = {
             status: 'completed',
-            output: safeClone(finalOutput),
+            output: safeClone(outputForStorage),
             state: safeClone(result.state),
-            files: nodeFiles,
             completedAt: new Date(),
           };
           await this.runRepo.updateNodeState(runId, nodeId, nodeState);
@@ -292,7 +268,7 @@ export class WorkerExecutor {
           this.callbacks.onNodeFailed(nodeId, node.type, errorMessage);
 
           await this.runRepo.fail(runId, errorMessage);
-          return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
+          return { output: {}, status: 'failed', error: errorMessage };
         }
       }
 
@@ -305,32 +281,12 @@ export class WorkerExecutor {
         output[key] = `nodeRef:${outputNode.id}:value`;
       }
 
-      await this.runRepo.complete(runId, output, allFiles.length > 0 ? allFiles : undefined);
-      return { output, files: allFiles, status: 'completed' };
+      await this.runRepo.complete(runId, output);
+      return { output, status: 'completed' };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await this.runRepo.fail(runId, errorMessage);
-      return { output: {}, files: allFiles, status: 'failed', error: errorMessage };
+      return { output: {}, status: 'failed', error: errorMessage };
     }
-  }
-
-  /**
-   * Save extracted files to DB and return file references
-   */
-  private async saveFiles(files: ExtractedFile[], userId: string): Promise<string[]> {
-    if (!this.fileRepo || files.length === 0) {
-      return [];
-    }
-
-    const savedFiles = await this.fileRepo.createMany(
-      files.map((f) => ({
-        userId,
-        name: f.field,
-        mimeType: f.mimeType,
-        data: f.data,
-      }))
-    );
-
-    return savedFiles.map((f) => `inner:${f.id}:${f.name}`);
   }
 }
