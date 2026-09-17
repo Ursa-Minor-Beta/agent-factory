@@ -2,6 +2,8 @@
 
 Backend API for building and executing AI agent workflows using a node-graph system.
 
+> **⚠️ Note:** The current version is actively being built. There could be breaking changes.
+
 ## Features
 
 - **Node Graph Workflows** - Define agents as connected nodes
