@@ -161,7 +161,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   },
   {
     type: 'http',
-    description: 'HTTP request node. Makes external API calls.',
+    description: 'HTTP request node. Makes external API calls. Partial SSE support: auto-extracts fields that downstream nodes expect.',
     inputs: ['body', 'params'],
     outputs: ['response', 'status'],
     options: [
@@ -198,10 +198,16 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         name: 'persistedFields',
         type: 'enum',
         description: 'Fields to persist in run state for debugging. Empty by default. WARNING: headers/body may expose secrets.',
-        values: ['url', 'method', 'headers', 'body', 'status', 'responseHeaders'],
+        values: ['url', 'method', 'headers', 'body', 'status', 'responseHeaders', 'sseEvents'],
       },
     ],
-    features: ['Template interpolation with {{node:id.path}} syntax'],
+    features: [
+      'Template interpolation with {{node:id.path}} syntax',
+      'SSE (Server-Sent Events) streaming support',
+      'Automatic event accumulation with deep merge',
+      'Early termination when required paths are found',
+      'Supports both standard SSE (data: prefix) and raw JSON lines',
+    ],
     examples: [
       {
         name: 'GET request',
@@ -220,7 +226,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           headers: { 'Content-Type': 'application/json' },
           body: { name: '{{node:input-1.name}}', value: '{{node:input-1.value}}' },
         },
-      },
+      }
     ],
   },
   {

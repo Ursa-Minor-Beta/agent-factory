@@ -98,7 +98,7 @@ On startup, the server creates:
 | `input` | Workflow entry point with schema |
 | `output` | Workflow exit point |
 | `llm` | LLM call (OpenAI, Anthropic, Ollama) |
-| `http` | HTTP/API requests |
+| `http` | HTTP/API requests with SSE streaming support |
 | `js` | JavaScript code execution |
 | `agent` | Execute sub-agent |
 | `if-else` | Conditional branching |

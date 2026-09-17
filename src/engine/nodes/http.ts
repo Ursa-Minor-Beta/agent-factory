@@ -219,30 +219,17 @@ export class HttpNode extends BaseNode {
     requiredPaths?: string[],
     signal?: AbortSignal
   ): Promise<{ data: unknown; sseEvents?: SSEEvent[] }> {
-    console.debug('[HTTP] parseResponse:', {
-      url: res.url,
-      status: res.status,
-      statusText: res.statusText,
-      contentType,
-      contentLength: res.headers.get('content-length'),
-      hasBody: !!res.body,
-      requiredPaths,
-    });
     if (!res.ok) {
       const body = await res.text();
       throw new Error(`HTTP ${res.status}: ${res.statusText} - ${body}`);
     }
     if (contentType.includes('text/event-stream') && res.body) {
-      console.debug('[HTTP] Parsing SSE stream');
       const result = await this.parseSSEResponse(res.body, requiredPaths ?? [], signal);
-      console.debug('[HTTP] SSE complete:', { eventCount: result.events.length });
       return { data: result.accumulated, sseEvents: result.events };
     }
     if (contentType.includes('application/json')) {
-      console.debug('[HTTP] Parsing JSON response');
       return { data: await res.json() };
     }
-    console.debug('[HTTP] Parsing text response');
     return { data: await res.text() };
   }
 
@@ -285,7 +272,6 @@ export class HttpNode extends BaseNode {
         if (done) break;
 
         const decoded = decoder.decode(value, { stream: true });
-        console.debug('[HTTP] SSE raw chunk:', decoded);
         buffer += decoded;
 
         // Try both standard SSE (\n\n delimiter) and raw JSON lines (\n delimiter)
@@ -301,13 +287,11 @@ export class HttpNode extends BaseNode {
           if (trimmed.startsWith('data:')) {
             const data = trimmed.slice(5).trim();
             if (data === '[DONE]') continue;
-            console.debug('[HTTP] SSE raw event:', data);
             collectedEvents.push({ data });
             this.processEventData(data, accumulated);
           }
           // Try raw JSON (non-standard SSE)
           else if (trimmed.startsWith('{')) {
-            console.debug('[HTTP] SSE raw event (JSON):', trimmed);
             collectedEvents.push({ data: trimmed });
             this.processEventData(trimmed, accumulated);
           }
@@ -319,7 +303,6 @@ export class HttpNode extends BaseNode {
         // but accumulated data is the response itself, so strip 'response.' prefix
         const normalizedPaths = requiredPaths.map(p => p.startsWith('response.') ? p.slice(9) : p);
         if (normalizedPaths.length > 0 && this.allPathsExist(accumulated, normalizedPaths)) {
-          console.debug('[HTTP] Early termination: all required paths found', normalizedPaths);
           reader.cancel();
           break;
         }
@@ -331,12 +314,10 @@ export class HttpNode extends BaseNode {
         if (remaining.startsWith('data:')) {
           const data = remaining.slice(5).trim();
           if (data !== '[DONE]') {
-            console.debug('[HTTP] SSE raw event (final):', data);
             collectedEvents.push({ data });
             this.processEventData(data, accumulated);
           }
         } else if (remaining.startsWith('{')) {
-          console.debug('[HTTP] SSE raw event (final JSON):', remaining);
           collectedEvents.push({ data: remaining });
           this.processEventData(remaining, accumulated);
         }
