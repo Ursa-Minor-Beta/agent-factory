@@ -12,7 +12,7 @@ import type { IFileRepository } from '../../domain/interfaces/repositories/IFile
 import type { IAgentRepository } from '../../domain/interfaces/repositories/IAgentRepository.js';
 import type { IMessageRepository } from '../../domain/interfaces/repositories/IMessageRepository.js';
 import { ExecutionContext } from '../context.js';
-import { topologicalSort, validateWorkflow } from '../graph.js';
+import { topologicalSort, validateWorkflow, extractRequiredOutputPaths } from '../graph.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { extractFiles, replaceFileRefsInObject, type ExtractedFile } from '../../utils/file-extractor.js';
@@ -206,8 +206,14 @@ export class WorkerExecutor {
 
         const nodeHandler = getNode(node.type);
 
+        // Compute which output paths downstream nodes need (for SSE early termination)
+        const requiredOutputPaths = extractRequiredOutputPaths(agent.nodes, nodeId);
+        const nodeExecOptions = requiredOutputPaths.length > 0
+          ? { ...execOptions, requiredOutputPaths }
+          : execOptions;
+
         try {
-          const result = await nodeHandler.execute(node, context, execOptions);
+          const result = await nodeHandler.execute(node, context, nodeExecOptions);
 
           // Check for cancellation after node execution
           if (this.shouldStop()) {
@@ -273,11 +279,14 @@ export class WorkerExecutor {
             };
           }
 
-          // Update node state to failed
+          // Update node state to failed (include state if available from error)
+          const errorState =
+            error instanceof NodeExecutionError ? safeClone(error.state) : undefined;
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'failed',
             error: errorMessage,
             errorDetails,
+            state: errorState,
             completedAt: new Date(),
           });
           this.callbacks.onNodeFailed(nodeId, node.type, errorMessage);

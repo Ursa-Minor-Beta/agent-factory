@@ -3,7 +3,7 @@ import type { Run, NodeErrorDetails } from '../domain/entities/Run.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import { ExecutionContext } from './context.js';
-import { topologicalSort, validateWorkflow } from './graph.js';
+import { topologicalSort, validateWorkflow, extractRequiredOutputPaths } from './graph.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
 import { NodeExecutionError } from '../utils/errors.js';
 import { extractFiles, replaceFileRefsInObject, type ExtractedFile } from '../utils/file-extractor.js';
@@ -204,8 +204,14 @@ export class WorkflowExecutor {
 
         const nodeHandler = getNode(node.type);
 
+        // Compute which output paths downstream nodes need (for SSE early termination)
+        const requiredOutputPaths = extractRequiredOutputPaths(agent.nodes, nodeId);
+        const nodeExecOptions = requiredOutputPaths.length > 0
+          ? { ...execOptions, requiredOutputPaths }
+          : execOptions;
+
         try {
-          const result = await nodeHandler.execute(node, context, execOptions);
+          const result = await nodeHandler.execute(node, context, nodeExecOptions);
 
           // Extract files from output and save to DB
           let finalOutput = result.outputs;

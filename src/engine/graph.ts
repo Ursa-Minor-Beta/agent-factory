@@ -13,6 +13,45 @@ export class CycleError extends Error {
 const SKIP_KEYS = new Set(['systemPrompt', 'description']);
 
 /**
+ * Extract field paths from {{node:targetId.path}} patterns for a specific node
+ */
+function extractFieldPathsForNode(
+  value: unknown,
+  targetNodeId: string,
+  key?: string
+): Set<string> {
+  const paths = new Set<string>();
+
+  if (key && SKIP_KEYS.has(key)) {
+    return paths;
+  }
+
+  if (typeof value === 'string') {
+    const regex = new RegExp(`\\{\\{node:${targetNodeId}\\.([^}]+)\\}\\}`, 'g');
+    let match;
+    while ((match = regex.exec(value)) !== null) {
+      if (match[1]) {
+        paths.add(match[1]);
+      }
+    }
+  } else if (Array.isArray(value)) {
+    for (const item of value) {
+      for (const path of extractFieldPathsForNode(item, targetNodeId)) {
+        paths.add(path);
+      }
+    }
+  } else if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) {
+      for (const path of extractFieldPathsForNode(v, targetNodeId, k)) {
+        paths.add(path);
+      }
+    }
+  }
+
+  return paths;
+}
+
+/**
  * Extract node IDs referenced in {{node:id.path}} templates from any string value
  */
 function extractNodeRefs(value: unknown, key?: string): Set<string> {
@@ -56,6 +95,26 @@ export function extractTemplateDependencies(node: WorkflowNode): Set<string> {
 }
 
 /**
+ * Extract which output field paths downstream nodes need from a specific node.
+ * Scans all nodes for {{node:targetNodeId.path}} patterns and returns the paths.
+ * Used for SSE early termination - stop streaming once required fields are available.
+ */
+export function extractRequiredOutputPaths(
+  nodes: WorkflowNode[],
+  targetNodeId: string
+): string[] {
+  const paths = new Set<string>();
+
+  for (const node of nodes) {
+    for (const path of extractFieldPathsForNode(node.data, targetNodeId)) {
+      paths.add(path);
+    }
+  }
+
+  return [...paths];
+}
+
+/**
  * Build adjacency list from nodes by extracting template dependencies
  * Dependencies flow from referenced node → referencing node
  */
@@ -89,10 +148,12 @@ export function buildAdjacencyList(nodes: WorkflowNode[]): Map<string, string[]>
 /**
  * Topological sort using Kahn's algorithm
  * Returns nodes in execution order (dependencies first)
+ * Output nodes are always placed at the end to ensure all processing completes first
  * Throws CycleError if graph contains a cycle
  */
 export function topologicalSort(nodes: WorkflowNode[]): string[] {
   const nodeIds = new Set(nodes.map((n) => n.id));
+  const outputNodeIds = new Set(nodes.filter((n) => n.type === 'output').map((n) => n.id));
   const inDegree = new Map<string, number>();
   const adjacency = buildAdjacencyList(nodes);
 
@@ -117,10 +178,17 @@ export function topologicalSort(nodes: WorkflowNode[]): string[] {
   }
 
   const result: string[] = [];
+  const outputNodes: string[] = [];
 
   while (queue.length > 0) {
     const nodeId = queue.shift()!;
-    result.push(nodeId);
+
+    // Collect output nodes separately to place at end
+    if (outputNodeIds.has(nodeId)) {
+      outputNodes.push(nodeId);
+    } else {
+      result.push(nodeId);
+    }
 
     // Reduce in-degree of neighbors
     const neighbors = adjacency.get(nodeId) ?? [];
@@ -134,11 +202,12 @@ export function topologicalSort(nodes: WorkflowNode[]): string[] {
   }
 
   // Check for cycle
-  if (result.length !== nodeIds.size) {
+  if (result.length + outputNodes.length !== nodeIds.size) {
     throw new CycleError();
   }
 
-  return result;
+  // Output nodes always run last
+  return [...result, ...outputNodes];
 }
 
 /**

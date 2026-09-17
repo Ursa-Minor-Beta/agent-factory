@@ -38,6 +38,20 @@ const runRepository = new MongoRunRepository();
 
 // Create singleton instances
 // To switch databases, replace these with PostgreSQL implementations
+const runManager = new RunManager(runRepository, {
+  mongoUri: config.mongodb.uri,
+});
+
+// Forward worker logs to console (for debugging worker processes)
+runManager.on('log', ({ runId, level, message }) => {
+  const prefix = `[Worker:${runId.slice(-6)}]`;
+  if (level === 'error') {
+    console.error(prefix, message.trim());
+  } else {
+    console.log(prefix, message.trim());
+  }
+});
+
 export const container: Container = {
   userRepository: new MongoUserRepository(),
   apiKeyRepository: new MongoApiKeyRepository(),
@@ -48,7 +62,5 @@ export const container: Container = {
   messageRepository: new MongoMessageRepository(),
   userSecretRepository: new MongoUserSecretRepository(),
   fileRepository: new MongoFileRepository(),
-  runManager: new RunManager(runRepository, {
-    mongoUri: config.mongodb.uri,
-  }),
+  runManager,
 };

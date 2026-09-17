@@ -40,6 +40,8 @@ export interface ExecutionOptions {
   sessionNotes?: string;
   onSessionNotesUpdate?: (notes: string) => Promise<void>; // Callback to persist notes
   maxNotesLength?: number; // Max length for session notes (default: 8000)
+  // SSE: Output paths that downstream nodes need (for early termination)
+  requiredOutputPaths?: string[];
 }
 
 export abstract class BaseNode {
