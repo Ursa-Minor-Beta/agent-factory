@@ -46,8 +46,8 @@ export class HttpNode extends BaseNode {
     const method = data.method ?? 'GET';
     const timeout = data.timeout ?? 30_000;
 
-    const headers = this.prepareHeaders(data, method, interpolateOpts);
     const body = this.prepareBody(data, method, interpolateOpts);
+    const headers = this.prepareHeaders(data, body, interpolateOpts);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -124,12 +124,16 @@ export class HttpNode extends BaseNode {
 
   private prepareHeaders(
     data: HttpNodeData,
-    method: string,
+    body: string | undefined,
     interpolateOpts: { secrets: Record<string, string>; context: ExecutionContext }
   ): Record<string, string> {
     const headers: Record<string, string> = { ...data.headers };
-    if (method !== 'GET' && !headers['Content-Type']) {
-      headers['Content-Type'] = 'application/json';
+    // Only include Content-Type: application/json when there's a body
+    if (body !== undefined) {
+      headers['Content-Type'] ??= 'application/json';
+    } 
+    else if (headers['Content-Type']?.includes('application/json')) {
+      delete headers['Content-Type'];
     }
     for (const [key, value] of Object.entries(headers)) {
       headers[key] = interpolateAll(value, interpolateOpts);
