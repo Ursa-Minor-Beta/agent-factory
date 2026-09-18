@@ -55,6 +55,7 @@ interface InternalResult {
   output: Record<string, unknown>;
   status: 'completed' | 'failed';
   error?: string;
+  files?: string[];
 }
 
 export class WorkflowExecutor {
@@ -104,7 +105,7 @@ export class WorkflowExecutor {
       const result = await this.executeWorkflow(agent, input, userId, run.id, options);
 
       if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output))!;
+        run = (await this.runRepo.complete(run.id, result.output, result.files))!;
       } else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
@@ -146,7 +147,7 @@ export class WorkflowExecutor {
       const result = await this.executeWorkflow(agent, input, userId, run.id, options);
 
       if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output))!;
+        run = (await this.runRepo.complete(run.id, result.output, result.files))!;
       } else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
@@ -224,6 +225,7 @@ export class WorkflowExecutor {
             status: 'completed',
             output: safeClone(outputForStorage),
             state: safeClone(result.state),
+            files: result.files,
             completedAt: new Date(),
           });
         } catch (error) {
@@ -271,7 +273,18 @@ export class WorkflowExecutor {
         output[key] = `nodeRef:${outputNode.id}:value`;
       }
 
-      return { output, status: 'completed' };
+      // Collect all file refs from node states
+      const run = await this.runRepo.findById(runId);
+      const allFiles: string[] = [];
+      if (run?.nodeStates) {
+        for (const nodeState of Object.values(run.nodeStates)) {
+          if (nodeState.files && nodeState.files.length > 0) {
+            allFiles.push(...nodeState.files);
+          }
+        }
+      }
+
+      return { output, status: 'completed', files: allFiles.length > 0 ? allFiles : undefined };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { output: {}, status: 'failed', error: errorMessage };

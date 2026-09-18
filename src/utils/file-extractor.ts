@@ -4,6 +4,11 @@ export interface ExtractedFile {
   field: string;
 }
 
+export interface TextExtractionResult {
+  cleanedText: string;
+  files: ExtractedFile[];
+}
+
 export interface ExtractedImage {
   mimeType: string;
   data: string; // raw base64 without data URL prefix
@@ -144,6 +149,70 @@ export function extractBase64FromString(value: string, field: string): Extracted
 }
 
 /**
+ * Extract base64 data embedded within a text string
+ * Returns the text with base64 replaced by placeholders and the extracted files
+ */
+export function extractBase64FromText(text: string, fieldPrefix = 'embedded'): TextExtractionResult {
+  const files: ExtractedFile[] = [];
+  let cleanedText = text;
+
+  // Collect all matches first (data URLs and standalone base64)
+  const matches: { start: number; end: number; mimeType: string; data: string }[] = [];
+
+  // Match data URL format: data:mime/type;base64,<data>
+  const dataUrlRegex = /data:([^;]+);base64,([A-Za-z0-9+/=]{500,})/g;
+  let match;
+
+  while ((match = dataUrlRegex.exec(text)) !== null) {
+    matches.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      mimeType: match[1] ?? 'application/octet-stream',
+      data: match[2] ?? '',
+    });
+  }
+
+  // If no data URLs found, check for standalone base64 strings
+  if (matches.length === 0) {
+    const standaloneRegex = /([A-Za-z0-9+/=]{500,})/g;
+
+    while ((match = standaloneRegex.exec(text)) !== null) {
+      const base64 = match[1];
+      if (!base64) continue;
+      const mimeType = detectMimeTypeFromBase64(base64);
+      if (mimeType) {
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          mimeType,
+          data: base64,
+        });
+      }
+    }
+  }
+
+  // Process matches from end to start to preserve string indices
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const m = matches[i]!;
+    const field = `${fieldPrefix}[${i}]`;
+    const placeholder = `[file:${i}:${m.mimeType}]`;
+    cleanedText = cleanedText.slice(0, m.start) + placeholder + cleanedText.slice(m.end);
+  }
+
+  // Build files array in correct order (0, 1, 2, ...)
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i]!;
+    files.push({
+      mimeType: m.mimeType,
+      data: m.data,
+      field: `${fieldPrefix}[${i}]`,
+    });
+  }
+
+  return { cleanedText, files };
+}
+
+/**
  * Detect MIME type from base64 data using magic bytes
  */
 export function detectMimeTypeFromBase64(base64: string): string | null {
@@ -234,8 +303,26 @@ export function stripBase64ForStorage(
 }
 
 /**
+ * Replace file placeholders in a string with inner references
+ * Converts [file:0:image/png] to {{inner:id}}
+ */
+export function replaceFileRefsInString(
+  text: string,
+  fileIdMap: Map<number, { id: string; field: string }>
+): string {
+  return text.replace(/\[file:(\d+):([^\]]+)\]/g, (match, idxStr) => {
+    const idx = parseInt(idxStr, 10);
+    const fileInfo = fileIdMap.get(idx);
+    if (fileInfo) {
+      return `{{inner:${fileInfo.id}}}`;
+    }
+    return match;
+  });
+}
+
+/**
  * Replace file placeholders with actual file references
- * Converts [file:0:image/png] to inner:<fileId>:<fieldName>
+ * Converts [file:0:image/png] to {{inner:id}}
  * Handles circular references by tracking seen objects
  */
 export function replaceFileRefsInObject(
@@ -258,7 +345,7 @@ export function replaceFileRefsInObject(
         const idx = parseInt(match[1], 10);
         const fileInfo = fileIdMap.get(idx);
         if (fileInfo) {
-          result[key] = `inner:${fileInfo.id}:${fileInfo.field}`;
+          result[key] = `{{inner:${fileInfo.id}}}`;
         } else {
           result[key] = value;
         }
@@ -275,7 +362,7 @@ export function replaceFileRefsInObject(
             const idx = parseInt(match[1], 10);
             const fileInfo = fileIdMap.get(idx);
             if (fileInfo) {
-              return `inner:${fileInfo.id}:${fileInfo.field}`;
+              return `{{inner:${fileInfo.id}}}`;
             }
           }
           return item;

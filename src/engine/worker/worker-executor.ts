@@ -233,6 +233,7 @@ export class WorkerExecutor {
             status: 'completed',
             output: safeClone(outputForStorage),
             state: safeClone(result.state),
+            files: result.files,
             completedAt: new Date(),
           };
           await this.runRepo.updateNodeState(runId, nodeId, nodeState);
@@ -283,8 +284,19 @@ export class WorkerExecutor {
         output[key] = `nodeRef:${outputNode.id}:value`;
       }
 
-      await this.runRepo.complete(runId, output);
-      return { output, status: 'completed' };
+      // Collect all file refs from node states
+      const run = await this.runRepo.findById(runId);
+      const allFiles: string[] = [];
+      if (run?.nodeStates) {
+        for (const nodeState of Object.values(run.nodeStates)) {
+          if (nodeState.files && nodeState.files.length > 0) {
+            allFiles.push(...nodeState.files);
+          }
+        }
+      }
+
+      await this.runRepo.complete(runId, output, allFiles.length > 0 ? allFiles : undefined);
+      return { output, status: 'completed', files: allFiles.length > 0 ? allFiles : undefined };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await this.runRepo.fail(runId, errorMessage);

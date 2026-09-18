@@ -8,6 +8,7 @@ import type { IFileRepository } from '../../domain/interfaces/repositories/IFile
 export interface NodeExecutionResult {
   outputs: Record<string, unknown>;
   state?: unknown;
+  files?: string[]; // File references in format "{{inner:id}}"
 }
 
 export interface ProviderConfig {
