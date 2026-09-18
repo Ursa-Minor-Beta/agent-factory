@@ -11,6 +11,21 @@ import type { ToolDefinition } from '../tools/index.js';
 import { MAX_SESSION_NOTES_LENGTH } from '../tools/session-notes.js';
 import { extractImagesFromText } from '../../utils/file-extractor.js';
 
+/** Default max conversation history messages for multi-turn conversations */
+const DEFAULT_MAX_MESSAGES = 0;
+/** Default max tool call iterations before giving up */
+const DEFAULT_MAX_TOOL_CALLS = 5;
+/** Default temperature for LLM responses */
+const DEFAULT_TEMPERATURE = 0.7;
+/** Default max tokens for LLM responses */
+const DEFAULT_MAX_TOKENS = 1000;
+/** Default models per provider */
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_OLLAMA_MODEL = 'llama3.2';
+/** Max length for tool result strings in error summaries */
+const TOOL_RESULT_TRUNCATE_LENGTH = 200;
+
 interface LLMNodeData {
   provider: 'openai' | 'anthropic' | 'ollama';
   model: string;
@@ -73,7 +88,7 @@ Extract facts and call the update_session_notes tool.`;
       : '';
 
     // Get conversation history for multi-turn conversations
-    const maxMessages = data.maxMessages ?? 20;
+    const maxMessages = data.maxMessages ?? DEFAULT_MAX_MESSAGES;
     const conversationHistory = maxMessages > 0
       ? await this.getConversationHistory(maxMessages, options)
       : [];
@@ -198,17 +213,17 @@ Extract facts and call the update_session_notes tool.`;
       toolMap.set(tool.name, tool);
     });
 
-    const maxIterations = data.maxToolCalls ?? 5;
+    const maxIterations = data.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
     let totalUsage = { inputTokens: 0, outputTokens: 0 };
     const executedToolCalls: Array<{ name: string; result: unknown }> = [];
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       try {
         const completion = await client.chat.completions.create({
-          model: data.model || 'gpt-4o-mini',
+          model: data.model || DEFAULT_OPENAI_MODEL,
           messages,
-          temperature: data.temperature ?? 0.7,
-          max_tokens: data.maxTokens ?? 1000,
+          temperature: data.temperature ?? DEFAULT_TEMPERATURE,
+          max_tokens: data.maxTokens ?? DEFAULT_MAX_TOKENS,
           tools: openaiTools,
         });
 
@@ -302,7 +317,7 @@ Extract facts and call the update_session_notes tool.`;
     const toolSummary = executedToolCalls
       .map((tc) => {
         const resultStr = JSON.stringify(tc.result);
-        return `- ${tc.name}: ${resultStr.length > 200 ? resultStr.slice(0, 200) + '...' : resultStr}`;
+        return `- ${tc.name}: ${resultStr.length > TOOL_RESULT_TRUNCATE_LENGTH ? resultStr.slice(0, TOOL_RESULT_TRUNCATE_LENGTH) + '...' : resultStr}`;
       })
       .join('\n');
 
@@ -629,15 +644,15 @@ Extract facts and call the update_session_notes tool.`;
       messages.push({ role: 'user', content: userPrompt });
     }
 
-    const maxIterations = data.maxToolCalls ?? 5;
+    const maxIterations = data.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
     let totalUsage = { inputTokens: 0, outputTokens: 0 };
     const executedToolCalls: Array<{ name: string; result: unknown }> = [];
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       try {
         const response = await client.messages.create({
-          model: data.model || 'claude-sonnet-4-20250514',
-          max_tokens: data.maxTokens ?? 1000,
+          model: data.model || DEFAULT_ANTHROPIC_MODEL,
+          max_tokens: data.maxTokens ?? DEFAULT_MAX_TOKENS,
           system: finalSystemPrompt,
           messages,
           tools: anthropicTools,
@@ -725,7 +740,7 @@ Extract facts and call the update_session_notes tool.`;
     const toolSummary = executedToolCalls
       .map((tc) => {
         const resultStr = JSON.stringify(tc.result);
-        return `- ${tc.name}: ${resultStr.length > 200 ? resultStr.slice(0, 200) + '...' : resultStr}`;
+        return `- ${tc.name}: ${resultStr.length > TOOL_RESULT_TRUNCATE_LENGTH ? resultStr.slice(0, TOOL_RESULT_TRUNCATE_LENGTH) + '...' : resultStr}`;
       })
       .join('\n');
 
@@ -761,12 +776,12 @@ Extract facts and call the update_session_notes tool.`;
 
     const url = `${baseUrl}/api/chat`;
     const requestBody = {
-      model: data.model || 'llama3.2',
+      model: data.model || DEFAULT_OLLAMA_MODEL,
       messages,
       stream: false,
       options: {
-        temperature: data.temperature ?? 0.7,
-        num_predict: data.maxTokens ?? 1000,
+        temperature: data.temperature ?? DEFAULT_TEMPERATURE,
+        num_predict: data.maxTokens ?? DEFAULT_MAX_TOKENS,
       },
     };
 

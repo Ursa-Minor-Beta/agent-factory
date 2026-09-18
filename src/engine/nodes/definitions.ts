@@ -156,7 +156,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         name: 'maxMessages',
         type: 'number',
         description: 'Maximum conversation history messages to include.',
-        default: 20,
+        default: 0,
       },
       {
         name: 'tools',
