@@ -218,13 +218,19 @@ Extract facts and call the update_session_notes tool.`;
     let totalUsage = { inputTokens: 0, outputTokens: 0 };
     const executedToolCalls: Array<{ name: string; result: unknown }> = [];
 
+    // Legacy models use max_tokens, newer models use max_completion_tokens
+    const modelName = data.model || DEFAULT_OPENAI_MODEL;
+    const usesLegacyMaxTokens = /^gpt-(3\.5|4(?!o))/.test(modelName);
+
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       try {
         const completion = await client.chat.completions.create({
-          model: data.model || DEFAULT_OPENAI_MODEL,
+          model: modelName,
           messages,
           temperature: data.temperature ?? DEFAULT_TEMPERATURE,
-          max_tokens: data.maxTokens ?? DEFAULT_MAX_TOKENS,
+          ...(usesLegacyMaxTokens
+            ? { max_tokens: data.maxTokens ?? DEFAULT_MAX_TOKENS }
+            : { max_completion_tokens: data.maxTokens ?? DEFAULT_MAX_TOKENS }),
           tools: openaiTools,
         });
 
