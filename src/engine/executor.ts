@@ -1,5 +1,5 @@
 import type { Agent } from '../domain/entities/Agent.js';
-import type { Run, NodeErrorDetails } from '../domain/entities/Run.js';
+import type { Run, NodeErrorDetails, RunTrigger } from '../domain/entities/Run.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import { ExecutionContext } from './context.js';
@@ -48,7 +48,9 @@ export interface ExecutorOptions {
 }
 
 export interface InternalExecutionOptions extends ExecutionOptions {
-  // All fields from ExecutionOptions
+  // Parent-child tracking
+  parentRunId?: string;
+  triggeredBy?: RunTrigger;
 }
 
 interface InternalResult {
@@ -120,7 +122,7 @@ export class WorkflowExecutor {
 
   /**
    * Execute a workflow internally (for sub-agent calls)
-   * Does not create a run record - used by AgentNode
+   * Creates a child run record linked to parent - used by AgentNode and tool calls
    */
   async executeInternal(
     agent: Agent,
@@ -134,11 +136,13 @@ export class WorkflowExecutor {
       throw new Error(`Invalid workflow: ${validation.errors.join(', ')}`);
     }
 
-    // Create a minimal run record for sub-agent
+    // Create a child run record linked to parent
     let run = await this.runRepo.create({
       agentId: agent.id,
       userId,
       input,
+      parentRunId: options.parentRunId,
+      triggeredBy: options.triggeredBy,
     });
 
     run = (await this.runRepo.updateStatus(run.id, 'running'))!;
@@ -181,6 +185,7 @@ export class WorkflowExecutor {
       runRepo: options.runRepo ?? this.runRepo,
       callStack: options.callStack,
       userId: options.userId ?? userId,
+      currentRunId: runId,
       sessionId: options.sessionId,
       messageRepo: options.messageRepo,
       resolvedSecrets: options.resolvedSecrets,

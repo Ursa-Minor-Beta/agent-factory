@@ -99,10 +99,10 @@ Extract facts and call the update_session_notes tool.`;
 
       switch (data.provider) {
         case 'openai':
-          ({ response, usage, toolCalls } = await this.callOpenAI(data, systemPrompt, userPrompt, conversationHistory, options));
+          ({ response, usage, toolCalls } = await this.callOpenAI(data, systemPrompt, userPrompt, conversationHistory, options, node.id));
           break;
         case 'anthropic':
-          ({ response, usage, toolCalls } = await this.callAnthropic(data, systemPrompt, userPrompt, conversationHistory, options));
+          ({ response, usage, toolCalls } = await this.callAnthropic(data, systemPrompt, userPrompt, conversationHistory, options, node.id));
           break;
         case 'ollama':
           ({ response, usage } = await this.callOllama(data, systemPrompt, userPrompt, conversationHistory, options));
@@ -155,7 +155,8 @@ Extract facts and call the update_session_notes tool.`;
     systemPrompt: string | undefined,
     userPrompt: string,
     conversationHistory: ChatMessage[],
-    options: ExecutionOptions
+    options: ExecutionOptions,
+    nodeId: string
   ): Promise<{ response: string; usage: { inputTokens: number; outputTokens: number }; toolCalls?: Array<{ name: string; result: unknown }> }> {
     const apiKey = options.providers.openai?.apiKey;
     if (!apiKey) {
@@ -283,7 +284,7 @@ Extract facts and call the update_session_notes tool.`;
               result = await this.executeBuiltinTool(toolName, toolArgs, options);
             } else {
               // Execute sub-agent
-              result = await this.executeSubAgent(toolDef.agentId!, toolArgs, options);
+              result = await this.executeSubAgent(toolDef.agentId!, toolArgs, options, nodeId, toolName);
             }
 
             executedToolCalls.push({ name: toolName, result });
@@ -330,7 +331,9 @@ Extract facts and call the update_session_notes tool.`;
   private async executeSubAgent(
     agentId: string,
     input: Record<string, unknown>,
-    options: ExecutionOptions
+    options: ExecutionOptions,
+    nodeId: string,
+    toolName: string
   ): Promise<unknown> {
     if (!options.agentRepo || !options.runRepo) {
       throw new Error('Tool calling requires agentRepo and runRepo in options');
@@ -376,6 +379,8 @@ Extract facts and call the update_session_notes tool.`;
         callStack: newCallStack,
         userId: options.userId,
         resolvedSecrets: options.resolvedSecrets,
+        parentRunId: options.currentRunId,
+        triggeredBy: { triggerType: 'tool_call', nodeId, toolName },
       }
     );
 
@@ -589,7 +594,8 @@ Extract facts and call the update_session_notes tool.`;
     systemPrompt: string | undefined,
     userPrompt: string,
     conversationHistory: ChatMessage[],
-    options: ExecutionOptions
+    options: ExecutionOptions,
+    nodeId: string
   ): Promise<{ response: string; usage: { inputTokens: number; outputTokens: number }; toolCalls?: Array<{ name: string; result: unknown }> }> {
     const apiKey = options.providers.anthropic?.apiKey;
     if (!apiKey) {
@@ -704,7 +710,7 @@ Extract facts and call the update_session_notes tool.`;
               result = await this.executeBuiltinTool(toolUse.name, toolUse.input as Record<string, unknown>, options);
             } else {
               // Execute sub-agent
-              result = await this.executeSubAgent(toolDef.agentId!, toolUse.input as Record<string, unknown>, options);
+              result = await this.executeSubAgent(toolDef.agentId!, toolUse.input as Record<string, unknown>, options, nodeId, toolUse.name);
             }
 
             executedToolCalls.push({ name: toolUse.name, result });

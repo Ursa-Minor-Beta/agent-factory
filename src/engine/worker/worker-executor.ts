@@ -174,6 +174,7 @@ export class WorkerExecutor {
       agentRepo: this.agentRepo,
       messageRepo: this.messageRepo,
       userId,
+      currentRunId: runId, // For parent-child run linking
       resolvedSecrets: options.resolvedSecrets,
       callStack: new Set([agent.id]), // Initialize call stack with current agent
       sessionId: options.sessionContext?.sessionId,

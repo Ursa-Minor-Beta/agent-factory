@@ -2,7 +2,6 @@ import { FastifyInstance } from 'fastify';
 import { RunService } from '../services/run.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
-import type { RunQueryOptions } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { RunStatus } from '../domain/entities/Run.js';
 
 // Schemas
@@ -34,7 +33,33 @@ const nodeStateSchema = {
   },
 };
 
-const runSchema = {
+const triggeredBySchema = {
+  type: 'object',
+  properties: {
+    triggerType: { type: 'string', enum: ['agent_node', 'tool_call'] },
+    nodeId: { type: 'string' },
+    toolName: { type: 'string' },
+  },
+};
+
+// Lightweight schema for list views (no input, output, nodeStates)
+const runSummarySchema: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    agentId: { type: 'string' },
+    userId: { type: 'string' },
+    status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'] },
+    error: { type: 'string', nullable: true },
+    startedAt: { type: 'string', format: 'date-time' },
+    completedAt: { type: 'string', format: 'date-time', nullable: true },
+    parentRunId: { type: 'string' },
+    triggeredBy: triggeredBySchema,
+    childRunIds: { type: 'array', items: { type: 'string' } },
+  },
+};
+
+const runSchema: Record<string, unknown> = {
   type: 'object',
   properties: {
     id: { type: 'string' },
@@ -47,6 +72,9 @@ const runSchema = {
     error: { type: 'string', nullable: true },
     startedAt: { type: 'string', format: 'date-time' },
     completedAt: { type: 'string', format: 'date-time', nullable: true },
+    parentRunId: { type: 'string' },
+    triggeredBy: triggeredBySchema,
+    childRuns: { type: 'array' }, // Recursive reference handled by Fastify
   },
 };
 
@@ -82,7 +110,7 @@ export async function runRoutes(app: FastifyInstance) {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            data: { type: 'array', items: runSchema },
+            data: { type: 'array', items: runSummarySchema },
           },
         },
         401: errorSchema,
@@ -96,11 +124,16 @@ export async function runRoutes(app: FastifyInstance) {
     const { agentId } = request.params as { agentId: string };
     const { limit } = request.query as { limit?: number };
 
-    const runs = await runService.listByAgent(userId, agentId, limit);
+    // Use summary query for list view (excludes input, output, nodeStates)
+    const result = await runService.listAllSummary({
+      userId,
+      agentId,
+      limit,
+    });
 
     return reply.send({
       success: true,
-      data: runs,
+      data: result.runs,
     });
   });
 
@@ -114,6 +147,12 @@ export async function runRoutes(app: FastifyInstance) {
         type: 'object',
         properties: {
           id: { type: 'string' },
+        },
+      },
+      querystring: {
+        type: 'object',
+        properties: {
+          includeChildren: { type: 'boolean', default: false, description: 'Include full child runs data' },
         },
       },
       response: {
@@ -133,8 +172,11 @@ export async function runRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id } = request.params as { id: string };
+    const { includeChildren } = request.query as { includeChildren?: boolean };
 
-    const run = await runService.getById(userId, id);
+    const run = includeChildren
+      ? await runService.getByIdWithChildren(userId, id)
+      : await runService.getById(userId, id);
 
     return reply.send({
       success: true,
@@ -161,6 +203,7 @@ export async function runRoutes(app: FastifyInstance) {
           sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
           skip: { type: 'integer', minimum: 0, default: 0 },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+          includeChildren: { type: 'boolean', default: false, description: 'Return only parent runs with children aggregated' },
         },
       },
       response: {
@@ -171,7 +214,7 @@ export async function runRoutes(app: FastifyInstance) {
             data: {
               type: 'object',
               properties: {
-                runs: { type: 'array', items: runSchema },
+                runs: { type: 'array', items: runSummarySchema },
                 total: { type: 'integer' },
               },
             },
@@ -193,13 +236,35 @@ export async function runRoutes(app: FastifyInstance) {
       sortOrder?: 'asc' | 'desc';
       skip?: number;
       limit?: number;
+      includeChildren?: boolean;
     };
 
     // Users can only see their own runs
     // Admins can see all or filter by userId
     const effectiveUserId = role === 'admin' ? query.userId : currentUserId;
 
-    const options: RunQueryOptions = {
+    // Use summary with child IDs when includeChildren is true
+    if (query.includeChildren) {
+      const result = await runService.listParentsWithChildIdsSummary({
+        userId: effectiveUserId,
+        agentId: query.agentId,
+        status: query.status,
+        startedAfter: query.startedAfter ? new Date(query.startedAfter) : undefined,
+        startedBefore: query.startedBefore ? new Date(query.startedBefore) : undefined,
+        sortBy: query.sortBy,
+        sortOrder: query.sortOrder,
+        skip: query.skip,
+        limit: query.limit,
+      });
+
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    }
+
+    // Use summary query for list view (excludes input, output, nodeStates)
+    const result = await runService.listAllSummary({
       userId: effectiveUserId,
       agentId: query.agentId,
       status: query.status,
@@ -209,9 +274,7 @@ export async function runRoutes(app: FastifyInstance) {
       sortOrder: query.sortOrder,
       skip: query.skip,
       limit: query.limit,
-    };
-
-    const result = await runService.listAll(options);
+    });
 
     return reply.send({
       success: true,

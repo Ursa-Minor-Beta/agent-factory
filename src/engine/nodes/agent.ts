@@ -88,6 +88,8 @@ export class AgentNode extends BaseNode {
         callStack: newCallStack,
         userId: options.userId,
         resolvedSecrets: options.resolvedSecrets,
+        parentRunId: options.currentRunId,
+        triggeredBy: { triggerType: 'agent_node', nodeId: node.id },
       }
     );
 

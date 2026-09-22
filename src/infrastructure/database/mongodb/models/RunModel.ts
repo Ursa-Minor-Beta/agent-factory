@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import type { RunStatus, NodeState } from '../../../../domain/entities/Run.js';
+import type { RunStatus, NodeState, RunTrigger } from '../../../../domain/entities/Run.js';
 
 export interface RunDocument extends Document {
   _id: mongoose.Types.ObjectId;
@@ -13,6 +13,9 @@ export interface RunDocument extends Document {
   error: string | null;
   startedAt: Date;
   completedAt: Date | null;
+  // Parent-child relationship
+  parentRunId?: mongoose.Types.ObjectId;
+  triggeredBy?: RunTrigger;
 }
 
 const nodeStateSchema = new Schema(
@@ -80,6 +83,23 @@ const runSchema = new Schema<RunDocument>(
       type: Date,
       default: null,
     },
+    // Parent-child relationship
+    parentRunId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Run',
+      default: undefined,
+      index: true,
+    },
+    triggeredBy: {
+      // Use nested object with explicit type definitions
+      // 'type' field renamed to avoid Mongoose keyword conflict
+      triggerType: {
+        type: String,
+        enum: ['agent_node', 'tool_call'],
+      },
+      nodeId: { type: String },
+      toolName: { type: String },
+    },
   },
   {
     timestamps: false,
@@ -89,5 +109,6 @@ const runSchema = new Schema<RunDocument>(
 runSchema.index({ agentId: 1, startedAt: -1 });
 runSchema.index({ userId: 1, startedAt: -1 });
 runSchema.index({ status: 1 });
+runSchema.index({ parentRunId: 1, startedAt: -1 });
 
 export const RunModel = mongoose.model<RunDocument>('Run', runSchema);

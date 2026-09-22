@@ -31,6 +31,7 @@ export interface ExecutionOptions {
   runRepo?: IRunRepository;
   callStack?: Set<string>; // Track agent IDs to detect circular calls
   userId?: string; // Current user for permission checks
+  currentRunId?: string; // Current run ID for parent-child linking
   // For LLM multi-turn conversations
   sessionId?: string;
   messageRepo?: IMessageRepository;

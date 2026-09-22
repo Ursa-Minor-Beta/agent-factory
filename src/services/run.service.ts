@@ -1,4 +1,4 @@
-import type { IRunRepository, RunQueryOptions, RunQueryResult } from '../domain/interfaces/repositories/IRunRepository.js';
+import type { IRunRepository, RunQueryOptions, RunQueryResult, RunSummaryQueryResult, RunWithChildrenQueryOptions } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
@@ -108,6 +108,17 @@ export class RunService {
     return run;
   }
 
+  async getByIdWithChildren(userId: string, runId: string): Promise<Run> {
+    const run = await this.runRepo.findByIdWithChildren(runId);
+    if (!run) {
+      throw new NotFoundError('Run');
+    }
+    if (run.userId !== userId) {
+      throw new ForbiddenError('Access denied');
+    }
+    return run;
+  }
+
   async listByAgent(userId: string, agentId: string, limit = 50): Promise<Run[]> {
     const agent = await this.agentRepo.findById(agentId);
     if (!agent) {
@@ -126,5 +137,18 @@ export class RunService {
 
   async listAll(options?: RunQueryOptions): Promise<RunQueryResult> {
     return this.runRepo.findAll(options);
+  }
+
+  async listParentsWithChildren(options?: RunWithChildrenQueryOptions): Promise<RunQueryResult> {
+    return this.runRepo.findParentsWithChildren(options);
+  }
+
+  // Summary methods - for list views without heavy data
+  async listAllSummary(options?: RunQueryOptions): Promise<RunSummaryQueryResult> {
+    return this.runRepo.findAllSummary(options);
+  }
+
+  async listParentsWithChildIdsSummary(options?: RunWithChildrenQueryOptions): Promise<RunSummaryQueryResult> {
+    return this.runRepo.findParentsWithChildIdsSummary(options);
   }
 }
