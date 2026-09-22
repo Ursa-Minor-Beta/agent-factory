@@ -375,6 +375,7 @@ Extract facts and call the update_session_notes tool.`;
         runRepo: options.runRepo,
         callStack: newCallStack,
         userId: options.userId,
+        resolvedSecrets: options.resolvedSecrets,
       }
     );
 

@@ -75,6 +75,70 @@ Available template patterns:
 }
 \`\`\`
 
+### LLM with Tool Calling (Sub-Agent)
+When an LLM needs to call another agent as a tool:
+\`\`\`json
+{
+  "nodes": [
+    { "id": "input-1", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
+    {
+      "id": "llm-1",
+      "type": "llm",
+      "data": {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "systemPrompt": "You are a helpful assistant. Use the available tools when needed.",
+        "userPrompt": "{{node:input-1.message}}",
+        "tools": [
+          {
+            "type": "agent",
+            "agentId": "<target-agent-id>",
+            "name": "search_knowledge",
+            "description": "Search the knowledge base for relevant information",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": { "type": "string", "description": "The search query" }
+              },
+              "required": ["query"]
+            }
+          }
+        ],
+        "maxToolCalls": 5
+      }
+    },
+    { "id": "output-1", "type": "output", "data": { "value": "{{node:llm-1.response}}" } }
+  ]
+}
+\`\`\`
+
+## Tool Definition Format
+
+When adding tools to an LLM node, use this format:
+
+\`\`\`json
+{
+  "type": "agent",
+  "agentId": "<the-agent-id-to-call>",
+  "name": "tool_name",
+  "description": "What this tool does - be descriptive for the LLM",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "param1": { "type": "string", "description": "Description of param1" },
+      "param2": { "type": "number", "description": "Description of param2" }
+    },
+    "required": ["param1"]
+  }
+}
+\`\`\`
+
+- **type**: Must be "agent" for sub-agent tools
+- **agentId**: The ID of the agent to invoke (create the sub-agent first!)
+- **name**: Function name the LLM will use (snake_case recommended)
+- **description**: Clear description so the LLM knows when to use it
+- **parameters**: JSON Schema defining the input the sub-agent expects
+
 ## Conversation Flow
 
 ### Creating a New Agent
@@ -113,9 +177,10 @@ When a user provides a JSON agent definition (from another system or export):
 ## Important Notes
 - Always validate user requirements before building
 - Suggest simpler solutions when possible
-- If creating sub-agents, create them first and use their IDs
+- **For agents with tools**: Create sub-agents FIRST, then use their IDs in the parent agent's tools array
 - Data flow is defined via templates in node data
-- When converting imported agents, explain what changes you made`;
+- When converting imported agents, explain what changes you made
+- Tool parameters define what the LLM passes to the sub-agent - match them to the sub-agent's input schema`;
 
 export const AGENT_CREATOR_NODES: WorkflowNode[] = [
   {

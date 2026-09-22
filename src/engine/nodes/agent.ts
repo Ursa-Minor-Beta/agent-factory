@@ -87,6 +87,7 @@ export class AgentNode extends BaseNode {
         runRepo: options.runRepo,
         callStack: newCallStack,
         userId: options.userId,
+        resolvedSecrets: options.resolvedSecrets,
       }
     );
 
