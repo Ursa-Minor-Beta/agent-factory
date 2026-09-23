@@ -3,7 +3,7 @@ import { BaseNode } from './base.js';
 import { InputNode } from './input.js';
 import { OutputNode } from './output.js';
 import { JsNode } from './js.js';
-import { LlmNode } from './llm.js';
+import { LlmNode } from './llm/index.js';
 import { HttpNode } from './http.js';
 import { AgentNode } from './agent.js';
 import { IfElseNode } from './if-else.js';
