@@ -77,6 +77,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       'Each field in data becomes an output field',
       'Field values support {{node:id.path}} template syntax',
       'Multiple output nodes can be used to define separate output fields',
+      'Base64 files (images, PDFs) are automatically extracted and saved',
+      'Saved files are replaced with {{inner:fileId}} references',
     ],
     examples: [
       {
@@ -101,6 +103,14 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         data: {
           screenshot: '{{node:http-1.response.screenshots.screenshot}}',
           error: '{{node:http-1.response.error}}',
+        },
+      },
+      {
+        name: 'File handling',
+        description: 'Base64 images/files are auto-extracted and saved. Output contains {{inner:fileId}} refs.',
+        data: {
+          result: '{{node:llm-1.response}}',
+          screenshot: '{{node:http-1.response.screenshot}}',
         },
       },
     ],
