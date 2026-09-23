@@ -42,8 +42,8 @@ export async function executeSubAgent(
   const newCallStack = new Set(callStack);
   newCallStack.add(agentId);
 
-  // Execute the sub-agent
-  const executor = new WorkflowExecutor(options.runRepo);
+  // Execute the sub-agent (pass fileRepo so sub-agent can save files)
+  const executor = new WorkflowExecutor(options.runRepo, options.fileRepo);
   const run = await executor.executeInternal(
     targetAgent,
     input,
