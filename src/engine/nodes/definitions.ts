@@ -69,44 +69,38 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   },
   {
     type: 'output',
-    description: 'Workflow exit point. Collects the final output value.',
-    inputs: ['value'],
+    description: 'Workflow exit point. Define output fields directly in data object.',
+    inputs: ['*'],
     outputs: [],
-    options: [
-      {
-        name: 'name',
-        type: 'string',
-        description: 'Output key name in the result.',
-        default: 'output',
-      },
+    options: [],
+    features: [
+      'Each field in data becomes an output field',
+      'Field values support {{node:id.path}} template syntax',
+      'Multiple output nodes can be used to define separate output fields',
     ],
     examples: [
       {
-        name: 'Default output',
-        description: 'Output with default key name',
-        data: {},
-      },
-      {
-        name: 'Single node reference',
-        description: 'Output value from a single node',
+        name: 'Single output field',
+        description: 'Output a single field from an LLM node',
         data: {
-          value: '{{node:llm-1.response}}',
+          response: '{{node:llm-1.response}}',
         },
       },
       {
-        name: 'Multiple node results',
-        description: 'Combine outputs from multiple nodes into a JSON object',
+        name: 'Multiple output fields',
+        description: 'Output multiple fields from different nodes',
         data: {
-          value:
-            '{"response": "{{node:http-1.response}}", "verdict": "{{node:llm-2.response}}", "sessionClosed": "{{node:http-2.response}}"}',
+          summary: '{{node:llm-1.response}}',
+          score: '{{node:llm-2.response}}',
+          status: '{{node:http-1.status}}',
         },
       },
       {
         name: 'Nested path access',
         description: 'Access nested fields from node outputs',
         data: {
-          value:
-            '{"screenshot": "{{node:http-1.response.screenshots.screenshot}}", "error": "{{node:http-1.response.error}}", "status": "{{node:http-1.status}}"}',
+          screenshot: '{{node:http-1.response.screenshots.screenshot}}',
+          error: '{{node:http-1.response.error}}',
         },
       },
     ],

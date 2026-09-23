@@ -273,9 +273,11 @@ export class WorkflowExecutor {
       const output: Record<string, unknown> = {};
 
       for (const outputNode of outputNodes) {
-        const key = (outputNode.data?.name as string) ?? outputNode.id;
-        // Store reference to node output instead of actual value
-        output[key] = `nodeRef:${outputNode.id}:value`;
+        const data = outputNode.data ?? {};
+        // Each field in the output node's data becomes an output field
+        for (const key of Object.keys(data)) {
+          output[key] = `nodeRef:${outputNode.id}:${key}`;
+        }
       }
 
       // Collect all file refs from node states

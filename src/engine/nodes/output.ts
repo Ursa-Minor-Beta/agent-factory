@@ -10,14 +10,9 @@ import {
   type ExtractedFile,
 } from '../../utils/file-extractor.js';
 
-interface OutputNodeData {
-  name?: string;
-  value?: string; // Template like "{{node:llm-1.response}}"
-}
-
 /**
  * Output node - Collects final workflow results
- * Use data.value with {{node:id.path}} template to specify output source
+ * Define output fields directly in data: { fieldName: "{{node:id.path}}", ... }
  *
  * Files are only extracted and saved here (lazy storage) when the output
  * contains base64 data. This avoids storing files that aren't actually
@@ -31,84 +26,94 @@ export class OutputNode extends BaseNode {
     context: ExecutionContext,
     options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
-    const data = node.data as OutputNodeData;
-
-    let value: unknown;
-
-    if (data.value) {
-      // Interpolate the value template
-      const interpolated = interpolateAll(data.value, { context });
-
-      // Try to parse as JSON if it looks like JSON
-      try {
-        value = JSON.parse(interpolated);
-      } catch {
-        value = interpolated;
-      }
-    } else {
-      // Fallback: use workflow input
-      value = options.workflowInput;
-    }
-
-    // Track file references for this output
+    const data = node.data ?? {};
+    const outputs: Record<string, unknown> = {};
     const fileRefs: string[] = [];
 
-    // Extract and save files if the output contains base64 data
-    // This is lazy file storage - only save files that are actually referenced in output
-    if (options.fileRepo && options.userId && value) {
-      if (typeof value === 'object') {
-        const { cleanedOutput, files } = extractFiles(value);
+    // Process each field in data as an output field
+    for (const [key, template] of Object.entries(data)) {
+      let value: unknown;
 
-        if (files.length > 0) {
-          // Save files to DB
-          const savedFiles = await this.saveFiles(files, options.userId, options.fileRepo);
+      if (typeof template === 'string') {
+        // Interpolate the template
+        const interpolated = interpolateAll(template, { context });
 
-          // Replace placeholders with actual file refs
-          const fileIdMap = new Map<number, { id: string; field: string }>();
-          files.forEach((f, idx) => {
-            const ref = savedFiles[idx];
-            if (ref) {
-              const parts = ref.split(':');
-              const fileId = parts[1] ?? '';
-              fileIdMap.set(idx, { id: fileId, field: f.field });
-              fileRefs.push(`{{inner:${fileId}}}`);
-            }
-          });
-          value = replaceFileRefsInObject(cleanedOutput, fileIdMap);
+        // Try to parse as JSON if it looks like JSON
+        try {
+          value = JSON.parse(interpolated);
+        } catch {
+          value = interpolated;
         }
-      } else if (typeof value === 'string') {
-        // Handle string values with embedded base64
-        const { cleanedText, files } = extractBase64FromText(value, 'output');
-
-        if (files.length > 0) {
-          // Save files to DB
-          const savedFiles = await this.saveFiles(files, options.userId, options.fileRepo);
-
-          // Replace placeholders with actual file refs
-          const fileIdMap = new Map<number, { id: string; field: string }>();
-          files.forEach((f, idx) => {
-            const ref = savedFiles[idx];
-            if (ref) {
-              const parts = ref.split(':');
-              const fileId = parts[1] ?? '';
-              fileIdMap.set(idx, { id: fileId, field: f.field });
-              fileRefs.push(`{{inner:${fileId}}}`);
-            }
-          });
-          value = replaceFileRefsInString(cleanedText, fileIdMap);
-        }
+      } else {
+        // Non-string values pass through as-is
+        value = template;
       }
+
+      // Extract and save files if the value contains base64 data
+      if (options.fileRepo && options.userId && value) {
+        value = await this.extractAndSaveFiles(value, key, options, fileRefs);
+      }
+
+      outputs[key] = value;
+      context.setOutput(node.id, key, value);
     }
-
-    const outputs = { value };
-
-    // Store in context
-    context.setOutput(node.id, 'value', value);
 
     return {
       outputs,
       files: fileRefs.length > 0 ? fileRefs : undefined,
     };
+  }
+
+  /**
+   * Extract base64 files from value and save to DB
+   */
+  private async extractAndSaveFiles(
+    value: unknown,
+    fieldName: string,
+    options: ExecutionOptions,
+    fileRefs: string[]
+  ): Promise<unknown> {
+    if (!options.fileRepo || !options.userId) return value;
+
+    if (typeof value === 'object' && value !== null) {
+      const { cleanedOutput, files } = extractFiles(value);
+
+      if (files.length > 0) {
+        const savedFiles = await this.saveFiles(files, options.userId, options.fileRepo);
+
+        const fileIdMap = new Map<number, { id: string; field: string }>();
+        files.forEach((f, idx) => {
+          const ref = savedFiles[idx];
+          if (ref) {
+            const parts = ref.split(':');
+            const fileId = parts[1] ?? '';
+            fileIdMap.set(idx, { id: fileId, field: f.field });
+            fileRefs.push(`{{inner:${fileId}}}`);
+          }
+        });
+        return replaceFileRefsInObject(cleanedOutput, fileIdMap);
+      }
+    } else if (typeof value === 'string') {
+      const { cleanedText, files } = extractBase64FromText(value, fieldName);
+
+      if (files.length > 0) {
+        const savedFiles = await this.saveFiles(files, options.userId, options.fileRepo);
+
+        const fileIdMap = new Map<number, { id: string; field: string }>();
+        files.forEach((f, idx) => {
+          const ref = savedFiles[idx];
+          if (ref) {
+            const parts = ref.split(':');
+            const fileId = parts[1] ?? '';
+            fileIdMap.set(idx, { id: fileId, field: f.field });
+            fileRefs.push(`{{inner:${fileId}}}`);
+          }
+        });
+        return replaceFileRefsInString(cleanedText, fileIdMap);
+      }
+    }
+
+    return value;
   }
 
   /**

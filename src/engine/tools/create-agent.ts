@@ -11,7 +11,7 @@ export const CREATE_AGENT_TOOL: BuiltinToolDefinition = {
 
 Available node types:
 - input: Entry point. Data: { schema: { fieldName: { type: "string"|"number"|"boolean", required: boolean } } }
-- output: Collects results. Data: { value: "{{node:nodeId.path}}" }
+- output: Collects results. Data: { fieldName: "{{node:nodeId.path}}", ... } - each field becomes an output
 - llm: Language model. Data: { provider: "openai"|"anthropic"|"ollama", model: string, systemPrompt: string, userPrompt: string, temperature: number, maxTokens: number, tools?: array }
 - http: HTTP request. Data: { method: "GET"|"POST"|"PUT"|"DELETE", url: string, headers?: object, body?: string }
 - js: JavaScript code. Data: { code: string } - code receives 'input' variable and should return result

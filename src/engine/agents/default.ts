@@ -30,7 +30,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
     id: 'output-1',
     type: 'output',
     data: {
-      value: '{{node:llm-1.response}}',
+      response: '{{node:llm-1.response}}',
     },
   },
 ];

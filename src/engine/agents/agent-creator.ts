@@ -46,7 +46,7 @@ Available template patterns:
 ## Workflow Guidelines
 
 1. **Always start with an input node** - Define what data the agent needs
-2. **Always end with an output node** - Specify output using \`data.value\` template
+2. **Always end with an output node** - Define output fields directly in data (e.g., \`{ "response": "{{node:llm-1.response}}", "ticket": "{{node:http-1.ticket}}", ... }\`)
 3. **Use templates in node data** - Reference other nodes with \`{{node:id.path}}\`
 4. **Use unique IDs** - Each node needs a unique ID
 
@@ -58,7 +58,7 @@ Available template patterns:
   "nodes": [
     { "id": "input-1", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
     { "id": "llm-1", "type": "llm", "data": { "userPrompt": "{{node:input-1.message}}" } },
-    { "id": "output-1", "type": "output", "data": { "value": "{{node:llm-1.response}}" } }
+    { "id": "output-1", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
   ]
 }
 \`\`\`
@@ -70,7 +70,7 @@ Available template patterns:
     { "id": "input-1", "type": "input", "data": { "schema": { "query": { "type": "string" } } } },
     { "id": "http-1", "type": "http", "data": { "url": "https://api.example.com?q={{node:input-1.query}}" } },
     { "id": "js-1", "type": "js", "data": { "input": "{{node:http-1.response}}", "code": "return input.data;" } },
-    { "id": "output-1", "type": "output", "data": { "value": "{{node:js-1.output}}" } }
+    { "id": "output-1", "type": "output", "data": { "result": "{{node:js-1.output}}" } }
   ]
 }
 \`\`\`
@@ -107,7 +107,7 @@ When an LLM needs to call another agent as a tool:
         "maxToolCalls": 5
       }
     },
-    { "id": "output-1", "type": "output", "data": { "value": "{{node:llm-1.response}}" } }
+    { "id": "output-1", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
   ]
 }
 \`\`\`
@@ -210,7 +210,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
     id: 'output-1',
     type: 'output',
     data: {
-      value: '{{node:llm-creator.response}}',
+      response: '{{node:llm-creator.response}}',
     },
   },
 ];
