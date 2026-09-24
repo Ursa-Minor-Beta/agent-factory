@@ -17,6 +17,8 @@ export interface NodeOption {
 export interface NodeExample {
   name: string;
   description: string;
+  id: string;
+  type: string;
   data: Record<string, unknown>;
 }
 
@@ -48,6 +50,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Text input',
         description: 'Simple text input field',
+        id: 'input-1',
+        type: 'input',
         data: {
           schema: {
             text: { type: 'string', required: true },
@@ -57,6 +61,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Multiple fields with defaults',
         description: 'Input with multiple fields including default values',
+        id: 'input-2',
+        type: 'input',
         data: {
           schema: {
             query: { type: 'string', required: true },
@@ -84,6 +90,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Single output field',
         description: 'Output a single field from an LLM node',
+        id: 'output-1',
+        type: 'output',
         data: {
           response: '{{node:llm-1.response}}',
         },
@@ -91,6 +99,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Multiple output fields',
         description: 'Output multiple fields from different nodes',
+        id: 'output-2',
+        type: 'output',
         data: {
           summary: '{{node:llm-1.response}}',
           score: '{{node:llm-2.response}}',
@@ -100,6 +110,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Nested path access',
         description: 'Access nested fields from node outputs',
+        id: 'output-3',
+        type: 'output',
         data: {
           screenshot: '{{node:http-1.response.screenshots.screenshot}}',
           error: '{{node:http-1.response.error}}',
@@ -108,6 +120,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'File handling',
         description: 'Base64 images/files are auto-extracted and saved. Output contains {{inner:fileId}} refs.',
+        id: 'output-4',
+        type: 'output',
         data: {
           result: '{{node:llm-1.response}}',
           screenshot: '{{node:http-1.response.screenshot}}',
@@ -175,6 +189,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Simple chat',
         description: 'Basic OpenAI chat completion',
+        id: 'llm-1',
+        type: 'llm',
         data: {
           provider: 'openai',
           model: 'gpt-4o-mini',
@@ -239,6 +255,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'GET request',
         description: 'Simple GET request',
+        id: 'http-1',
+        type: 'http',
         data: {
           method: 'GET',
           url: 'https://api.example.com/data/{{node:input-1.id}}',
@@ -247,6 +265,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'POST with body',
         description: 'POST request with JSON body',
+        id: 'http-2',
+        type: 'http',
         data: {
           method: 'POST',
           url: 'https://api.example.com/items',
@@ -269,6 +289,11 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         description: 'JavaScript code. Receives `input` variable, assign result to `output` or use return.',
       },
       {
+        name: 'input',
+        type: 'string',
+        description: 'Template for input value. Supports {{node:id.path}} syntax. If not specified, uses workflow input.',
+      },
+      {
         name: 'timeout',
         type: 'number',
         description: `Execution timeout in milliseconds (max: ${config.jsNode.maxTimeoutMs}).`,
@@ -280,6 +305,12 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         description: `Memory limit in megabytes (max: ${config.jsNode.maxMemoryMb}).`,
         default: config.jsNode.defaultMemoryMb,
       },
+      {
+        name: 'persistedFields',
+        type: 'enum',
+        description: 'Fields to persist in run state for debugging. Empty by default.',
+        values: ['input'],
+      },
     ],
     features: [
       'Sandboxed execution (no require, fs, process access)',
@@ -290,22 +321,31 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Transform data',
         description: 'Transform input data',
+        id: 'js-1',
+        type: 'js',
         data: {
-          code: 'output = { result: input.text.toUpperCase() };',
+          input: '{{node:input-1.text}}',
+          code: 'output = { result: input.toUpperCase() };',
         },
       },
       {
         name: 'Parse JSON',
-        description: 'Parse JSON string',
+        description: 'Parse JSON string from LLM response',
+        id: 'js-2',
+        type: 'js',
         data: {
-          code: 'output = JSON.parse(input.response);',
+          input: '{{node:llm-1.response}}',
+          code: 'output = JSON.parse(input);',
         },
       },
       {
         name: 'With custom limits',
-        description: 'Custom timeout and memory',
+        description: 'Process data array with custom timeout and memory',
+        id: 'js-3',
+        type: 'js',
         data: {
-          code: 'output = input.data.map(x => x * 2);',
+          input: '{{node:http-1.response.data}}',
+          code: 'output = input.map(x => x * 2);',
           timeout: 10000,
           memoryMb: 128,
         },
@@ -329,6 +369,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Call sub-agent',
         description: 'Execute another agent',
+        id: 'agent-1',
+        type: 'agent',
         data: {
           agentId: '507f1f77bcf86cd799439011',
         },
@@ -364,6 +406,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Score evaluation',
         description: 'Execute different LLM nodes based on score',
+        id: 'branch-1',
+        type: 'branch',
         data: {
           input: '{{node:input-1.score}}',
           branches: [
@@ -388,6 +432,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Status routing',
         description: 'Route API responses by status code',
+        id: 'branch-2',
+        type: 'branch',
         data: {
           input: '{{node:http-1.response}}',
           branches: [
@@ -440,6 +486,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Store learned step',
         description: 'Save a successful test action',
+        id: 'memory-store-1',
+        type: 'memory-store',
         data: {
           collection: 'learned_steps',
           data: {
@@ -496,6 +544,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Search by page',
         description: 'Find memories for a specific page',
+        id: 'memory-search-1',
+        type: 'memory-search',
         data: {
           collection: 'learned_steps',
           filters: { page: '{{node:input-1.url}}' },
@@ -542,6 +592,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Update success rate',
         description: 'Update a record from search results',
+        id: 'memory-update-1',
+        type: 'memory-update',
         data: {
           collection: 'learned_steps',
           id: '{{node:search-1.results.0.id}}',
@@ -573,6 +625,8 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Delete record',
         description: 'Delete a specific record',
+        id: 'memory-delete-1',
+        type: 'memory-delete',
         data: {
           collection: 'learned_steps',
           id: '{{node:input-1.recordId}}',
@@ -609,8 +663,8 @@ export function generateNodeDocsForPrompt(): string {
       lines.push('- Example:');
       lines.push('```json');
       lines.push(JSON.stringify({
-        id: `${node.type}-1`,
-        type: node.type,
+        id: firstExample.id,
+        type: firstExample.type,
         data: firstExample.data,
       }, null, 2));
       lines.push('```');
