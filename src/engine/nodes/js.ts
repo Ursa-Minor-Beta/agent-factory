@@ -4,6 +4,17 @@ import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { config } from '../../config/index.js';
 import { interpolateAll } from './utils.js';
+import { NodeExecutionError } from '../../utils/errors.js';
+
+type JsPersistedField = 'input';
+
+interface JsNodeData {
+  code?: string;
+  timeout?: number;
+  memoryMb?: number;
+  input?: string;
+  persistedFields?: JsPersistedField[];
+}
 
 /**
  * Available globals in JS node sandbox (for documentation)
@@ -97,30 +108,61 @@ export class JsNode extends BaseNode {
     context: ExecutionContext,
     options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
-    const code = (node.data.code as string) ?? 'output = input;';
+    const data = node.data as unknown as JsNodeData;
+    const code = data.code ?? 'output = input;';
     const { defaultTimeoutMs, maxTimeoutMs, defaultMemoryMb, maxMemoryMb } = config.jsNode;
-    const timeout = Math.min((node.data.timeout as number) ?? defaultTimeoutMs, maxTimeoutMs);
-    const memoryMb = Math.min((node.data.memoryMb as number) ?? defaultMemoryMb, maxMemoryMb);
+    const timeout = Math.min(data.timeout ?? defaultTimeoutMs, maxTimeoutMs);
+    const memoryMb = Math.min(data.memoryMb ?? defaultMemoryMb, maxMemoryMb);
 
-    // Get input from template or workflow input
-    let input: unknown;
-    if (node.data.input && typeof node.data.input === 'string') {
-      const interpolated = interpolateAll(node.data.input, { context });
-      try {
-        input = JSON.parse(interpolated);
-      } catch {
-        input = interpolated;
-      }
-    } else {
-      input = options.workflowInput;
+    const input = this.resolveInput(data, context, options);
+    const state = this.buildState(data, input);
+
+    try {
+      const output = await this.runInWorker(code, input, timeout, memoryMb);
+
+      const outputs = { output };
+      context.setOutput(node.id, 'output', output);
+
+      return { outputs, state };
+    } 
+    catch (error) {
+      throw new NodeExecutionError(
+        error instanceof Error ? error.message : String(error),
+        {},
+        error,
+        state
+      );
     }
+  }
 
-    const output = await this.runInWorker(code, input, timeout, memoryMb);
+  private resolveInput(
+    data: JsNodeData,
+    context: ExecutionContext,
+    options: ExecutionOptions
+  ): unknown {
+    if (data.input && typeof data.input === 'string') {
+      const interpolated = interpolateAll(data.input, { context });
+      try {
+        return JSON.parse(interpolated);
+      } catch {
+        return interpolated;
+      }
+    }
+    return options.workflowInput;
+  }
 
-    const outputs = { output };
-    context.setOutput(node.id, 'output', output);
+  private buildState(data: JsNodeData, input: unknown): Record<string, unknown> | undefined {
+    if (!data.persistedFields?.length) return undefined;
 
-    return { outputs };
+    const state: Record<string, unknown> = {};
+    for (const field of data.persistedFields) {
+      switch (field) {
+        case 'input':
+          state.input = input;
+          break;
+      }
+    }
+    return state;
   }
 
   private runInWorker(

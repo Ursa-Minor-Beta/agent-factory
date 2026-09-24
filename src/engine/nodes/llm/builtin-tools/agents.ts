@@ -1,16 +1,14 @@
-import type { ExecutionOptions } from '../base.js';
-import type { WorkflowNode } from '../../../domain/entities/Agent.js';
-import { MAX_SESSION_NOTES_LENGTH } from '../../tools/session-notes.js';
+/**
+ * Agent-related builtin tool handlers
+ */
 
-type ToolHandler = (
-  args: Record<string, unknown>,
-  options: ExecutionOptions
-) => Promise<unknown>;
+import type { WorkflowNode } from '../../../../domain/entities/Agent.js';
+import type { ToolHandler } from './types.js';
 
 /**
  * Handle create_agent tool
  */
-const handleCreateAgent: ToolHandler = async (args, options) => {
+export const handleCreateAgent: ToolHandler = async (args, options) => {
   if (!options.agentRepo) {
     throw new Error('create_agent tool requires agentRepo in options');
   }
@@ -56,7 +54,7 @@ const handleCreateAgent: ToolHandler = async (args, options) => {
 /**
  * Handle get_agent tool
  */
-const handleGetAgent: ToolHandler = async (args, options) => {
+export const handleGetAgent: ToolHandler = async (args, options) => {
   if (!options.agentRepo) {
     throw new Error('get_agent tool requires agentRepo in options');
   }
@@ -91,57 +89,9 @@ const handleGetAgent: ToolHandler = async (args, options) => {
 };
 
 /**
- * Handle update_session_notes tool
- */
-const handleUpdateSessionNotes: ToolHandler = async (args, options) => {
-  const maxLength = options.maxNotesLength ?? MAX_SESSION_NOTES_LENGTH;
-  let notes = String(args.notes ?? '');
-  const wasTruncated = notes.length > maxLength;
-  if (wasTruncated) {
-    notes = notes.slice(0, maxLength);
-  }
-  if (options.onSessionNotesUpdate) {
-    await options.onSessionNotesUpdate(notes);
-  }
-  return {
-    success: true,
-    message: wasTruncated
-      ? `Session notes updated (truncated from ${String(args.notes).length} to ${maxLength} chars)`
-      : 'Session notes updated',
-    length: notes.length,
-    maxLength,
-  };
-};
-
-/**
- * Handle append_session_notes tool
- */
-const handleAppendSessionNotes: ToolHandler = async (args, options) => {
-  const maxLength = options.maxNotesLength ?? MAX_SESSION_NOTES_LENGTH;
-  const toAppend = String(args.notes ?? '');
-  const current = options.sessionNotes ?? '';
-  let newNotes = current ? `${current}\n${toAppend}` : toAppend;
-  const wasTruncated = newNotes.length > maxLength;
-  if (wasTruncated) {
-    newNotes = newNotes.slice(0, maxLength);
-  }
-  if (options.onSessionNotesUpdate) {
-    await options.onSessionNotesUpdate(newNotes);
-  }
-  return {
-    success: true,
-    message: wasTruncated
-      ? `Notes appended but truncated to ${maxLength} chars`
-      : 'Notes appended',
-    length: newNotes.length,
-    maxLength,
-  };
-};
-
-/**
  * Handle update_agent tool
  */
-const handleUpdateAgent: ToolHandler = async (args, options) => {
+export const handleUpdateAgent: ToolHandler = async (args, options) => {
   if (!options.agentRepo) {
     throw new Error('update_agent tool requires agentRepo in options');
   }
@@ -205,29 +155,3 @@ const handleUpdateAgent: ToolHandler = async (args, options) => {
     message: `Agent "${updatedAgent.name}" updated successfully`,
   };
 };
-
-/**
- * Registry of builtin tool handlers
- */
-const builtinToolHandlers: Record<string, ToolHandler> = {
-  create_agent: handleCreateAgent,
-  get_agent: handleGetAgent,
-  update_agent: handleUpdateAgent,
-  update_session_notes: handleUpdateSessionNotes,
-  append_session_notes: handleAppendSessionNotes,
-};
-
-/**
- * Execute a builtin tool by name
- */
-export async function executeBuiltinTool(
-  toolName: string,
-  args: Record<string, unknown>,
-  options: ExecutionOptions
-): Promise<unknown> {
-  const handler = builtinToolHandlers[toolName];
-  if (!handler) {
-    throw new Error(`Unknown builtin tool: ${toolName}`);
-  }
-  return handler(args, options);
-}

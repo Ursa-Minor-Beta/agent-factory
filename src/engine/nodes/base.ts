@@ -4,6 +4,8 @@ import type { IAgentRepository } from '../../domain/interfaces/repositories/IAge
 import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRepository.js';
 import type { IMessageRepository } from '../../domain/interfaces/repositories/IMessageRepository.js';
 import type { IFileRepository } from '../../domain/interfaces/repositories/IFileRepository.js';
+import type { IMemorySchemaRepository } from '../../domain/interfaces/repositories/IMemorySchemaRepository.js';
+import type { IMemoryStoreRepository } from '../../domain/interfaces/repositories/IMemoryStoreRepository.js';
 
 export interface NodeExecutionResult {
   outputs: Record<string, unknown>;
@@ -47,6 +49,9 @@ export interface ExecutionOptions {
   requiredOutputPaths?: string[];
   // File storage - for output node to save files when referenced
   fileRepo?: IFileRepository;
+  // Memory storage - for memory node operations
+  memorySchemaRepo?: IMemorySchemaRepository;
+  memoryStoreRepo?: IMemoryStoreRepository;
 }
 
 export abstract class BaseNode {

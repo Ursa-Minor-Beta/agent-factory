@@ -7,6 +7,8 @@ import { MongoSessionRepository } from '../infrastructure/database/mongodb/repos
 import { MongoMessageRepository } from '../infrastructure/database/mongodb/repositories/MongoMessageRepository.js';
 import { MongoUserSecretRepository } from '../infrastructure/database/mongodb/repositories/MongoUserSecretRepository.js';
 import { MongoFileRepository } from '../infrastructure/database/mongodb/repositories/MongoFileRepository.js';
+import { MongoMemorySchemaRepository } from '../infrastructure/database/mongodb/repositories/MongoMemorySchemaRepository.js';
+import { MongoMemoryStoreRepository } from '../infrastructure/database/mongodb/repositories/MongoMemoryStoreRepository.js';
 import { RunManager } from '../engine/worker/index.js';
 import { config } from './index.js';
 
@@ -19,6 +21,8 @@ import type { ISessionRepository } from '../domain/interfaces/repositories/ISess
 import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
 import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
+import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
+import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
 
 export interface Container {
   userRepository: IUserRepository;
@@ -30,6 +34,8 @@ export interface Container {
   messageRepository: IMessageRepository;
   userSecretRepository: IUserSecretRepository;
   fileRepository: IFileRepository;
+  memorySchemaRepository: IMemorySchemaRepository;
+  memoryStoreRepository: IMemoryStoreRepository;
   runManager: RunManager;
 }
 
@@ -62,5 +68,7 @@ export const container: Container = {
   messageRepository: new MongoMessageRepository(),
   userSecretRepository: new MongoUserSecretRepository(),
   fileRepository: new MongoFileRepository(),
+  memorySchemaRepository: new MongoMemorySchemaRepository(),
+  memoryStoreRepository: new MongoMemoryStoreRepository(),
   runManager,
 };

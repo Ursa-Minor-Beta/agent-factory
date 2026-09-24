@@ -11,6 +11,8 @@ import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRe
 import type { IFileRepository } from '../../domain/interfaces/repositories/IFileRepository.js';
 import type { IAgentRepository } from '../../domain/interfaces/repositories/IAgentRepository.js';
 import type { IMessageRepository } from '../../domain/interfaces/repositories/IMessageRepository.js';
+import type { IMemorySchemaRepository } from '../../domain/interfaces/repositories/IMemorySchemaRepository.js';
+import type { IMemoryStoreRepository } from '../../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import { ExecutionContext } from '../context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths } from '../graph.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
@@ -101,6 +103,8 @@ export class WorkerExecutor {
     private fileRepo: IFileRepository | undefined,
     private agentRepo: IAgentRepository,
     private messageRepo: IMessageRepository,
+    private memorySchemaRepo: IMemorySchemaRepository | undefined,
+    private memoryStoreRepo: IMemoryStoreRepository | undefined,
     private callbacks: WorkerExecutorCallbacks
   ) {}
 
@@ -173,6 +177,8 @@ export class WorkerExecutor {
       runRepo: this.runRepo,
       agentRepo: this.agentRepo,
       messageRepo: this.messageRepo,
+      memorySchemaRepo: this.memorySchemaRepo,
+      memoryStoreRepo: this.memoryStoreRepo,
       userId,
       currentRunId: runId, // For parent-child run linking
       resolvedSecrets: options.resolvedSecrets,
