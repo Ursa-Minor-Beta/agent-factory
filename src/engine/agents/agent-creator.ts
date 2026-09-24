@@ -169,7 +169,7 @@ When a user provides a JSON agent definition (from another system or export):
      - Text generation/AI → llm node
      - API calls → http node
      - Data transformation → js node
-     - Conditions → if-else node
+     - Conditions → branch node
      - Sub-workflows → agent node
 4. **Once clarified** - Rebuild the workflow using only supported node types
 5. **Convert to template-based data flow** - Use \`{{node:id.path}}\` syntax

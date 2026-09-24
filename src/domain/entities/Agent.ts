@@ -1,4 +1,4 @@
-export const NODE_TYPES = ['input', 'output', 'llm', 'http', 'js', 'agent', 'if-else'] as const;
+export const NODE_TYPES = ['input', 'output', 'llm', 'http', 'js', 'agent', 'branch'] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
 export interface WorkflowNode {

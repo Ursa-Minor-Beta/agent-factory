@@ -563,7 +563,7 @@ export async function agentRoutes(app: FastifyInstance) {
           case 'http': return 'Fetching...';
           case 'js': return 'Executing code...';
           case 'agent': return 'Running agent...';
-          case 'if-else': return 'Evaluating condition...';
+          case 'branch': return 'Evaluating condition...';
           case 'input': return 'Processing input...';
           case 'output': return 'Preparing output...';
           default: return 'Processing...';

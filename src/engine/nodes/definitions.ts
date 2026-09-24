@@ -336,24 +336,72 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
     ],
   },
   {
-    type: 'if-else',
-    description: 'Conditional branching node. Routes data based on expression evaluation.',
+    type: 'branch',
+    description: 'Multi-way conditional branching with execution control. Only nodes in the active branch execute.',
     inputs: ['input'],
-    outputs: ['true', 'false', 'result'],
+    outputs: ['activeBranch', '*'],
     options: [
       {
-        name: 'expression',
+        name: 'input',
         type: 'string',
-        required: true,
-        description: 'JavaScript expression to evaluate. Access input via `input` variable.',
+        description: 'Template for input value to evaluate. Supports {{node:id.path}} syntax.',
       },
+      {
+        name: 'branches',
+        type: 'object',
+        required: true,
+        description: 'Array of branch definitions. Each has: name (string), condition (expression), nodes (array of node IDs to execute if active).',
+      },
+    ],
+    features: [
+      'Evaluates branches in order, activates first matching condition',
+      'Only nodes in active branch execute - others are skipped',
+      'Nodes not listed in any branch always execute',
+      'Each branch outputs input value if active, null if inactive',
+      'Outputs activeBranch name for reference',
     ],
     examples: [
       {
-        name: 'Check value',
-        description: 'Branch based on value',
+        name: 'Score evaluation',
+        description: 'Execute different LLM nodes based on score',
         data: {
-          expression: 'input.score >= 80',
+          input: '{{node:input-1.score}}',
+          branches: [
+            {
+              name: 'high',
+              condition: 'input >= 90',
+              nodes: ['llm-high', 'format-high'],
+            },
+            {
+              name: 'pass',
+              condition: 'input >= 60',
+              nodes: ['llm-pass', 'format-pass'],
+            },
+            {
+              name: 'fail',
+              condition: 'true',
+              nodes: ['llm-fail', 'format-fail'],
+            },
+          ],
+        },
+      },
+      {
+        name: 'Status routing',
+        description: 'Route API responses by status code',
+        data: {
+          input: '{{node:http-1.response}}',
+          branches: [
+            {
+              name: 'success',
+              condition: 'input.status >= 200 && input.status < 300',
+              nodes: ['process-success'],
+            },
+            {
+              name: 'error',
+              condition: 'true',
+              nodes: ['handle-error', 'log-error'],
+            },
+          ],
         },
       },
     ],

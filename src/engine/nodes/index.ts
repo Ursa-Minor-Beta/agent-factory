@@ -6,7 +6,7 @@ import { JsNode } from './js.js';
 import { LlmNode } from './llm/index.js';
 import { HttpNode } from './http.js';
 import { AgentNode } from './agent.js';
-import { IfElseNode } from './if-else.js';
+import { BranchNode } from './branch.js';
 
 export { BaseNode } from './base.js';
 export type { NodeExecutionResult, ProviderConfig, ExecutionOptions } from './base.js';
@@ -20,7 +20,7 @@ nodeRegistry.set('js', new JsNode());
 nodeRegistry.set('llm', new LlmNode());
 nodeRegistry.set('http', new HttpNode());
 nodeRegistry.set('agent', new AgentNode());
-nodeRegistry.set('if-else', new IfElseNode());
+nodeRegistry.set('branch', new BranchNode());
 
 export function getNode(type: NodeType): BaseNode {
   const node = nodeRegistry.get(type);
