@@ -6,7 +6,7 @@ import { JsNode } from './js.js';
 import { LlmNode } from './llm/index.js';
 import { HttpNode } from './http.js';
 import { AgentNode } from './agent.js';
-import { IfElseNode } from './if-else.js';
+import { BranchNode } from './branch.js';
 import {
   MemoryStoreNode,
   MemorySearchNode,
@@ -26,7 +26,7 @@ nodeRegistry.set('js', new JsNode());
 nodeRegistry.set('llm', new LlmNode());
 nodeRegistry.set('http', new HttpNode());
 nodeRegistry.set('agent', new AgentNode());
-nodeRegistry.set('if-else', new IfElseNode());
+nodeRegistry.set('branch', new BranchNode());
 nodeRegistry.set('memory-store', new MemoryStoreNode());
 nodeRegistry.set('memory-search', new MemorySearchNode());
 nodeRegistry.set('memory-update', new MemoryUpdateNode());

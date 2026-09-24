@@ -201,6 +201,19 @@ export class WorkerExecutor {
         const node = agent.nodes.find((n) => n.id === nodeId);
         if (!node) continue;
 
+        // Check if this node should be skipped due to branch control
+        if (context.shouldSkipNode(nodeId)) {
+          await this.runRepo.updateNodeState(runId, nodeId, {
+            status: 'skipped',
+            input: safeClone(node.data),
+            output: { __skipped: true, reason: 'Not in active branch' },
+            error: null,
+            startedAt: new Date(),
+            completedAt: new Date(),
+          });
+          continue;
+        }
+
         // Update node state to running with input data
         await this.runRepo.updateNodeState(runId, nodeId, {
           status: 'running',

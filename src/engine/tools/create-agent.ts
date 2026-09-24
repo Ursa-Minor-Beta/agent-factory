@@ -16,7 +16,7 @@ Available node types:
 - http: HTTP request. Data: { method: "GET"|"POST"|"PUT"|"DELETE", url: string, headers?: object, body?: string }
 - js: JavaScript code. Data: { code: string } - code receives 'input' variable and should return result
 - agent: Call sub-agent. Data: { agentId: string }
-- if-else: Conditional. Data: { expression: string } - JS expression returning boolean
+- branch: Conditional branching. Data: { branches: [{ name: string, condition: string, nodes: string[] }] } - only nodes in active branch execute
 
 Data flow uses templates:
 - {{node:nodeId.path}} - Reference another node's output (e.g., {{node:llm-1.response}}, {{node:input-1.message}})
