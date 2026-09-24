@@ -42,7 +42,7 @@ export async function executeSubAgent(
   const newCallStack = new Set(callStack);
   newCallStack.add(agentId);
 
-  // Execute the sub-agent (pass fileRepo so sub-agent can save files)
+  // Execute the sub-agent (pass all repositories and context)
   const executor = new WorkflowExecutor(options.runRepo, options.fileRepo);
   const run = await executor.executeInternal(
     targetAgent,
@@ -53,9 +53,18 @@ export async function executeSubAgent(
       workflowInput: input,
       agentRepo: options.agentRepo,
       runRepo: options.runRepo,
+      messageRepo: options.messageRepo,
+      memorySchemaRepo: options.memorySchemaRepo,
+      memoryStoreRepo: options.memoryStoreRepo,
+      fileRepo: options.fileRepo,
       callStack: newCallStack,
       userId: options.userId,
       resolvedSecrets: options.resolvedSecrets,
+      sessionId: options.sessionId,
+      messages: options.messages,
+      sessionNotes: options.sessionNotes,
+      onSessionNotesUpdate: options.onSessionNotesUpdate,
+      maxNotesLength: options.maxNotesLength,
       parentRunId: options.currentRunId,
       triggeredBy: { triggerType: 'tool_call', nodeId, toolName },
     }

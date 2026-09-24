@@ -51,6 +51,7 @@ export interface InternalExecutionOptions extends ExecutionOptions {
   // Parent-child tracking
   parentRunId?: string;
   triggeredBy?: RunTrigger;
+  // All fields from ExecutionOptions are inherited
 }
 
 interface InternalResult {
@@ -183,11 +184,18 @@ export class WorkflowExecutor {
       workflowInput: input,
       agentRepo: options.agentRepo,
       runRepo: options.runRepo ?? this.runRepo,
+      messageRepo: options.messageRepo,
+      memorySchemaRepo: options.memorySchemaRepo,
+      memoryStoreRepo: options.memoryStoreRepo,
+      fileRepo: options.fileRepo ?? this.fileRepo,
       callStack: options.callStack,
       userId: options.userId ?? userId,
       currentRunId: runId,
       sessionId: options.sessionId,
-      messageRepo: options.messageRepo,
+      messages: options.messages,
+      sessionNotes: options.sessionNotes,
+      onSessionNotesUpdate: options.onSessionNotesUpdate,
+      maxNotesLength: options.maxNotesLength,
       resolvedSecrets: options.resolvedSecrets,
     };
 
