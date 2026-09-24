@@ -626,6 +626,7 @@ export async function memoryRoutes(app: FastifyInstance) {
             data: memoryRecordSchema,
           },
         },
+        400: errorSchema,
         401: errorSchema,
         404: errorSchema,
       },

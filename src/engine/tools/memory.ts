@@ -22,8 +22,7 @@ Example: memory_store({ collection: "contacts", name: "Alice", email: "alice@exa
       },
     },
     required: ['collection'],
-    additionalProperties: true, // Allow dynamic schema fields
-  } as unknown as { type: 'object'; properties: Record<string, unknown>; required?: string[] },
+  },
 };
 
 /**
@@ -77,8 +76,7 @@ Example: memory_update({ collection: "contacts", id: "abc123", email: "newemail@
       },
     },
     required: ['collection', 'id'],
-    additionalProperties: true, // Allow dynamic schema fields to update
-  } as unknown as { type: 'object'; properties: Record<string, unknown>; required?: string[] },
+  },
 };
 
 /**
