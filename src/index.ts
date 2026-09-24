@@ -17,6 +17,7 @@ import { sessionRoutes } from './routes/sessions.js';
 import { toolRoutes } from './routes/tools.js';
 import { secretRoutes } from './routes/secrets.js';
 import { fileRoutes } from './routes/files.js';
+import { memoryRoutes } from './routes/memory.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 
@@ -51,6 +52,7 @@ async function bootstrap() {
         { name: 'providers', description: 'LLM provider configurations' },
         { name: 'secrets', description: 'Encrypted user secrets for HTTP nodes' },
         { name: 'files', description: 'Build-in file storage for message attachments' },
+        { name: 'memory', description: 'Agent long-term memory collections and records' },
       ],
       components: {
         securitySchemes: {
@@ -148,6 +150,7 @@ async function bootstrap() {
   await app.register(fileRoutes);
   await app.register(nodeRoutes);
   await app.register(toolRoutes);
+  await app.register(memoryRoutes);
 
   try {
     // Connect to MongoDB

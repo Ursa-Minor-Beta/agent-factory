@@ -9,7 +9,6 @@ import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js'
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
-import { AGENT_CREATOR } from '../engine/agents/index.js';
 
 // Schemas
 const errorSchema = {
@@ -725,91 +724,6 @@ export async function agentRoutes(app: FastifyInstance) {
           error: {
             code: 'CANNOT_CANCEL',
             message: error.message,
-          },
-        });
-      }
-      throw error;
-    }
-  });
-
-  // Chat with Agent Creator (convenience route)
-  app.post('/api/agents/agent-creator/chat', {
-    schema: {
-      tags: ['agents'],
-      summary: 'Chat with Agent Creator',
-      description: 'Conversational interface to create custom agents. Describe what you want and the Agent Creator will build it.',
-      security: [{ bearerAuth: [] }, { apiKey: [] }],
-      body: {
-        type: 'object',
-        required: ['input'],
-        properties: {
-          input: { type: 'object', additionalProperties: true, description: 'Input matching agent schema (e.g., { "message": "Create a weather agent" })' },
-          sessionId: { type: 'string', description: 'Continue an existing conversation' },
-        },
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean' },
-            data: {
-              type: 'object',
-              properties: {
-                sessionId: { type: 'string', nullable: true },
-                response: { type: 'string' },
-                files: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      mimeType: { type: 'string' },
-                      data: { type: 'string' },
-                      field: { type: 'string' },
-                    },
-                  },
-                  description: 'Extracted files from response',
-                },
-                runId: { type: 'string' },
-                isNewSession: { type: 'boolean' },
-                cancelled: { type: 'boolean', description: 'True if the request was cancelled' },
-              },
-            },
-          },
-        },
-        400: errorSchema,
-        401: errorSchema,
-        404: errorSchema,
-        500: executionErrorSchema,
-      },
-    },
-    preHandler: requireAuth,
-  }, async (request, reply) => {
-    const { userId } = request.user as { userId: string };
-    const { input, sessionId } = request.body as {
-      input: Record<string, unknown>;
-      sessionId?: string;
-    };
-
-    const agent = await container.agentRepository.findSystemAgentByName(AGENT_CREATOR.name);
-    if (!agent) {
-      throw new NotFoundError('Agent Creator not found. Restart server to seed it.');
-    }
-
-    try {
-      const result = await sessionService.chat(userId, agent.id, input, { sessionId });
-
-      return reply.send({
-        success: true,
-        data: result,
-      });
-    } catch (error) {
-      if (error instanceof AgentExecutionError) {
-        return reply.status(500).send({
-          success: false,
-          error: {
-            code: error.code,
-            message: error.message,
-            runId: error.runId,
           },
         });
       }

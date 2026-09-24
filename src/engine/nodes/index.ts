@@ -7,6 +7,12 @@ import { LlmNode } from './llm/index.js';
 import { HttpNode } from './http.js';
 import { AgentNode } from './agent.js';
 import { IfElseNode } from './if-else.js';
+import {
+  MemoryStoreNode,
+  MemorySearchNode,
+  MemoryUpdateNode,
+  MemoryDeleteNode,
+} from './memory/index.js';
 
 export { BaseNode } from './base.js';
 export type { NodeExecutionResult, ProviderConfig, ExecutionOptions } from './base.js';
@@ -21,6 +27,10 @@ nodeRegistry.set('llm', new LlmNode());
 nodeRegistry.set('http', new HttpNode());
 nodeRegistry.set('agent', new AgentNode());
 nodeRegistry.set('if-else', new IfElseNode());
+nodeRegistry.set('memory-store', new MemoryStoreNode());
+nodeRegistry.set('memory-search', new MemorySearchNode());
+nodeRegistry.set('memory-update', new MemoryUpdateNode());
+nodeRegistry.set('memory-delete', new MemoryDeleteNode());
 
 export function getNode(type: NodeType): BaseNode {
   const node = nodeRegistry.get(type);

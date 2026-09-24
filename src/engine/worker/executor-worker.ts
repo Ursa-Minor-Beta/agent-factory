@@ -10,6 +10,8 @@ import { MongoFileRepository } from '../../infrastructure/database/mongodb/repos
 import { MongoAgentRepository } from '../../infrastructure/database/mongodb/repositories/MongoAgentRepository.js';
 import { MongoMessageRepository } from '../../infrastructure/database/mongodb/repositories/MongoMessageRepository.js';
 import { MongoSessionRepository } from '../../infrastructure/database/mongodb/repositories/MongoSessionRepository.js';
+import { MongoMemorySchemaRepository } from '../../infrastructure/database/mongodb/repositories/MongoMemorySchemaRepository.js';
+import { MongoMemoryStoreRepository } from '../../infrastructure/database/mongodb/repositories/MongoMemoryStoreRepository.js';
 
 let shouldStop = false;
 let currentExecutor: WorkerExecutor | null = null;
@@ -51,9 +53,11 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
     const agentRepo = new MongoAgentRepository();
     const messageRepo = new MongoMessageRepository();
     const sessionRepo = new MongoSessionRepository();
+    const memorySchemaRepo = new MongoMemorySchemaRepository();
+    const memoryStoreRepo = new MongoMemoryStoreRepository();
 
     // Create executor with callbacks
-    currentExecutor = new WorkerExecutor(runRepo, fileRepo, agentRepo, messageRepo, {
+    currentExecutor = new WorkerExecutor(runRepo, fileRepo, agentRepo, messageRepo, memorySchemaRepo, memoryStoreRepo, {
       shouldStop: () => shouldStop,
       onNodeStarted: (nodeId, nodeType) => sendMessage({ type: 'node-started', nodeId, nodeType }),
       onNodeCompleted: (nodeId, nodeType, state) => sendMessage({ type: 'node-completed', nodeId, nodeType, state }),

@@ -3,7 +3,7 @@ import type { ChatMessage, ExecutionOptions } from '../base.js';
 import type { ToolDefinition } from '../../tools/index.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import { extractImagesFromText } from '../../../utils/file-extractor.js';
-import { executeBuiltinTool } from './builtin-tools.js';
+import { executeBuiltinTool } from './builtin-tools/index.js';
 import { executeSubAgent } from './sub-agent.js';
 import type { LLMNodeData, ProviderCallResult, ExecutedToolCall } from './types.js';
 import {
@@ -11,7 +11,7 @@ import {
   DEFAULT_MAX_TOKENS,
   DEFAULT_MAX_TOOL_CALLS,
 } from './constants.js';
-import { buildToolErrorSummary } from './utils.js';
+import { buildToolErrorSummary, resolveTools } from './utils.js';
 
 type ToolCallResult = {
   toolUseId: string;
@@ -154,15 +154,18 @@ export async function callAnthropic(
     baseURL: options.providers.anthropic?.baseUrl,
   });
 
+  // Resolve builtin tools to get their full definitions (with parameters)
+  const resolvedTools = resolveTools(data.tools);
+
   // Convert tools to Anthropic format
-  const anthropicTools: Anthropic.Tool[] | undefined = data.tools?.map((tool) => ({
+  const anthropicTools: Anthropic.Tool[] | undefined = resolvedTools?.map((tool) => ({
     name: tool.name,
     description: tool.description,
     input_schema: tool.parameters as Anthropic.Tool.InputSchema,
   }));
 
   const toolMap = new Map<string, ToolDefinition>();
-  data.tools?.forEach((tool) => toolMap.set(tool.name, tool));
+  resolvedTools?.forEach((tool) => toolMap.set(tool.name, tool));
 
   const messages = buildInitialMessages(conversationHistory, userPrompt);
   const model = data.model || DEFAULT_ANTHROPIC_MODEL;

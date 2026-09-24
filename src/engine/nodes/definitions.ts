@@ -358,6 +358,180 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       },
     ],
   },
+  {
+    type: 'memory-store',
+    description: 'Save data to a memory collection. Use to persist learned patterns, successful actions, or important facts.',
+    inputs: ['data', 'trigger'],
+    outputs: ['success', 'id', 'record'],
+    options: [
+      {
+        name: 'collection',
+        type: 'string',
+        required: true,
+        description: 'Name of the memory collection.',
+      },
+      {
+        name: 'data',
+        type: 'object',
+        required: true,
+        description: 'Data to store. Must match collection schema. Supports {{node:id.path}} syntax.',
+      },
+      {
+        name: 'importance',
+        type: 'number',
+        description: 'Importance score (0-1) for retrieval prioritization.',
+        default: 0.5,
+      },
+      {
+        name: 'tags',
+        type: 'object',
+        description: 'Array of tags for categorization.',
+      },
+    ],
+    examples: [
+      {
+        name: 'Store learned step',
+        description: 'Save a successful test action',
+        data: {
+          collection: 'learned_steps',
+          data: {
+            page: '{{node:input-1.url}}',
+            action: 'click',
+            selector: '#play-btn',
+            success: true,
+          },
+          importance: 0.8,
+        },
+      },
+    ],
+  },
+  {
+    type: 'memory-search',
+    description: 'Search records in a memory collection. Use to retrieve relevant past experiences before taking action.',
+    inputs: ['trigger'],
+    outputs: ['results', 'scores', 'count'],
+    options: [
+      {
+        name: 'collection',
+        type: 'string',
+        required: true,
+        description: 'Name of the memory collection.',
+      },
+      {
+        name: 'query',
+        type: 'string',
+        description: 'Semantic search query.',
+      },
+      {
+        name: 'filters',
+        type: 'object',
+        description: 'Filter by field values. Supports {{node:id.path}} syntax.',
+      },
+      {
+        name: 'tags',
+        type: 'object',
+        description: 'Filter by tags.',
+      },
+      {
+        name: 'minImportance',
+        type: 'number',
+        description: 'Minimum importance score (0-1).',
+      },
+      {
+        name: 'limit',
+        type: 'number',
+        description: 'Maximum results to return.',
+        default: 10,
+      },
+    ],
+    examples: [
+      {
+        name: 'Search by page',
+        description: 'Find memories for a specific page',
+        data: {
+          collection: 'learned_steps',
+          filters: { page: '{{node:input-1.url}}' },
+          limit: 5,
+        },
+      },
+    ],
+  },
+  {
+    type: 'memory-update',
+    description: 'Update an existing memory record. Use to refine or correct stored information.',
+    inputs: ['data', 'trigger'],
+    outputs: ['success', 'record'],
+    options: [
+      {
+        name: 'collection',
+        type: 'string',
+        required: true,
+        description: 'Name of the memory collection.',
+      },
+      {
+        name: 'id',
+        type: 'string',
+        required: true,
+        description: 'ID of the record to update. Supports {{node:id.path}} syntax.',
+      },
+      {
+        name: 'data',
+        type: 'object',
+        description: 'Data to update (merged with existing).',
+      },
+      {
+        name: 'importance',
+        type: 'number',
+        description: 'Updated importance score (0-1).',
+      },
+      {
+        name: 'tags',
+        type: 'object',
+        description: 'Updated tags.',
+      },
+    ],
+    examples: [
+      {
+        name: 'Update success rate',
+        description: 'Update a record from search results',
+        data: {
+          collection: 'learned_steps',
+          id: '{{node:search-1.results.0.id}}',
+          data: { success_rate: 0.95 },
+        },
+      },
+    ],
+  },
+  {
+    type: 'memory-delete',
+    description: 'Delete a memory record. Use when information is no longer valid.',
+    inputs: ['trigger'],
+    outputs: ['success', 'deleted'],
+    options: [
+      {
+        name: 'collection',
+        type: 'string',
+        required: true,
+        description: 'Name of the memory collection.',
+      },
+      {
+        name: 'id',
+        type: 'string',
+        required: true,
+        description: 'ID of the record to delete. Supports {{node:id.path}} syntax.',
+      },
+    ],
+    examples: [
+      {
+        name: 'Delete record',
+        description: 'Delete a specific record',
+        data: {
+          collection: 'learned_steps',
+          id: '{{node:input-1.recordId}}',
+        },
+      },
+    ],
+  },
 ];
 
 /**
