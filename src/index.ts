@@ -165,14 +165,13 @@ async function bootstrap() {
       app.log.info(`Admin user created: ${email}`);
     }
 
-    const { created: defaultCreated } = await seedService.seedDefaultAgent();
-    if (defaultCreated) {
-      app.log.info('Default agent created');
-    }
-
-    const { created: systemCreated } = await seedService.seedSystemAgents();
-    if (systemCreated.length > 0) {
-      app.log.info(`System agents created: ${systemCreated.join(', ')}`);
+    if (config.seed.systemAgentsOnStart) {
+      const { created: systemCreated } = await seedService.seedSystemAgents();
+      if (systemCreated.length > 0) {
+        app.log.info(`System agents created: ${systemCreated.join(', ')}`);
+      }
+    } else {
+      app.log.info('System agent seeding disabled (SEED_SYSTEM_AGENTS_ON_START=false)');
     }
 
     // Always log agent IDs

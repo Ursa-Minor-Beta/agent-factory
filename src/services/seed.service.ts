@@ -5,12 +5,54 @@ import { config } from '../config/index.js';
 import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
 import { DEFAULT_AGENT } from '../engine/agents/default.js';
 
+/**
+ * System agents available to all users
+ */
+const SYSTEM_AGENTS = [AGENT_CREATOR, DEFAULT_AGENT] as const;
 
 export class SeedService {
   constructor(
     private userRepo: IUserRepository,
     private agentRepo: IAgentRepository
   ) {}
+
+  /**
+   * Get admin user (helper to reduce duplication)
+   */
+  private async getAdminUser() {
+    return this.userRepo.findByEmail(config.admin.email!);
+  }
+
+  /**
+   * Seed or update a system agent (helper to reduce duplication)
+   */
+  private async seedOrUpdateSystemAgent(
+    adminId: string,
+    agentDef: typeof AGENT_CREATOR | typeof DEFAULT_AGENT,
+    forceUpdate: boolean
+  ): Promise<'created' | 'updated' | 'skipped'> {
+    const existing = await this.agentRepo.findSystemAgentByName(agentDef.name);
+
+    if (existing) {
+      if (forceUpdate) {
+        await this.agentRepo.update(existing.id, {
+          description: agentDef.description,
+          nodes: agentDef.nodes,
+        });
+        return 'updated';
+      }
+      return 'skipped';
+    }
+
+    // Create new system agent
+    await this.agentRepo.createSystemAgent({
+      userId: adminId,
+      name: agentDef.name,
+      description: agentDef.description,
+      nodes: agentDef.nodes,
+    });
+    return 'created';
+  }
 
   async seedAdmin(): Promise<{ created: boolean; email: string }> {
     // Check if any users exist
@@ -38,57 +80,29 @@ export class SeedService {
    * Seed system agents if they don't exist (idempotent)
    */
   async seedSystemAgents(): Promise<{ created: string[] }> {
-    const admin = await this.userRepo.findByEmail(config.admin.email!);
+    const admin = await this.getAdminUser();
     if (!admin) {
       return { created: [] };
     }
 
     const created: string[] = [];
 
-    // Check and create Agent Creator
-    const existingCreator = await this.agentRepo.findSystemAgentByName(AGENT_CREATOR.name);
-    if (!existingCreator) {
-      await this.agentRepo.createSystemAgent({
-        userId: admin.id,
-        name: AGENT_CREATOR.name,
-        description: AGENT_CREATOR.description,
-        nodes: AGENT_CREATOR.nodes,
-      });
-      created.push(AGENT_CREATOR.name);
+    // Seed all system agents
+    for (const agentDef of SYSTEM_AGENTS) {
+      const result = await this.seedOrUpdateSystemAgent(admin.id, agentDef, false);
+      if (result === 'created') {
+        created.push(agentDef.name);
+      }
     }
 
     return { created };
   }
 
   /**
-   * Seed default agent for new users
-   */
-  async seedDefaultAgent(): Promise<{ created: boolean; id?: string }> {
-    const agentCount = await this.agentRepo.count();
-    if (agentCount > 0) {
-      return { created: false };
-    }
-
-    const admin = await this.userRepo.findByEmail(config.admin.email!);
-    if (!admin) {
-      return { created: false };
-    }
-
-    const defaultAgent = await this.agentRepo.create({
-      userId: admin.id,
-      name: DEFAULT_AGENT.name,
-      description: DEFAULT_AGENT.description,
-      nodes: DEFAULT_AGENT.nodes,
-    });
-
-    return { created: true, id: defaultAgent.id };
-  }
-
-  /**
-   * Update existing system agents with latest definitions (force reseed)
+   * Update existing system agents with latest definitions (force reseed/upsert)
    */
   async updateSystemAgents(): Promise<{ updated: string[]; created: string[] }> {
-    const admin = await this.userRepo.findByEmail(config.admin.email!);
+    const admin = await this.getAdminUser();
     if (!admin) {
       return { updated: [], created: [] };
     }
@@ -96,22 +110,14 @@ export class SeedService {
     const updated: string[] = [];
     const created: string[] = [];
 
-    // Update/create Agent Creator
-    const existingCreator = await this.agentRepo.findSystemAgentByName(AGENT_CREATOR.name);
-    if (existingCreator) {
-      await this.agentRepo.update(existingCreator.id, {
-        description: AGENT_CREATOR.description,
-        nodes: AGENT_CREATOR.nodes,
-      });
-      updated.push(AGENT_CREATOR.name);
-    } else {
-      await this.agentRepo.createSystemAgent({
-        userId: admin.id,
-        name: AGENT_CREATOR.name,
-        description: AGENT_CREATOR.description,
-        nodes: AGENT_CREATOR.nodes,
-      });
-      created.push(AGENT_CREATOR.name);
+    // Update/create all system agents
+    for (const agentDef of SYSTEM_AGENTS) {
+      const result = await this.seedOrUpdateSystemAgent(admin.id, agentDef, true);
+      if (result === 'updated') {
+        updated.push(agentDef.name);
+      } else if (result === 'created') {
+        created.push(agentDef.name);
+      }
     }
 
     return { updated, created };
@@ -122,7 +128,7 @@ export class SeedService {
    */
   async getAllAgentIds(): Promise<{ name: string; id: string; isSystem: boolean }[]> {
     const systemAgents = await this.agentRepo.findAllSystemAgents();
-    const admin = await this.userRepo.findByEmail(config.admin.email!);
+    const admin = await this.getAdminUser();
 
     const result: { name: string; id: string; isSystem: boolean }[] = [];
 
