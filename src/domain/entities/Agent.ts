@@ -13,7 +13,10 @@ export interface Agent {
   name: string;
   description: string;
   nodes: WorkflowNode[];
-  isSystem: boolean;
+  /** System agent identifier - used by seeding to find/update system agents */
+  systemName?: string;
+  /** Default agent identifier - used by seeding to find/update default agents */
+  defaultName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,7 +26,8 @@ export interface CreateAgentDTO {
   name: string;
   description?: string;
   nodes?: WorkflowNode[];
-  isSystem?: boolean;
+  systemName?: string;
+  defaultName?: string;
 }
 
 export interface UpdateAgentDTO {
@@ -37,7 +41,6 @@ export interface AgentQueryOptions {
   id?: string;
   name?: string; // contains (case-insensitive)
   description?: string; // contains (case-insensitive)
-  isSystem?: boolean; // admin only
   createdAfter?: Date;
   createdBefore?: Date;
 

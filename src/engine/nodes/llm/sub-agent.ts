@@ -33,8 +33,8 @@ export async function executeSubAgent(
     throw new Error(`Agent not found: ${agentId}`);
   }
 
-  // Permission check
-  if (targetAgent.userId !== options.userId && !targetAgent.isSystem) {
+  // Permission check - allow access to user's agents or system agents
+  if (targetAgent.userId !== options.userId && !targetAgent.systemName) {
     throw new Error(`Access denied to agent: ${agentId}`);
   }
 

@@ -72,7 +72,7 @@ export const handleGetAgent: ToolHandler = async (args, options) => {
     return { success: false, error: `Agent not found: ${agentId}` };
   }
 
-  if (agent.userId !== options.userId && !agent.isSystem) {
+  if (agent.userId !== options.userId && !agent.systemName) {
     return { success: false, error: 'Access denied' };
   }
 
@@ -83,7 +83,7 @@ export const handleGetAgent: ToolHandler = async (args, options) => {
       name: agent.name,
       description: agent.description,
       nodes: agent.nodes,
-      isSystem: agent.isSystem,
+      systemName: agent.systemName,
     },
   };
 };
@@ -111,9 +111,6 @@ export const handleUpdateAgent: ToolHandler = async (args, options) => {
 
   if (existingAgent.userId !== options.userId) {
     return { success: false, error: 'Access denied' };
-  }
-  if (existingAgent.isSystem) {
-    return { success: false, error: 'Cannot modify system agents' };
   }
 
   const updates: Record<string, unknown> = {};

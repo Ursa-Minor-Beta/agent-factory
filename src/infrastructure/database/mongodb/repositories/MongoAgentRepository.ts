@@ -16,7 +16,8 @@ export class MongoAgentRepository implements IAgentRepository {
       name: doc.name,
       description: doc.description,
       nodes: doc.nodes,
-      isSystem: doc.isSystem,
+      systemName: doc.systemName,
+      defaultName: doc.defaultName,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
@@ -40,9 +41,6 @@ export class MongoAgentRepository implements IAgentRepository {
     if (options.description) {
       query.description = { $regex: options.description, $options: 'i' };
     }
-    if (options.isSystem !== undefined) {
-      query.isSystem = options.isSystem;
-    } 
     if (options.createdAfter) {
       query.createdAt = { ...((query.createdAt as object) || {}), $gte: options.createdAfter };
     }
@@ -71,13 +69,23 @@ export class MongoAgentRepository implements IAgentRepository {
   }
 
   async findSystemAgentByName(name: string): Promise<Agent | null> {
-    const doc = await AgentModel.findOne({ name, isSystem: true });
+    const doc = await AgentModel.findOne({ systemName: name });
     return doc ? this.toEntity(doc) : null;
   }
 
   async findAllSystemAgents(): Promise<Agent[]> {
-    const docs = await AgentModel.find({ isSystem: true }).sort({ name: 1 });
+    const docs = await AgentModel.find({ systemName: { $exists: true, $ne: null } }).sort({ name: 1 });
     return docs.map((doc) => this.toEntity(doc));
+  }
+
+  async findBySystemName(systemName: string): Promise<Agent | null> {
+    const doc = await AgentModel.findOne({ systemName });
+    return doc ? this.toEntity(doc) : null;
+  }
+
+  async findByDefaultName(defaultName: string): Promise<Agent | null> {
+    const doc = await AgentModel.findOne({ defaultName });
+    return doc ? this.toEntity(doc) : null;
   }
 
   async create(data: CreateAgentDTO): Promise<Agent> {
@@ -86,7 +94,7 @@ export class MongoAgentRepository implements IAgentRepository {
       name: data.name,
       description: data.description ?? '',
       nodes: data.nodes ?? [],
-      isSystem: false,
+      defaultName: data.defaultName,
     });
     return this.toEntity(doc);
   }
@@ -97,7 +105,7 @@ export class MongoAgentRepository implements IAgentRepository {
       name: data.name,
       description: data.description ?? '',
       nodes: data.nodes ?? [],
-      isSystem: true,
+      systemName: data.systemName,
     });
     return this.toEntity(doc);
   }

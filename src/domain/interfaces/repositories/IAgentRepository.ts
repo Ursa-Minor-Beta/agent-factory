@@ -11,6 +11,8 @@ export interface IAgentRepository {
   findByUserId(userId: string, options?: AgentQueryOptions): Promise<AgentListResult>;
   findSystemAgentByName(name: string): Promise<Agent | null>;
   findAllSystemAgents(): Promise<Agent[]>;
+  findBySystemName(systemName: string): Promise<Agent | null>;
+  findByDefaultName(defaultName: string): Promise<Agent | null>;
   create(data: CreateAgentDTO): Promise<Agent>;
   createSystemAgent(data: CreateAgentDTO): Promise<Agent>;
   update(id: string, data: UpdateAgentDTO): Promise<Agent | null>;

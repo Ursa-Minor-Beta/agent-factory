@@ -178,7 +178,7 @@ async function bootstrap() {
     const agents = await seedService.getAllAgentIds();
     app.log.info('Available agents:');
     for (const agent of agents) {
-      const tag = agent.isSystem ? '[system]' : '';
+      const tag = agent.systemName ? '[system]' : '';
       app.log.info(`  ${agent.name} ${tag}: ${agent.id}`);
     }
 
