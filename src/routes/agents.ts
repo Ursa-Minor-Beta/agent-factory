@@ -57,7 +57,8 @@ const agentSchema = {
     name: { type: 'string' },
     description: { type: 'string' },
     nodes: { type: 'array', items: nodeSchema },
-    isSystem: { type: 'boolean' },
+    systemName: { type: 'string', nullable: true },
+    defaultName: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -91,7 +92,7 @@ export async function agentRoutes(app: FastifyInstance) {
     schema: {
       tags: ['agents'],
       summary: 'List all agents',
-      description: 'List agents with optional filtering, sorting, and pagination. Admin can filter by isSystem.',
+      description: 'List agents with optional filtering, sorting, and pagination.',
       security: [{ bearerAuth: [] }, { apiKey: [] }],
       querystring: {
         type: 'object',
@@ -99,7 +100,6 @@ export async function agentRoutes(app: FastifyInstance) {
           id: { type: 'string', description: 'Filter by exact agent ID' },
           name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
           description: { type: 'string', description: 'Filter by description (contains, case-insensitive)' },
-          isSystem: { type: 'boolean', description: 'Filter by system agent (admin only)' },
           createdAfter: { type: 'string', format: 'date-time', description: 'Filter by created date (after)' },
           createdBefore: { type: 'string', format: 'date-time', description: 'Filter by created date (before)' },
           sortBy: { type: 'string', enum: ['name', 'createdAt', 'updatedAt'], default: 'updatedAt' },
@@ -127,12 +127,11 @@ export async function agentRoutes(app: FastifyInstance) {
     },
     preHandler: requireAuth,
   }, async (request, reply) => {
-    const { userId, role } = request.user as AuthenticatedUser;
+    const { userId } = request.user as AuthenticatedUser;
     const query = request.query as {
       id?: string;
       name?: string;
       description?: string;
-      isSystem?: boolean;
       createdAfter?: string;
       createdBefore?: string;
       sortBy?: 'name' | 'createdAt' | 'updatedAt';
@@ -141,9 +140,6 @@ export async function agentRoutes(app: FastifyInstance) {
       limit?: number;
     };
 
-    // Build options
-    // Non-admin users never see system agents (always filter isSystem: false)
-    // Admin users can optionally filter by isSystem or see all
     const options: AgentQueryOptions = {
       id: query.id,
       name: query.name,
@@ -152,7 +148,6 @@ export async function agentRoutes(app: FastifyInstance) {
       sortOrder: query.sortOrder,
       skip: query.skip,
       limit: query.limit,
-      isSystem: role === 'admin' ? query.isSystem : false,
       createdAfter: query.createdAfter ? new Date(query.createdAfter) : undefined,
       createdBefore: query.createdBefore ? new Date(query.createdBefore) : undefined,
     };

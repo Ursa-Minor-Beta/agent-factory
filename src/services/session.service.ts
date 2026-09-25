@@ -128,7 +128,7 @@ export class SessionService {
     if (!agent) {
       throw new NotFoundError('Agent');
     }
-    if (agent.userId !== userId && !agent.isSystem) {
+    if (agent.userId !== userId && !agent.systemName) {
       throw new ForbiddenError('Access denied');
     }
 
@@ -259,7 +259,7 @@ export class SessionService {
     if (!agent) {
       throw new NotFoundError('Agent');
     }
-    if (agent.userId !== userId && !agent.isSystem) {
+    if (agent.userId !== userId && !agent.systemName) {
       throw new ForbiddenError('Access denied');
     }
 
