@@ -30,3 +30,12 @@ coverage/
 # Misc
 *.tmp
 *.temp
+
+# Simple Container — plaintext secrets and local profiles never committed
+.sc/cfg.default.yaml
+.sc/cfg.github.yaml
+.sc/profiles/
+.sc/artifacts/
+.sc/stacks/*/secrets.yaml
+
+.sc/stacks/agent-factory/secrets.yaml

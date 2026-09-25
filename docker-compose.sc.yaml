@@ -1,0 +1,22 @@
+# Deploy-only compose for Simple Container (see .sc/stacks/agent-factory).
+# Local development keeps using docker-compose.yml. This file has no ${VAR}
+# interpolation on purpose: SC parses it before deploy-time values exist, and
+# every runtime value comes from client.yaml `env:` / `secrets:` instead.
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    labels:
+      "simple-container.com/ingress": "true"
+      "simple-container.com/ingress/port": "3000"
+      "simple-container.com/healthcheck/path": "/health"
+      "simple-container.com/healthcheck/success-codes": "200"
+    healthcheck:
+      # node:22-alpine ships busybox wget, not curl
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

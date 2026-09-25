@@ -1,0 +1,52 @@
+schemaVersion: 1.0
+
+# Client stack of the everworker parent (Integrail/devops, stack integrail/integrail).
+# Only `test` exists. No `security:` block yet: the baas one pins
+# identityRegexp to github.com/integrail and would reject Ursa-Minor-Beta builds;
+# add it back deliberately with an Ursa-scoped regexp.
+
+stacks:
+  test:
+    type: cloud-compose
+    parent: integrail/integrail
+    parentEnv: test
+    # The test env defaults to stack-per-app-eu-oidc, which needs the deploy job
+    # to federate into an Integrail ci-oidc role. That role does not trust
+    # Ursa-Minor-Beta, so use the static-key variant of the same template.
+    # Must move to -oidc (and a trust entry in devops bootstrap oidc.go) before
+    # the integrail-deployer-bot static key is retired.
+    template: stack-per-app-eu
+    config:
+      dockerComposeFile: ${git:root}/docker-compose.sc.yaml
+      domain: test-agent-factory.everworker.ai
+      baseDnsZone: everworker.ai
+      domainProxied: true
+      lbConfig:
+        https: false
+      staticEgressIP: false
+      runs:
+        - app
+      size:
+        cpu: 512
+        memory: 1024
+      scale:
+        min: 1
+        max: 1
+      cloudExtras:
+        securityGroup:
+          ingress:
+            allowOnlyCloudflare: true
+      uses:
+        - mongodb-nest
+      env:
+        NODE_ENV: production
+        PORT: "3000"
+        HOST: 0.0.0.0
+        ADMIN_NAME: Admin
+        SEED_SYSTEM_AGENTS_ON_START: "true"
+      secrets:
+        MONGODB_URI: ${resource:mongodb-nest.uri}
+        JWT_SECRET: ${secret:JWT_SECRET}
+        ENCRYPTION_KEY: ${secret:ENCRYPTION_KEY}
+        ADMIN_EMAIL: ${secret:ADMIN_EMAIL}
+        ADMIN_PASSWORD: ${secret:ADMIN_PASSWORD}

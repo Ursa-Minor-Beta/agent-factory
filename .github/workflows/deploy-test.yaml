@@ -1,0 +1,52 @@
+name: Deploy agent-factory to test
+
+# Deploys the `agent-factory` Simple Container client stack into the everworker
+# `test` environment (parent integrail/integrail in Integrail/devops).
+# Deliberately not triggered by pushes to master.
+on:
+  workflow_dispatch:
+  push:
+    branches: [sc-deploy-test]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sc-deploy-agent-factory-test
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: simple-container-com/actions/install-sc@d6d5c88e8609f5f17a8e45580b7331a7c2b95187  # main
+        with:
+          version: '2026.8.7'  # matches the Integrail fleet default
+
+      - uses: pulumi/setup-pulumi@b374ceb6168550de27c6eba92e01c1a774040e11  # v2.0.0
+
+      # SC_CONFIG is raw YAML (never base64): the CI RSA key + parentRepository.
+      - name: Reveal secrets
+        env:
+          SIMPLE_CONTAINER_CONFIG: ${{ secrets.SC_CONFIG }}
+        run: sc secrets reveal --force
+
+      - name: sc deploy
+        env:
+          SIMPLE_CONTAINER_CONFIG: ${{ secrets.SC_CONFIG }}
+        run: sc deploy -s agent-factory -e test
+
+      - name: Health gate
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://test-agent-factory.everworker.ai/health || true)
+            echo "attempt $i: $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          exit 1
