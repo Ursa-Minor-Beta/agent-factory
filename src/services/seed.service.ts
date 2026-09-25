@@ -5,6 +5,7 @@ import { config } from '../config/index.js';
 import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
 import { DEFAULT_AGENT } from '../engine/agents/default.js';
 import { BROWSER_SCREENSHOT } from '../engine/agents/browser-screenshot.js';
+import { BROWSER_EXECUTE } from '../engine/agents/browser-execute.js';
 
 /**
  * System agents available to all users
@@ -14,7 +15,7 @@ const SYSTEM_AGENTS = [AGENT_CREATOR, DEFAULT_AGENT] as const;
 /**
  * Regular agents seeded for admin user
  */
-const SEED_AGENTS = [BROWSER_SCREENSHOT] as const;
+const SEED_AGENTS = [BROWSER_SCREENSHOT, BROWSER_EXECUTE] as const;
 
 export class SeedService {
   constructor(
@@ -65,7 +66,7 @@ export class SeedService {
    */
   private async seedOrUpdateAgent(
     adminId: string,
-    agentDef: typeof BROWSER_SCREENSHOT,
+    agentDef: typeof BROWSER_SCREENSHOT | typeof BROWSER_EXECUTE,
     forceUpdate: boolean
   ): Promise<'created' | 'updated' | 'skipped'> {
     const { agents } = await this.agentRepo.findByUserId(adminId);
