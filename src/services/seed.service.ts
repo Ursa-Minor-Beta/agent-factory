@@ -4,11 +4,17 @@ import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
 import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
 import { DEFAULT_AGENT } from '../engine/agents/default.js';
+import { BROWSER_SCREENSHOT } from '../engine/agents/browser-screenshot.js';
 
 /**
  * System agents available to all users
  */
 const SYSTEM_AGENTS = [AGENT_CREATOR, DEFAULT_AGENT] as const;
+
+/**
+ * Regular agents seeded for admin user
+ */
+const SEED_AGENTS = [BROWSER_SCREENSHOT] as const;
 
 export class SeedService {
   constructor(
@@ -46,6 +52,38 @@ export class SeedService {
 
     // Create new system agent
     await this.agentRepo.createSystemAgent({
+      userId: adminId,
+      name: agentDef.name,
+      description: agentDef.description,
+      nodes: agentDef.nodes,
+    });
+    return 'created';
+  }
+
+  /**
+   * Seed or update a regular agent (helper to reduce duplication)
+   */
+  private async seedOrUpdateAgent(
+    adminId: string,
+    agentDef: typeof BROWSER_SCREENSHOT,
+    forceUpdate: boolean
+  ): Promise<'created' | 'updated' | 'skipped'> {
+    const { agents } = await this.agentRepo.findByUserId(adminId);
+    const existing = agents.find((a) => a.name === agentDef.name);
+
+    if (existing) {
+      if (forceUpdate) {
+        await this.agentRepo.update(existing.id, {
+          description: agentDef.description,
+          nodes: agentDef.nodes,
+        });
+        return 'updated';
+      }
+      return 'skipped';
+    }
+
+    // Create new regular agent
+    await this.agentRepo.create({
       userId: adminId,
       name: agentDef.name,
       description: agentDef.description,
@@ -95,6 +133,14 @@ export class SeedService {
       }
     }
 
+    // Seed regular agents for admin
+    for (const agentDef of SEED_AGENTS) {
+      const result = await this.seedOrUpdateAgent(admin.id, agentDef, false);
+      if (result === 'created') {
+        created.push(agentDef.name);
+      }
+    }
+
     return { created };
   }
 
@@ -113,6 +159,16 @@ export class SeedService {
     // Update/create all system agents
     for (const agentDef of SYSTEM_AGENTS) {
       const result = await this.seedOrUpdateSystemAgent(admin.id, agentDef, true);
+      if (result === 'updated') {
+        updated.push(agentDef.name);
+      } else if (result === 'created') {
+        created.push(agentDef.name);
+      }
+    }
+
+    // Update/create regular agents for admin
+    for (const agentDef of SEED_AGENTS) {
+      const result = await this.seedOrUpdateAgent(admin.id, agentDef, true);
       if (result === 'updated') {
         updated.push(agentDef.name);
       } else if (result === 'created') {
