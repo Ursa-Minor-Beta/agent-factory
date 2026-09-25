@@ -20,12 +20,9 @@ stacks:
       staticEgressIP: false
       runs:
         - app
-        - mongo
-      # Task total; per-container limits are in docker-compose.sc.yaml.
       size:
-        cpu: 1024
-        memory: 2048
-      # Exactly one task: each task carries its own MongoDB.
+        cpu: 512
+        memory: 1024
       scale:
         min: 1
         max: 1
@@ -39,8 +36,10 @@ stacks:
         HOST: 0.0.0.0
         ADMIN_NAME: Admin
         SEED_SYSTEM_AGENTS_ON_START: "true"
-        MONGODB_URI: mongodb://localhost:27017/agent-factory
       secrets:
+        # Dedicated user on everworker's test mongodb-nest Atlas cluster,
+        # readWrite on the agent-factory database only.
+        MONGODB_URI: ${secret:MONGODB_URI}
         JWT_SECRET: ${secret:JWT_SECRET}
         ENCRYPTION_KEY: ${secret:ENCRYPTION_KEY}
         ADMIN_EMAIL: ${secret:ADMIN_EMAIL}

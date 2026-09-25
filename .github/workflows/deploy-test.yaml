@@ -36,6 +36,20 @@ jobs:
           SIMPLE_CONTAINER_CONFIG: ${{ secrets.SC_CONFIG }}
         run: sc secrets reveal --force
 
+      # A ${secret:NAME} missing from the store does not fail the deploy: SC
+      # injects the literal string. Fail here instead.
+      - name: Check referenced secrets exist
+        run: |
+          python3 - <<'EOF'
+          import re, sys, yaml
+          client = open(".sc/stacks/agent-factory/client.yaml").read()
+          names = sorted(set(re.findall(r"\$\{secret:([A-Za-z0-9_-]+)\}", client)))
+          values = (yaml.safe_load(open(".sc/stacks/agent-factory/secrets.yaml")) or {}).get("values") or {}
+          missing = [n for n in names if not values.get(n)]
+          print("referenced:", names)
+          sys.exit(f"missing secrets: {missing}" if missing else 0)
+          EOF
+
       - name: sc deploy
         env:
           SIMPLE_CONTAINER_CONFIG: ${{ secrets.SC_CONFIG }}
