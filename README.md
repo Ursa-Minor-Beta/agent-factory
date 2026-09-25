@@ -4,6 +4,8 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 
 > **⚠️ Note:** The current version is actively being built. There could be breaking changes.
 
+> **🐳 One shot Docker Deployment:** For a complete deployment with both API and UI, see [agent-factory-docker-api-ui](https://github.com/Ursa-Minor-Beta/agent-factory-docker-api-ui).
+
 ## Features
 
 - **Node Graph Workflows** - Define agents as connected nodes
