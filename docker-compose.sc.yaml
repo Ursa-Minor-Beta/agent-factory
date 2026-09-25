@@ -2,21 +2,55 @@
 # Local development keeps using docker-compose.yml. This file has no ${VAR}
 # interpolation on purpose: SC parses it before deploy-time values exist, and
 # every runtime value comes from client.yaml `env:` / `secrets:` instead.
+#
+# Both services run in ONE Fargate task and share its loopback, so the app
+# reaches mongo on localhost. mongo has no volume: its data resets on every
+# deploy or task restart (test only). A persistent EFS volume is not safe here:
+# ECS starts the new task before stopping the old one, and two mongods on the
+# same data dir fight over mongod.lock.
 
 services:
   app:
     build: .
     ports:
       - "3000:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
     labels:
       "simple-container.com/ingress": "true"
       "simple-container.com/ingress/port": "3000"
       "simple-container.com/healthcheck/path": "/health"
       "simple-container.com/healthcheck/success-codes": "200"
     healthcheck:
-      # node:22-alpine ships busybox wget, not curl
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/health"]
+      # node:22-alpine ships busybox wget, not curl. 127.0.0.1, not localhost:
+      # busybox resolves localhost to ::1 and the app listens on IPv4 only.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/health"]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1024M
+
+  mongo:
+    # ECR Public mirror of the official image: avoids Docker Hub pull limits.
+    image: public.ecr.aws/docker/library/mongo:7
+    # Loopback only: no auth, so it must not be reachable from the VPC.
+    command: ["mongod", "--bind_ip", "127.0.0.1", "--wiredTigerCacheSizeGB", "0.25"]
+    expose:
+      - "27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1024M

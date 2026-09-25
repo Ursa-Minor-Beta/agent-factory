@@ -1,7 +1,7 @@
 name: Deploy agent-factory to test
 
-# Deploys the `agent-factory` Simple Container client stack into the everworker
-# `test` environment (parent integrail/integrail in Integrail/devops).
+# Deploys the `agent-factory` Simple Container client stack into the Ursa
+# `test` environment (parent ursa/ursa in Ursa-Minor-Beta/infra).
 # Deliberately not triggered by pushes to master.
 on:
   workflow_dispatch:
