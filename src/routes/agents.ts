@@ -9,6 +9,7 @@ import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js'
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
+import { DEFAULT_AGENT } from '../engine/agents/default.js';
 
 // Schemas
 const errorSchema = {
@@ -201,6 +202,42 @@ export async function agentRoutes(app: FastifyInstance) {
     return reply.status(201).send({
       success: true,
       data: agent,
+    });
+  });
+
+  // Get example agents
+  app.get('/api/agents/examples', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Get example agents',
+      description: 'Returns a list of example agent configurations that can be used as templates.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  nodes: { type: 'array', items: nodeSchema },
+                },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (_request, reply) => {
+    return reply.send({
+      success: true,
+      data: [DEFAULT_AGENT],
     });
   });
 

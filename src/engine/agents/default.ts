@@ -23,6 +23,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
       userPrompt: '{{node:input-1.message}}',
       temperature: 0.7,
       maxTokens: 1000,
+      maxMessages: 20,
       tools: [...SESSION_NOTES_TOOLS],
     },
   },
