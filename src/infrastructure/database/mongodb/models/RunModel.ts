@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import type { RunStatus, NodeState, RunTrigger } from '../../../../domain/entities/Run.js';
+import type { RunUsage } from '../../../../engine/nodes/llm/types.js';
 
 export interface RunDocument extends Document {
   _id: mongoose.Types.ObjectId;
@@ -16,6 +17,8 @@ export interface RunDocument extends Document {
   // Parent-child relationship
   parentRunId?: mongoose.Types.ObjectId;
   triggeredBy?: RunTrigger;
+  // Cumulative LLM usage by provider
+  usage?: RunUsage;
 }
 
 const nodeStateSchema = new Schema(
@@ -99,6 +102,11 @@ const runSchema = new Schema<RunDocument>(
       },
       nodeId: { type: String },
       toolName: { type: String },
+    },
+    // Cumulative LLM usage by provider
+    usage: {
+      type: Schema.Types.Mixed,
+      default: undefined,
     },
   },
   {

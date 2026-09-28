@@ -194,7 +194,12 @@ export async function callOpenAI(
   };
 
   const maxIterations = data.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
-  const totalUsage = { inputTokens: 0, outputTokens: 0 };
+  const totalUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cachedTokens: 0,
+    reasoningTokens: 0,
+  };
   const executedToolCalls: ExecutedToolCall[] = [];
   let iterations = 0;
 
@@ -212,6 +217,11 @@ export async function callOpenAI(
     const completion = await makeApiCall(apiParams);
     totalUsage.inputTokens += completion.usage?.prompt_tokens ?? 0;
     totalUsage.outputTokens += completion.usage?.completion_tokens ?? 0;
+    // OpenAI-specific: cached and reasoning tokens
+    const promptDetails = completion.usage?.prompt_tokens_details as { cached_tokens?: number } | undefined;
+    const completionDetails = completion.usage?.completion_tokens_details as { reasoning_tokens?: number } | undefined;
+    totalUsage.cachedTokens += promptDetails?.cached_tokens ?? 0;
+    totalUsage.reasoningTokens += completionDetails?.reasoning_tokens ?? 0;
 
     const choice = completion.choices[0];
     if (!choice) {
@@ -223,9 +233,17 @@ export async function callOpenAI(
 
     // Done: no tool calls requested
     if (toolCalls.length === 0) {
+      // Build usage object, only include optional fields if non-zero
+      const usage: ProviderCallResult['usage'] = {
+        inputTokens: totalUsage.inputTokens,
+        outputTokens: totalUsage.outputTokens,
+      };
+      if (totalUsage.cachedTokens > 0) usage.cachedTokens = totalUsage.cachedTokens;
+      if (totalUsage.reasoningTokens > 0) usage.reasoningTokens = totalUsage.reasoningTokens;
+
       return {
         response: assistantMessage.content ?? '',
-        usage: totalUsage,
+        usage,
         toolCalls: executedToolCalls.length > 0 ? executedToolCalls : undefined,
       };
     }

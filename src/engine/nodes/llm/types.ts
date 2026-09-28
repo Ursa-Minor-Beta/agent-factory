@@ -16,12 +16,30 @@ export interface LLMNodeData {
 }
 
 /**
- * Token usage tracking
+ * Token usage tracking (per LLM call)
  */
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
+  // OpenAI specific
+  cachedTokens?: number;
+  reasoningTokens?: number;
+  // Anthropic specific
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
 }
+
+/**
+ * Provider type for usage tracking
+ */
+export type LLMProvider = 'openai' | 'anthropic' | 'ollama';
+
+/**
+ * Cumulative usage per provider (stored at Run level)
+ */
+export type RunUsage = {
+  [K in LLMProvider]?: TokenUsage;
+};
 
 /**
  * Executed tool call record

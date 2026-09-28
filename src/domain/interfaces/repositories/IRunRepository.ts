@@ -1,4 +1,5 @@
 import type { Run, RunSummary, CreateRunDTO, RunStatus, NodeState } from '../../entities/Run.js';
+import type { LLMProvider, TokenUsage } from '../../../engine/nodes/llm/types.js';
 
 export interface RunQueryOptions {
   userId?: string;
@@ -76,4 +77,10 @@ export interface IRunRepository {
    * Returns RunSummary with childRunIds populated.
    */
   findParentsWithChildIdsSummary(options?: RunWithChildrenQueryOptions): Promise<RunSummaryQueryResult>;
+
+  /**
+   * Atomically add LLM usage to the run's cumulative usage by provider.
+   * Uses $inc to safely handle concurrent updates.
+   */
+  addUsage(id: string, provider: LLMProvider, usage: TokenUsage): Promise<Run | null>;
 }

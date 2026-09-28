@@ -7,6 +7,7 @@
  */
 import type { Agent } from '../../domain/entities/Agent.js';
 import type { NodeState, NodeErrorDetails } from '../../domain/entities/Run.js';
+import type { LLMProvider, TokenUsage } from '../nodes/llm/types.js';
 import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRepository.js';
 import type { IFileRepository } from '../../domain/interfaces/repositories/IFileRepository.js';
 import type { IAgentRepository } from '../../domain/interfaces/repositories/IAgentRepository.js';
@@ -257,6 +258,16 @@ export class WorkerExecutor {
             completedAt: new Date(),
           };
           await this.runRepo.updateNodeState(runId, nodeId, nodeState);
+
+          // Accumulate LLM usage at run level
+          if (node.type === 'llm' && result.outputs) {
+            const outputs = result.outputs as { usage?: TokenUsage };
+            const nodeData = node.data as { provider?: LLMProvider };
+            if (outputs.usage && nodeData.provider) {
+              await this.runRepo.addUsage(runId, nodeData.provider, outputs.usage);
+            }
+          }
+
           this.callbacks.onNodeCompleted(nodeId, node.type, nodeState);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);

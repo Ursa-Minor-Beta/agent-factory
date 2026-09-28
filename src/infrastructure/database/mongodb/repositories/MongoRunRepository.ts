@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { RunModel, RunDocument } from '../models/RunModel.js';
 import type { IRunRepository, RunQueryOptions, RunQueryResult, RunSummaryQueryResult, RunWithChildrenQueryOptions } from '../../../../domain/interfaces/repositories/IRunRepository.js';
 import type { Run, RunSummary, CreateRunDTO, RunStatus, NodeState } from '../../../../domain/entities/Run.js';
+import type { LLMProvider, TokenUsage } from '../../../../engine/nodes/llm/types.js';
 
 export class MongoRunRepository implements IRunRepository {
   private toEntity(doc: RunDocument, childDocs?: RunDocument[]): Run {
@@ -34,6 +35,7 @@ export class MongoRunRepository implements IRunRepository {
       completedAt: doc.completedAt,
       parentRunId: doc.parentRunId?.toString(),
       triggeredBy: doc.triggeredBy,
+      usage: doc.usage,
     };
 
     if (childDocs && childDocs.length > 0) {
@@ -54,6 +56,7 @@ export class MongoRunRepository implements IRunRepository {
       completedAt: doc.completedAt,
       parentRunId: doc.parentRunId?.toString(),
       triggeredBy: doc.triggeredBy,
+      usage: doc.usage,
     };
 
     if (childIds && childIds.length > 0) {
@@ -319,6 +322,7 @@ export class MongoRunRepository implements IRunRepository {
     completedAt: 1,
     parentRunId: 1,
     triggeredBy: 1,
+    usage: 1,
   };
 
   async findAllSummary(options?: RunQueryOptions): Promise<RunSummaryQueryResult> {
@@ -421,5 +425,33 @@ export class MongoRunRepository implements IRunRepository {
     });
 
     return { runs, total: countResult };
+  }
+
+  async addUsage(id: string, provider: LLMProvider, usage: TokenUsage): Promise<Run | null> {
+    const inc: Record<string, number> = {
+      [`usage.${provider}.inputTokens`]: usage.inputTokens,
+      [`usage.${provider}.outputTokens`]: usage.outputTokens,
+    };
+
+    // Only include optional fields if they have values
+    if (usage.cachedTokens) {
+      inc[`usage.${provider}.cachedTokens`] = usage.cachedTokens;
+    }
+    if (usage.reasoningTokens) {
+      inc[`usage.${provider}.reasoningTokens`] = usage.reasoningTokens;
+    }
+    if (usage.cacheCreationTokens) {
+      inc[`usage.${provider}.cacheCreationTokens`] = usage.cacheCreationTokens;
+    }
+    if (usage.cacheReadTokens) {
+      inc[`usage.${provider}.cacheReadTokens`] = usage.cacheReadTokens;
+    }
+
+    const doc = await RunModel.findByIdAndUpdate(
+      id,
+      { $inc: inc },
+      { new: true }
+    );
+    return doc ? this.toEntity(doc) : null;
   }
 }

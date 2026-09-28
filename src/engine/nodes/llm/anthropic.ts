@@ -172,7 +172,12 @@ export async function callAnthropic(
   const maxTokens = data.maxTokens ?? DEFAULT_MAX_TOKENS;
   const maxIterations = data.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
 
-  const totalUsage = { inputTokens: 0, outputTokens: 0 };
+  const totalUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+  };
   const executedToolCalls: ExecutedToolCall[] = [];
   let iterations = 0;
 
@@ -190,14 +195,31 @@ export async function callAnthropic(
     const response = await makeApiCall(client, model, maxTokens, systemPrompt, messages, anthropicTools);
     totalUsage.inputTokens += response.usage.input_tokens;
     totalUsage.outputTokens += response.usage.output_tokens;
+    // Anthropic-specific: cache tokens (may not be present in all responses)
+    const usageWithCache = response.usage as {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
+    totalUsage.cacheCreationTokens += usageWithCache.cache_creation_input_tokens ?? 0;
+    totalUsage.cacheReadTokens += usageWithCache.cache_read_input_tokens ?? 0;
 
     const toolUses = extractToolUses(response.content);
 
     // Done: no tool calls requested
     if (toolUses.length === 0) {
+      // Build usage object, only include optional fields if non-zero
+      const usage: ProviderCallResult['usage'] = {
+        inputTokens: totalUsage.inputTokens,
+        outputTokens: totalUsage.outputTokens,
+      };
+      if (totalUsage.cacheCreationTokens > 0) usage.cacheCreationTokens = totalUsage.cacheCreationTokens;
+      if (totalUsage.cacheReadTokens > 0) usage.cacheReadTokens = totalUsage.cacheReadTokens;
+
       return {
         response: extractTextResponse(response.content),
-        usage: totalUsage,
+        usage,
         toolCalls: executedToolCalls.length > 0 ? executedToolCalls : undefined,
       };
     }

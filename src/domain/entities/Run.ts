@@ -1,3 +1,5 @@
+import type { RunUsage } from '../../engine/nodes/llm/types.js';
+
 export type RunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelling' | 'cancelled';
 export type NodeStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 
@@ -54,6 +56,8 @@ export interface Run {
   triggeredBy?: RunTrigger;
   // Aggregated children (populated by queries, not stored)
   childRuns?: Run[];
+  // Cumulative LLM usage by provider
+  usage?: RunUsage;
 }
 
 /**
@@ -73,6 +77,8 @@ export interface RunSummary {
   triggeredBy?: RunTrigger;
   // For parent runs in lists - just child IDs, not full data
   childRunIds?: string[];
+  // Cumulative LLM usage by provider
+  usage?: RunUsage;
 }
 
 export interface CreateRunDTO {
