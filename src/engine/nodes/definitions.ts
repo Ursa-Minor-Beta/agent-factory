@@ -7,7 +7,7 @@ import { JS_NODE_AVAILABLE_GLOBALS } from './js.js';
 
 export interface NodeOption {
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'object' | 'enum';
+  type: 'string' | 'number' | 'boolean' | 'object' | 'enum' | 'enum[]';
   required?: boolean;
   description: string;
   values?: string[]; // For enum type
@@ -239,7 +239,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       },
       {
         name: 'persistedFields',
-        type: 'enum',
+        type: 'enum[]',
         description: 'Fields to persist in run state for debugging. Empty by default. WARNING: headers/body may expose secrets.',
         values: ['url', 'method', 'headers', 'body', 'status', 'responseHeaders', 'sseEvents'],
       },
@@ -307,7 +307,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       },
       {
         name: 'persistedFields',
-        type: 'enum',
+        type: 'enum[]',
         description: 'Fields to persist in run state for debugging. Empty by default.',
         values: ['input'],
       },
