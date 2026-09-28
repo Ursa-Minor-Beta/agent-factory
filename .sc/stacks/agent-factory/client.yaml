@@ -36,10 +36,12 @@ stacks:
         HOST: 0.0.0.0
         ADMIN_NAME: Admin
         SEED_SYSTEM_AGENTS_ON_START: "true"
+      # The parent's dedicated Atlas project (ursa--mongodb--test). SC creates a
+      # user for this stack and a database named agent-factory; the URI carries both.
+      uses:
+        - mongodb
       secrets:
-        # Dedicated user on everworker's test mongodb-nest Atlas cluster,
-        # readWrite on the agent-factory database only.
-        MONGODB_URI: ${secret:MONGODB_URI}
+        MONGODB_URI: ${resource:mongodb.uri}
         JWT_SECRET: ${secret:JWT_SECRET}
         ENCRYPTION_KEY: ${secret:ENCRYPTION_KEY}
         ADMIN_EMAIL: ${secret:ADMIN_EMAIL}
