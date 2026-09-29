@@ -3,6 +3,7 @@ import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { interpolateAll } from './utils.js';
+import { extractAndStoreFiles } from './file-helper.js';
 
 type HttpPersistedField = 'url' | 'method' | 'headers' | 'body' | 'status' | 'responseHeaders' | 'sseEvents';
 
@@ -82,12 +83,20 @@ export class HttpNode extends BaseNode {
       clearTimeout(timeoutId);
 
       const outputs = { response, status };
-      context.setOutput(node.id, 'response', response);
-      context.setOutput(node.id, 'status', status);
+
+      // Extract files from response, store in context with temp refs
+      const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
+
+      context.setOutput(node.id, 'response', (cleanedOutput as Record<string, unknown>).response);
+      context.setOutput(node.id, 'status', (cleanedOutput as Record<string, unknown>).status);
 
       this.addResponseState(data, state, status, res.headers, sseEvents);
 
-      return { outputs, state };
+      return {
+        outputs: cleanedOutput as Record<string, unknown>,
+        state,
+        files: fileRefs.length > 0 ? fileRefs : undefined,
+      };
     } catch (error) {
       clearTimeout(timeoutId);
 

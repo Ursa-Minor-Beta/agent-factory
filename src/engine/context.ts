@@ -5,15 +5,24 @@ export interface BranchControl {
   allBranchNodes: string[];
 }
 
+export interface TempFile {
+  mimeType: string;
+  data: string;
+  field: string;
+}
+
 /**
  * ExecutionContext manages data flow between nodes during workflow execution.
  * Nodes store their outputs, which are accessed via {{node:id.path}} templates.
+ * Also stores temporary files (base64 data) until they're persisted by Output nodes.
  */
 export class ExecutionContext {
   // nodeId -> handleName -> value
   private outputs: Map<string, Map<string, unknown>> = new Map();
   // branchNodeId -> BranchControl (for efficient branch execution control)
   private branchControls: Map<string, BranchControl> = new Map();
+  // tempRef -> file data (base64 kept in context for downstream nodes)
+  private tempFiles: Map<string, TempFile> = new Map();
 
   /**
    * Store output from a node
@@ -68,6 +77,28 @@ export class ExecutionContext {
       }
     }
     return false;
+  }
+
+  /**
+   * Store a temporary file (base64 data) in context
+   * Temp refs format: {{temp:nodeId:index}}
+   */
+  storeTempFile(ref: string, file: TempFile): void {
+    this.tempFiles.set(ref, file);
+  }
+
+  /**
+   * Get a temporary file from context
+   */
+  getTempFile(ref: string): TempFile | undefined {
+    return this.tempFiles.get(ref);
+  }
+
+  /**
+   * Get all temp files (for debugging/inspection)
+   */
+  getAllTempFiles(): Map<string, TempFile> {
+    return this.tempFiles;
   }
 
   /**

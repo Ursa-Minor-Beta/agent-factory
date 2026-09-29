@@ -303,6 +303,76 @@ export function stripBase64ForStorage(
 }
 
 /**
+ * Extract files and replace with temp refs for context storage
+ * Returns cleaned output and extracted files with temp refs
+ * Used by nodes to store base64 in context while replacing with temp refs in output
+ */
+export function extractAndReplaceTempRefs(
+  output: unknown,
+  nodeId: string
+): {
+  cleanedOutput: unknown;
+  tempFiles: Array<{ ref: string; file: ExtractedFile }>;
+} {
+  if (!output || typeof output !== 'object') {
+    return { cleanedOutput: output, tempFiles: [] };
+  }
+
+  const files: ExtractedFile[] = [];
+  const cleanedOutput = extractFilesFromObject(output as Record<string, unknown>, files);
+
+  // Generate temp refs for each file
+  const tempFiles = files.map((file, idx) => ({
+    ref: `{{temp:${nodeId}:${idx}}}`,
+    file,
+  }));
+
+  // Replace [file:idx:type] placeholders with temp refs
+  const outputWithTempRefs = replaceFilePlaceholdersWithTempRefs(
+    cleanedOutput,
+    tempFiles.map((tf, idx) => ({ idx, ref: tf.ref }))
+  );
+
+  return { cleanedOutput: outputWithTempRefs, tempFiles };
+}
+
+/**
+ * Replace [file:idx:type] placeholders with temp refs
+ */
+function replaceFilePlaceholdersWithTempRefs(
+  obj: unknown,
+  refMap: Array<{ idx: number; ref: string }>,
+  seen: WeakSet<object> = new WeakSet()
+): unknown {
+  if (obj === null || typeof obj !== 'object') {
+    if (typeof obj === 'string') {
+      // Replace file placeholder in string
+      return obj.replace(/\[file:(\d+):[^\]]+\]/g, (match, idxStr) => {
+        const idx = parseInt(idxStr, 10);
+        const entry = refMap.find((e) => e.idx === idx);
+        return entry ? entry.ref : match;
+      });
+    }
+    return obj;
+  }
+
+  if (seen.has(obj)) {
+    return '[Circular]';
+  }
+  seen.add(obj);
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => replaceFilePlaceholdersWithTempRefs(item, refMap, seen));
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[key] = replaceFilePlaceholdersWithTempRefs(value, refMap, seen);
+  }
+  return result;
+}
+
+/**
  * Replace file placeholders in a string with inner references
  * Converts [file:0:image/png] to {{inner:id}}
  */

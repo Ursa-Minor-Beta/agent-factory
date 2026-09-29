@@ -240,11 +240,12 @@ export class WorkflowExecutor {
         try {
           const result = await nodeHandler.execute(node, context, nodeExecOptions);
 
-          // Keep raw output in context (including base64) for downstream nodes
-          // This allows LLM nodes to use images for vision, etc.
-          // File extraction happens only at output node when needed
+          // Node outputs contain temp refs ({{temp:nodeId:idx}}) instead of base64
+          // Base64 data is stored separately in ExecutionContext.tempFiles
+          // Downstream nodes can resolve temp refs via resolveTempRefsToBase64() if needed
+          // Output node resolves temp refs and saves files to DB with permanent {{inner:id}} refs
 
-          // For MongoDB storage, strip base64 to avoid bloating the run document
+          // Strip any remaining base64 for MongoDB storage (as safety measure)
           const outputForStorage = result.outputs && typeof result.outputs === 'object'
             ? stripBase64ForStorage(result.outputs as Record<string, unknown>)
             : result.outputs;
