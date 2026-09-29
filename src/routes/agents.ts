@@ -52,6 +52,23 @@ const nodeSchema = {
   },
 };
 
+const editorDataSchema = {
+  type: 'object',
+  properties: {
+    nodePositions: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        properties: {
+          x: { type: 'number' },
+          y: { type: 'number' },
+        },
+      },
+    },
+  },
+  additionalProperties: true,
+};
+
 const agentSchema = {
   type: 'object',
   properties: {
@@ -60,6 +77,7 @@ const agentSchema = {
     name: { type: 'string' },
     description: { type: 'string' },
     nodes: { type: 'array', items: nodeSchema },
+    editorData: editorDataSchema,
     systemName: { type: 'string', nullable: true },
     defaultName: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
@@ -176,6 +194,7 @@ export async function agentRoutes(app: FastifyInstance) {
           name: { type: 'string', minLength: 1 },
           description: { type: 'string' },
           nodes: { type: 'array', items: nodeSchema },
+          editorData: editorDataSchema,
         },
       },
       response: {
@@ -197,6 +216,7 @@ export async function agentRoutes(app: FastifyInstance) {
       name: string;
       description?: string;
       nodes?: any[];
+      editorData?: Record<string, unknown>;
     };
 
     const agent = await agentService.create(userId, body);
@@ -299,6 +319,7 @@ export async function agentRoutes(app: FastifyInstance) {
           name: { type: 'string', minLength: 1 },
           description: { type: 'string' },
           nodes: { type: 'array', items: nodeSchema },
+          editorData: editorDataSchema,
         },
       },
       response: {
@@ -323,6 +344,7 @@ export async function agentRoutes(app: FastifyInstance) {
       name?: string;
       description?: string;
       nodes?: any[];
+      editorData?: Record<string, unknown>;
     };
 
     const agent = await agentService.update(userId, id, body);

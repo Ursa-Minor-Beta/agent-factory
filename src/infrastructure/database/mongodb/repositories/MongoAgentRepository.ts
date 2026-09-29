@@ -16,6 +16,7 @@ export class MongoAgentRepository implements IAgentRepository {
       name: doc.name,
       description: doc.description,
       nodes: doc.nodes,
+      editorData: doc.editorData,
       systemName: doc.systemName,
       defaultName: doc.defaultName,
       createdAt: doc.createdAt,
@@ -94,6 +95,7 @@ export class MongoAgentRepository implements IAgentRepository {
       name: data.name,
       description: data.description ?? '',
       nodes: data.nodes ?? [],
+      editorData: data.editorData,
       defaultName: data.defaultName,
     });
     return this.toEntity(doc);
