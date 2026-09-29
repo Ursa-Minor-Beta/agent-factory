@@ -36,6 +36,9 @@ stacks:
         HOST: 0.0.0.0
         ADMIN_NAME: Admin
         SEED_SYSTEM_AGENTS_ON_START: "true"
+        # Unset means every origin is allowed, with credentials. Only the UI
+        # calls this API from a browser.
+        ALLOWED_ORIGINS: https://test-agent-factory-ui.everworker.ai
       # The parent's dedicated Atlas project (ursa--mongodb--test). SC creates a
       # user for this stack and a database named agent-factory; the URI carries both.
       uses:
