@@ -4,6 +4,7 @@ import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './bas
 import { WorkflowExecutor } from '../executor.js';
 import { resolveRunOutput } from '../../utils/node-ref.js';
 import { interpolateAll } from './utils.js';
+import { extractAndStoreFiles } from './file-helper.js';
 
 interface AgentNodeData {
   agentId: string;
@@ -109,9 +110,22 @@ export class AgentNode extends BaseNode {
     // Resolve nodeRef references to actual values for downstream nodes
     const resolvedOutput = resolveRunOutput(run);
     const outputs = { output: resolvedOutput, run };
-    context.setOutput(node.id, 'output', resolvedOutput);
-    context.setOutput(node.id, 'run', run);
 
-    return { outputs };
+    // Extract files from output, store in context with temp refs
+    const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
+
+    context.setOutput(node.id, 'output', (cleanedOutput as Record<string, unknown>).output);
+    context.setOutput(node.id, 'run', (cleanedOutput as Record<string, unknown>).run);
+
+    // Propagate files from sub-agent run
+    const allFileRefs = [...fileRefs];
+    if (run.files && run.files.length > 0) {
+      allFileRefs.push(...run.files);
+    }
+
+    return {
+      outputs: cleanedOutput as Record<string, unknown>,
+      files: allFileRefs.length > 0 ? allFileRefs : undefined,
+    };
   }
 }

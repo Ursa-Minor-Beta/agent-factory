@@ -7,6 +7,7 @@ import { callAnthropic } from './anthropic.js';
 import { callOllama } from './ollama.js';
 import type { LLMNodeData } from './types.js';
 import { DEFAULT_MAX_MESSAGES } from './constants.js';
+import { extractAndStoreFiles, resolveTempRefsToBase64 } from '../file-helper.js';
 
 /**
  * LLM node - Call language model APIs using official SDKs
@@ -69,9 +70,12 @@ Extract facts and call the update_session_notes tool.`;
       ? interpolateAll(data.systemPrompt, interpolateOpts)
       : undefined;
       
-    const userPrompt = data.userPrompt
+    let userPrompt = data.userPrompt
       ? interpolateAll(data.userPrompt, interpolateOpts)
       : '';
+
+    // Resolve any temp refs to base64 for vision APIs
+    userPrompt = resolveTempRefsToBase64(userPrompt, context);
 
     const maxMessages = data.maxMessages ?? DEFAULT_MAX_MESSAGES;
     const conversationHistory = maxMessages > 0
@@ -107,13 +111,20 @@ Extract facts and call the update_session_notes tool.`;
       outputs.toolCalls = result.toolCalls;
     }
 
-    context.setOutput(node.id, 'response', result.response);
-    context.setOutput(node.id, 'usage', result.usage);
-    if (result.toolCalls) {
-      context.setOutput(node.id, 'toolCalls', result.toolCalls);
+    // Extract files from response and tool calls, store in context with temp refs
+    const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
+
+    // Store cleaned outputs in context (with temp refs instead of base64)
+    context.setOutput(node.id, 'response', (cleanedOutput as Record<string, unknown>).response);
+    context.setOutput(node.id, 'usage', (cleanedOutput as Record<string, unknown>).usage);
+    if ((cleanedOutput as Record<string, unknown>).toolCalls) {
+      context.setOutput(node.id, 'toolCalls', (cleanedOutput as Record<string, unknown>).toolCalls);
     }
 
-    return { outputs };
+    return {
+      outputs: cleanedOutput as Record<string, unknown>,
+      files: fileRefs.length > 0 ? fileRefs : undefined,
+    };
   }
 }
 

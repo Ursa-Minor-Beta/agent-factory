@@ -49,9 +49,12 @@ export class OutputNode extends BaseNode {
         value = template;
       }
 
-      // Extract and save files if the value contains base64 data
+      // Resolve temp refs from context, extract, and save files to DB
       if (options.fileRepo && options.userId && value) {
-        value = await this.extractAndSaveFiles(value, key, options, fileRefs);
+        // First resolve any temp refs to get back the base64 data
+        value = this.resolveTempRefs(value, context);
+        // Then extract and save to DB
+        value = await this.extractAndSaveFiles(value, key, options, fileRefs, context);
       }
 
       outputs[key] = value;
@@ -65,13 +68,45 @@ export class OutputNode extends BaseNode {
   }
 
   /**
+   * Resolve temp refs ({{temp:nodeId:idx}}) back to base64 data from context
+   */
+  private resolveTempRefs(value: unknown, context: ExecutionContext): unknown {
+    if (typeof value === 'string') {
+      // Replace temp refs in string
+      return value.replace(/\{\{temp:([^:]+):(\d+)\}\}/g, (match, nodeId, idx) => {
+        const tempFile = context.getTempFile(match);
+        if (tempFile) {
+          // Convert back to data URL format
+          return `data:${tempFile.mimeType};base64,${tempFile.data}`;
+        }
+        return match;
+      });
+    }
+
+    if (value && typeof value === 'object') {
+      if (Array.isArray(value)) {
+        return value.map((item) => this.resolveTempRefs(item, context));
+      }
+
+      const result: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(value)) {
+        result[key] = this.resolveTempRefs(val, context);
+      }
+      return result;
+    }
+
+    return value;
+  }
+
+  /**
    * Extract base64 files from value and save to DB
    */
   private async extractAndSaveFiles(
     value: unknown,
     fieldName: string,
     options: ExecutionOptions,
-    fileRefs: string[]
+    fileRefs: string[],
+    context: ExecutionContext
   ): Promise<unknown> {
     if (!options.fileRepo || !options.userId) return value;
 

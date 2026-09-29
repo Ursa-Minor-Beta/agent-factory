@@ -5,6 +5,7 @@ import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './bas
 import { config } from '../../config/index.js';
 import { interpolateAll } from './utils.js';
 import { NodeExecutionError } from '../../utils/errors.js';
+import { extractAndStoreFiles } from './file-helper.js';
 
 type JsPersistedField = 'input';
 
@@ -121,9 +122,17 @@ export class JsNode extends BaseNode {
       const output = await this.runInWorker(code, input, timeout, memoryMb);
 
       const outputs = { output };
-      context.setOutput(node.id, 'output', output);
 
-      return { outputs, state };
+      // Extract files from output, store in context with temp refs
+      const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
+
+      context.setOutput(node.id, 'output', (cleanedOutput as Record<string, unknown>).output);
+
+      return {
+        outputs: cleanedOutput as Record<string, unknown>,
+        state,
+        files: fileRefs.length > 0 ? fileRefs : undefined,
+      };
     } 
     catch (error) {
       throw new NodeExecutionError(

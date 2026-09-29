@@ -4,6 +4,7 @@ import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from '../ba
 import { NodeExecutionError } from '../../../utils/errors.js';
 import { interpolateAll } from '../utils.js';
 import * as memoryService from '../../../domain/services/memory.service.js';
+import { extractAndStoreFiles } from '../file-helper.js';
 
 interface MemorySearchNodeData {
   collection: string;
@@ -65,11 +66,17 @@ export class MemorySearchNode extends BaseNode {
       count: records.length,
     };
 
-    for (const [key, value] of Object.entries(outputs)) {
+    // Extract files from records, store in context with temp refs
+    const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
+
+    for (const [key, value] of Object.entries(cleanedOutput as Record<string, unknown>)) {
       context.setOutput(node.id, key, value);
     }
 
-    return { outputs };
+    return {
+      outputs: cleanedOutput as Record<string, unknown>,
+      files: fileRefs.length > 0 ? fileRefs : undefined,
+    };
   }
 
   private interpolateObject(
