@@ -1,12 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth } from '../middleware/auth.js';
-import { NODE_DEFINITIONS } from '../engine/nodes/definitions.js';
+import { NODE_DEFINITIONS, NODE_OPTION_TYPES } from '../engine/nodes/definitions.js';
 
 const optionSchema = {
   type: 'object',
   properties: {
     name: { type: 'string' },
-    type: { type: 'string', enum: ['string', 'number', 'boolean', 'object', 'enum'] },
+    type: { type: 'string', enum: NODE_OPTION_TYPES as unknown as string[] },
     required: { type: 'boolean' },
     description: { type: 'string' },
     values: { type: 'array', items: { type: 'string' } },

@@ -5,9 +5,32 @@ import { JS_NODE_AVAILABLE_GLOBALS } from './js.js';
  * Node type definitions with metadata for documentation and tooling
  */
 
+/**
+ * Valid node option types:
+ * - string: Short text input (single line, e.g., URLs, names, model names)
+ * - text: Long text input (multiline, e.g., prompts, descriptions, paragraphs)
+ * - code: Code input (multiline with syntax highlighting, e.g., JavaScript, JSON templates)
+ * - number: Numeric input (integers or floats)
+ * - boolean: True/false checkbox
+ * - object: JSON object or array
+ * - enum: Single selection from predefined values
+ * - enum[]: Multiple selections from predefined values
+ */
+export const NODE_OPTION_TYPES = [
+  'string',
+  'text',
+  'code',
+  'number',
+  'boolean',
+  'object',
+  'enum',
+  'enum[]'
+] as const;
+export type NodeOptionType = (typeof NODE_OPTION_TYPES)[number];
+
 export interface NodeOption {
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'object' | 'enum' | 'enum[]';
+  type: NodeOptionType;
   required?: boolean;
   description: string;
   values?: string[]; // For enum type
@@ -150,12 +173,12 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       },
       {
         name: 'systemPrompt',
-        type: 'string',
+        type: 'text',
         description: 'System prompt. Supports {{node:id.path}} template syntax.',
       },
       {
         name: 'userPrompt',
-        type: 'string',
+        type: 'text',
         description: 'User prompt. Supports {{node:id.path}} template syntax.',
       },
       {
@@ -283,15 +306,15 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
     outputs: ['output'],
     options: [
       {
-        name: 'code',
-        type: 'string',
-        required: true,
-        description: 'JavaScript code. Receives `input` variable, assign result to `output` or use return.',
-      },
-      {
         name: 'input',
         type: 'string',
         description: 'Template for input value. Supports {{node:id.path}} syntax. If not specified, uses workflow input.',
+      },
+      {
+        name: 'code',
+        type: 'code',
+        required: true,
+        description: 'JavaScript code. Receives `input` variable, assign result to `output` or use return.',
       },
       {
         name: 'timeout',
