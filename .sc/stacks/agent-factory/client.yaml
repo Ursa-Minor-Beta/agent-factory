@@ -1,0 +1,48 @@
+schemaVersion: 1.0
+
+# Client stack of the Ursa parent (Ursa-Minor-Beta/infra, stack ursa/ursa).
+# Only `test` exists. No `security:` block yet: the baas one pins
+# identityRegexp to github.com/integrail and would reject Ursa-Minor-Beta builds;
+# add it back deliberately with an Ursa-scoped regexp.
+
+stacks:
+  test:
+    type: cloud-compose
+    parent: ursa/ursa
+    parentEnv: test
+    config:
+      dockerComposeFile: ${git:root}/docker-compose.sc.yaml
+      domain: test-agent-factory.everworker.ai
+      baseDnsZone: everworker.ai
+      domainProxied: true
+      lbConfig:
+        https: false
+      staticEgressIP: false
+      runs:
+        - app
+      size:
+        cpu: 512
+        memory: 1024
+      scale:
+        min: 1
+        max: 1
+      cloudExtras:
+        securityGroup:
+          ingress:
+            allowOnlyCloudflare: true
+      env:
+        NODE_ENV: production
+        PORT: "3000"
+        HOST: 0.0.0.0
+        ADMIN_NAME: Admin
+        SEED_SYSTEM_AGENTS_ON_START: "true"
+      # The parent's dedicated Atlas project (ursa--mongodb--test). SC creates a
+      # user for this stack and a database named agent-factory; the URI carries both.
+      uses:
+        - mongodb
+      secrets:
+        MONGODB_URI: ${resource:mongodb.uri}
+        JWT_SECRET: ${secret:JWT_SECRET}
+        ENCRYPTION_KEY: ${secret:ENCRYPTION_KEY}
+        ADMIN_EMAIL: ${secret:ADMIN_EMAIL}
+        ADMIN_PASSWORD: ${secret:ADMIN_PASSWORD}

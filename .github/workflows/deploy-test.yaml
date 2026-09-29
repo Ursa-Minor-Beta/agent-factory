@@ -1,0 +1,87 @@
+name: Deploy agent-factory to test
+
+# Deploys the `agent-factory` Simple Container client stack into the Ursa
+# `test` environment (parent ursa/ursa in Ursa-Minor-Beta/infra).
+# Runs on every push to master, and on demand from the Actions tab
+# ("Run workflow"). Docs-only pushes skip it.
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sc-deploy-agent-factory-test
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: simple-container-com/actions/install-sc@d6d5c88e8609f5f17a8e45580b7331a7c2b95187  # main
+        with:
+          version: '2026.8.7'  # matches the Integrail fleet default
+
+      - uses: pulumi/setup-pulumi@b374ceb6168550de27c6eba92e01c1a774040e11  # v2.0.0
+
+      # `sc deploy` does not clone the parent (parentRepository in SC_CONFIG is
+      # only read by the upstream SC action). Clone Ursa-Minor-Beta/infra with
+      # the SC key (a read-only deploy key there), reveal its secrets, and copy
+      # its stacks next to ours. The key only ever lives in a 0600 temp file.
+      - name: Fetch parent stack
+        env:
+          SIMPLE_CONTAINER_CONFIG: ${{ secrets.SC_CONFIG }}
+        run: |
+          keyfile=$(mktemp)
+          trap 'rm -f "$keyfile"' EXIT
+          chmod 600 "$keyfile"
+          printf '%s\n' "$SIMPLE_CONTAINER_CONFIG" | python3 -c 'import sys, yaml; sys.stdout.write(yaml.safe_load(sys.stdin)["privateKey"])' > "$keyfile"
+          GIT_SSH_COMMAND="ssh -i $keyfile -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+            git clone --quiet --depth 1 git@github.com:Ursa-Minor-Beta/infra.git .infra
+          (cd .infra && sc secrets reveal --force)
+          cp -fR .infra/.sc/stacks/* .sc/stacks/
+
+      # SC_CONFIG is raw YAML (never base64): the CI RSA key + parentRepository.
+      - name: Reveal secrets
+        env:
+          SIMPLE_CONTAINER_CONFIG: ${{ secrets.SC_CONFIG }}
+        run: sc secrets reveal --force
+
+      # A ${secret:NAME} missing from the store does not fail the deploy: SC
+      # injects the literal string. Fail here instead.
+      - name: Check referenced secrets exist
+        run: |
+          python3 - <<'EOF'
+          import re, sys, yaml
+          client = open(".sc/stacks/agent-factory/client.yaml").read()
+          names = sorted(set(re.findall(r"\$\{secret:([A-Za-z0-9_-]+)\}", client)))
+          values = (yaml.safe_load(open(".sc/stacks/agent-factory/secrets.yaml")) or {}).get("values") or {}
+          missing = [n for n in names if not values.get(n)]
+          print("referenced:", names)
+          sys.exit(f"missing secrets: {missing}" if missing else 0)
+          EOF
+
+      - name: sc deploy
+        env:
+          SIMPLE_CONTAINER_CONFIG: ${{ secrets.SC_CONFIG }}
+        run: sc deploy -s agent-factory -e test
+
+      - name: Health gate
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://test-agent-factory.everworker.ai/health || true)
+            echo "attempt $i: $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          exit 1
