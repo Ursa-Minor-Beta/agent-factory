@@ -27,7 +27,12 @@ export const config = {
 
 After adding env vars to config:
 1. Update `.env.example` with the new variables
-2. Import from `../../config/index.js` in consuming files
+2. Update `docker-compose.yml` environment section
+3. Update `README.md` Environment Variables section (if user-facing)
+4. Check and update `agent-factory-docker-api-ui` repository:
+   - `.env.example`
+   - `docker-compose.yml` (backend service environment)
+5. Import from `../../config/index.js` in consuming files
 
 ## Code Style
 

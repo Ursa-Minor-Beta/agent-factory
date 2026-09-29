@@ -4,12 +4,14 @@ import { SessionService } from '../services/session.service.js';
 import { RunService } from '../services/run.service.js';
 import { SeedService } from '../services/seed.service.js';
 import { container } from '../config/container.js';
+import { config } from '../config/index.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js';
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
 import { DEFAULT_AGENT } from '../engine/agents/default.js';
+import { isOriginAllowed } from '../utils/cors.js';
 
 // Schemas
 const errorSchema = {
@@ -542,14 +544,33 @@ export async function agentRoutes(app: FastifyInstance) {
     };
 
     // Set SSE headers with CORS
-    const origin = request.headers.origin || '*';
-    reply.raw.writeHead(200, {
+    const requestOrigin = request.headers.origin;
+    const { allowedOrigins } = config.cors;
+
+    // Determine allowed origin for CORS
+    let allowOrigin: string | undefined;
+    if (requestOrigin) {
+      // If allowedOrigins is empty, allow all origins
+      if (allowedOrigins.length === 0) {
+        allowOrigin = requestOrigin;
+      } else if (isOriginAllowed(requestOrigin, allowedOrigins)) {
+        allowOrigin = requestOrigin;
+      }
+      // If origin not allowed, don't set CORS headers (will fail in browser)
+    }
+
+    const headers: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Credentials': 'true',
-    });
+    };
+
+    if (allowOrigin) {
+      headers['Access-Control-Allow-Origin'] = allowOrigin;
+      headers['Access-Control-Allow-Credentials'] = 'true';
+    }
+
+    reply.raw.writeHead(200, headers);
 
     const sendEvent = (event: string, data: unknown) => {
       if (reply.raw.writable) {

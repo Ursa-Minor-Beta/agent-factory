@@ -32,6 +32,12 @@ export const config = {
     defaultMemoryMb: parseInt(process.env['JS_NODE_DEFAULT_MEMORY_MB'] ?? '64', 10),
     maxMemoryMb: parseInt(process.env['JS_NODE_MAX_MEMORY_MB'] ?? '256', 10),
   },
+  cors: {
+    // Empty array = allow all origins, otherwise enforce whitelist
+    allowedOrigins: process.env['ALLOWED_ORIGINS']
+      ? process.env['ALLOWED_ORIGINS'].split(',').map(o => o.trim()).filter(o => o.length > 0)
+      : [],
+  },
 } as const;
 
 // Validate required config

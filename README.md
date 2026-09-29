@@ -31,6 +31,9 @@ PORT=3000
 HOST=0.0.0.0
 NODE_ENV=development
 
+# CORS (optional - leave empty to allow all origins)
+ALLOWED_ORIGINS=http://localhost:3000
+
 # MongoDB
 MONGODB_URI=mongodb://localhost:27017/agent-factory
 

@@ -20,6 +20,7 @@ import { fileRoutes } from './routes/files.js';
 import { memoryRoutes } from './routes/memory.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
+import { isOriginAllowed } from './utils/cors.js';
 
 const app = Fastify({
   logger: config.server.env !== 'test',
@@ -86,7 +87,26 @@ async function bootstrap() {
 
   // Register plugins
   await app.register(cors, {
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (Postman, curl, mobile apps)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      // If allowedOrigins is empty, allow all origins
+      if (config.cors.allowedOrigins.length === 0) {
+        callback(null, true);
+        return;
+      }
+
+      // Check if origin matches any allowed pattern (supports wildcards)
+      if (isOriginAllowed(origin, config.cors.allowedOrigins)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'), false);
+      }
+    },
     credentials: true,
   });
 
