@@ -46,6 +46,7 @@ export type RunUsage = {
  */
 export interface ExecutedToolCall {
   name: string;
+  input: Record<string, unknown>;
   result: unknown;
 }
 

@@ -493,17 +493,6 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         required: true,
         description: 'Data to store. Must match collection schema. Supports {{node:id.path}} syntax.',
       },
-      {
-        name: 'importance',
-        type: 'number',
-        description: 'Importance score (0-1) for retrieval prioritization.',
-        default: 0.5,
-      },
-      {
-        name: 'tags',
-        type: 'object',
-        description: 'Array of tags for categorization.',
-      },
     ],
     examples: [
       {
@@ -519,7 +508,6 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
             selector: '#play-btn',
             success: true,
           },
-          importance: 0.8,
         },
       },
     ],
@@ -528,7 +516,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
     type: 'memory-search',
     description: 'Search records in a memory collection. Use to retrieve relevant past experiences before taking action.',
     inputs: ['trigger'],
-    outputs: ['results', 'scores', 'count'],
+    outputs: ['records', 'count'],
     options: [
       {
         name: 'collection',
@@ -537,30 +525,26 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         description: 'Name of the memory collection.',
       },
       {
-        name: 'query',
-        type: 'string',
-        description: 'Semantic search query.',
-      },
-      {
         name: 'filters',
         type: 'object',
         description: 'Filter by field values. Supports {{node:id.path}} syntax.',
       },
       {
-        name: 'tags',
+        name: 'sort',
         type: 'object',
-        description: 'Filter by tags.',
-      },
-      {
-        name: 'minImportance',
-        type: 'number',
-        description: 'Minimum importance score (0-1).',
+        description: 'Sort by field. Format: { field: string, direction: "asc" | "desc" }.',
       },
       {
         name: 'limit',
         type: 'number',
         description: 'Maximum results to return.',
         default: 10,
+      },
+      {
+        name: 'offset',
+        type: 'number',
+        description: 'Number of records to skip for pagination.',
+        default: 0,
       },
     ],
     examples: [
@@ -600,16 +584,6 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         type: 'object',
         description: 'Data to update (merged with existing).',
       },
-      {
-        name: 'importance',
-        type: 'number',
-        description: 'Updated importance score (0-1).',
-      },
-      {
-        name: 'tags',
-        type: 'object',
-        description: 'Updated tags.',
-      },
     ],
     examples: [
       {
@@ -619,7 +593,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         type: 'memory-update',
         data: {
           collection: 'learned_steps',
-          id: '{{node:search-1.results.0.id}}',
+          id: '{{node:search-1.records.0.id}}',
           data: { success_rate: 0.95 },
         },
       },

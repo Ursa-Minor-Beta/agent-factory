@@ -229,7 +229,7 @@ export async function callAnthropic(
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const toolUse of toolUses) {
       const callResult = await executeSingleToolCall(toolUse, toolMap, options, nodeId);
-      executedToolCalls.push({ name: callResult.name, result: callResult.result });
+      executedToolCalls.push({ name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
       toolResults.push({
         type: 'tool_result',
         tool_use_id: callResult.toolUseId,

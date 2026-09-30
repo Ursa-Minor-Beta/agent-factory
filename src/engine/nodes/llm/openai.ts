@@ -252,7 +252,8 @@ export async function callOpenAI(
     messages.push(assistantMessage);
     for (const toolCall of toolCalls) {
       const callResult = await executeSingleToolCall(toolCall, toolMap, options, nodeId);
-      executedToolCalls.push({ name: callResult.name, result: callResult.result });
+      const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
+      executedToolCalls.push({ name: callResult.name, input: toolArgs, result: callResult.result });
       messages.push({
         role: 'tool',
         tool_call_id: callResult.toolCallId,
