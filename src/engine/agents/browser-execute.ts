@@ -6,7 +6,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 
 export const BROWSER_EXECUTE_NODES: WorkflowNode[] = [
   {
-    id: 'input-1',
+    id: 'input',
     type: 'input',
     data: {
       schema: {
@@ -31,17 +31,17 @@ export const BROWSER_EXECUTE_NODES: WorkflowNode[] = [
     type: 'http',
     data: {
       method: 'POST',
-      url: '{{node:input-1.baasHost}}/api/async/message',
+      url: '{{node:input.baasHost}}/api/async/message',
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
       },
-      body: '{"program":"{{node:input-1.baasCode}}","sessionID": "{{node:input-1.sessionID}}", "stopSession": false}',
+      body: '{"program":"{{node:input.baasCode}}","sessionID": "{{node:input.sessionID}}", "stopSession": false}',
       persistedFields: ['body', 'sseEvents'],
     },
   },
   {
-    id: 'output-1',
+    id: 'output',
     type: 'output',
     data: {
       value: '{{node:http-3.response.sessionID}}',

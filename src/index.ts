@@ -194,14 +194,6 @@ async function bootstrap() {
       app.log.info('System agent seeding disabled (SEED_SYSTEM_AGENTS_ON_START=false)');
     }
 
-    // Always log agent IDs
-    const agents = await seedService.getAllAgentIds();
-    app.log.info('Available agents:');
-    for (const agent of agents) {
-      const tag = agent.systemName ? '[system]' : '';
-      app.log.info(`  ${agent.name} ${tag}: ${agent.id}`);
-    }
-
     // Start server
     await app.listen({
       port: config.server.port,

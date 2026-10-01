@@ -5,7 +5,7 @@ import { SESSION_NOTES_TOOLS } from '../tools/session-notes.js';
 // Uses template-based data flow with {{node:id.path}} syntax
 export const DEFAULT_NODES: WorkflowNode[] = [
   {
-    id: 'input-1',
+    id: 'input',
     type: 'input',
     data: {
       schema: {
@@ -20,7 +20,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
       provider: 'openai',
       model: 'gpt-4o-mini',
       systemPrompt: 'You are a helpful assistant.',
-      userPrompt: '{{node:input-1.message}}',
+      userPrompt: '{{node:input.message}}',
       temperature: 0.7,
       maxTokens: 1000,
       maxMessages: 20,
@@ -28,7 +28,7 @@ export const DEFAULT_NODES: WorkflowNode[] = [
     },
   },
   {
-    id: 'output-1',
+    id: 'output',
     type: 'output',
     data: {
       response: '{{node:llm-1.response}}',
