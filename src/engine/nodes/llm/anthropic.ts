@@ -224,11 +224,16 @@ export async function callAnthropic(
       };
     }
 
-    // Execute tools and continue loop
+    // Execute tools in parallel and continue loop
     messages.push({ role: 'assistant', content: response.content });
+    const callResults = await Promise.all(
+      toolUses.map((toolUse) => executeSingleToolCall(toolUse, toolMap, options, nodeId))
+    );
+
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
-    for (const toolUse of toolUses) {
-      const callResult = await executeSingleToolCall(toolUse, toolMap, options, nodeId);
+    for (let i = 0; i < toolUses.length; i++) {
+      const toolUse = toolUses[i]!;
+      const callResult = callResults[i]!;
       executedToolCalls.push({ name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
       toolResults.push({
         type: 'tool_result',

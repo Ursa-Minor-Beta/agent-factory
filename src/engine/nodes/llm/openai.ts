@@ -248,10 +248,15 @@ export async function callOpenAI(
       };
     }
 
-    // Execute tools and continue loop
+    // Execute tools in parallel and continue loop
     messages.push(assistantMessage);
-    for (const toolCall of toolCalls) {
-      const callResult = await executeSingleToolCall(toolCall, toolMap, options, nodeId);
+    const callResults = await Promise.all(
+      toolCalls.map((toolCall) => executeSingleToolCall(toolCall, toolMap, options, nodeId))
+    );
+
+    for (let i = 0; i < toolCalls.length; i++) {
+      const toolCall = toolCalls[i]!;
+      const callResult = callResults[i]!;
       const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
       executedToolCalls.push({ name: callResult.name, input: toolArgs, result: callResult.result });
       messages.push({
