@@ -25,6 +25,8 @@ export interface Agent {
   nodes: WorkflowNode[];
   /** UI editor metadata (node positions, viewport, etc.) */
   editorData?: EditorData;
+  /** Workspace identifier - groups agents into workspaces */
+  workspaceId?: string;
   /** System agent identifier - used by seeding to find/update system agents */
   systemName?: string;
   /** Default agent identifier - used by seeding to find/update default agents */
@@ -39,6 +41,7 @@ export interface CreateAgentDTO {
   description?: string;
   nodes?: WorkflowNode[];
   editorData?: EditorData;
+  workspaceId?: string;
   systemName?: string;
   defaultName?: string;
 }
@@ -48,6 +51,7 @@ export interface UpdateAgentDTO {
   description?: string;
   nodes?: WorkflowNode[];
   editorData?: EditorData;
+  workspaceId?: string | null;
 }
 
 export interface AgentQueryOptions {
@@ -55,6 +59,7 @@ export interface AgentQueryOptions {
   id?: string;
   name?: string; // contains (case-insensitive)
   description?: string; // contains (case-insensitive)
+  workspaceId?: string | null; // filter by workspace, null = no workspace
   createdAfter?: Date;
   createdBefore?: Date;
 

@@ -78,6 +78,7 @@ const agentSchema = {
     description: { type: 'string' },
     nodes: { type: 'array', items: nodeSchema },
     editorData: editorDataSchema,
+    workspaceId: { type: 'string', nullable: true },
     systemName: { type: 'string', nullable: true },
     defaultName: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
@@ -121,6 +122,7 @@ export async function agentRoutes(app: FastifyInstance) {
           id: { type: 'string', description: 'Filter by exact agent ID' },
           name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
           description: { type: 'string', description: 'Filter by description (contains, case-insensitive)' },
+          workspaceId: { type: 'string', description: 'Filter by workspace ID (null for agents not in any workspace)', nullable: true },
           createdAfter: { type: 'string', format: 'date-time', description: 'Filter by created date (after)' },
           createdBefore: { type: 'string', format: 'date-time', description: 'Filter by created date (before)' },
           sortBy: { type: 'string', enum: ['name', 'createdAt', 'updatedAt'], default: 'updatedAt' },
@@ -153,6 +155,7 @@ export async function agentRoutes(app: FastifyInstance) {
       id?: string;
       name?: string;
       description?: string;
+      workspaceId?: string | null;
       createdAfter?: string;
       createdBefore?: string;
       sortBy?: 'name' | 'createdAt' | 'updatedAt';
@@ -165,6 +168,7 @@ export async function agentRoutes(app: FastifyInstance) {
       id: query.id,
       name: query.name,
       description: query.description,
+      workspaceId: query.workspaceId !== undefined ? query.workspaceId : undefined,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       skip: query.skip,
@@ -195,6 +199,7 @@ export async function agentRoutes(app: FastifyInstance) {
           description: { type: 'string' },
           nodes: { type: 'array', items: nodeSchema },
           editorData: editorDataSchema,
+          workspaceId: { type: 'string', nullable: true },
         },
       },
       response: {
@@ -217,6 +222,7 @@ export async function agentRoutes(app: FastifyInstance) {
       description?: string;
       nodes?: any[];
       editorData?: Record<string, unknown>;
+      workspaceId?: string;
     };
 
     const agent = await agentService.create(userId, body);
@@ -320,6 +326,7 @@ export async function agentRoutes(app: FastifyInstance) {
           description: { type: 'string' },
           nodes: { type: 'array', items: nodeSchema },
           editorData: editorDataSchema,
+          workspaceId: { type: 'string', nullable: true },
         },
       },
       response: {
@@ -345,6 +352,7 @@ export async function agentRoutes(app: FastifyInstance) {
       description?: string;
       nodes?: any[];
       editorData?: Record<string, unknown>;
+      workspaceId?: string | null;
     };
 
     const agent = await agentService.update(userId, id, body);
@@ -833,7 +841,11 @@ export async function agentRoutes(app: FastifyInstance) {
     },
     preHandler: requireAdmin,
   }, async (request, reply) => {
-    const seedService = new SeedService(container.userRepository, container.agentRepository);
+    const seedService = new SeedService(
+      container.userRepository,
+      container.agentRepository,
+      container.workspaceRepository
+    );
     const result = await seedService.updateSystemAgents();
 
     return reply.send({

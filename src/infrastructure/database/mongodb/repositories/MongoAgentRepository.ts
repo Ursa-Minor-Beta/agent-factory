@@ -17,6 +17,7 @@ export class MongoAgentRepository implements IAgentRepository {
       description: doc.description,
       nodes: doc.nodes,
       editorData: doc.editorData,
+      workspaceId: doc.workspaceId?.toString(),
       systemName: doc.systemName,
       defaultName: doc.defaultName,
       createdAt: doc.createdAt,
@@ -41,6 +42,9 @@ export class MongoAgentRepository implements IAgentRepository {
     }
     if (options.description) {
       query.description = { $regex: options.description, $options: 'i' };
+    }
+    if (options.workspaceId !== undefined) {
+      query.workspaceId = options.workspaceId;
     }
     if (options.createdAfter) {
       query.createdAt = { ...((query.createdAt as object) || {}), $gte: options.createdAfter };
@@ -96,6 +100,7 @@ export class MongoAgentRepository implements IAgentRepository {
       description: data.description ?? '',
       nodes: data.nodes ?? [],
       editorData: data.editorData,
+      workspaceId: data.workspaceId,
       defaultName: data.defaultName,
     });
     return this.toEntity(doc);
@@ -108,6 +113,7 @@ export class MongoAgentRepository implements IAgentRepository {
       description: data.description ?? '',
       nodes: data.nodes ?? [],
       systemName: data.systemName,
+      workspaceId: data.workspaceId
     });
     return this.toEntity(doc);
   }
