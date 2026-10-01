@@ -6,6 +6,24 @@ import { JS_NODE_AVAILABLE_GLOBALS } from './js.js';
  */
 
 /**
+ * Valid node types in the workflow engine
+ */
+export const NODE_TYPES = [
+  'input',
+  'output',
+  'llm',
+  'http',
+  'js',
+  'agent',
+  'branch',
+  'memory-store',
+  'memory-search',
+  'memory-update',
+  'memory-delete',
+] as const;
+export type NodeType = (typeof NODE_TYPES)[number];
+
+/**
  * Valid node option types:
  * - string: Short text input (single line, e.g., URLs, names, model names)
  * - text: Long text input (multiline, e.g., prompts, descriptions, paragraphs)
@@ -41,12 +59,12 @@ export interface NodeExample {
   name: string;
   description: string;
   id: string;
-  type: string;
+  type: NodeType;
   data: Record<string, unknown>;
 }
 
 export interface NodeDefinition {
-  type: string;
+  type: NodeType;
   description: string;
   inputs: string[];
   outputs: string[];
@@ -156,7 +174,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
     type: 'llm',
     description: 'LLM call node. Sends prompts to OpenAI, Anthropic, or Ollama.',
     inputs: ['prompt', 'context'],
-    outputs: ['response', 'usage'],
+    outputs: ['response', 'usage', 'toolCalls'],
     options: [
       {
         name: 'provider',
