@@ -3,6 +3,7 @@
  */
 
 import type { WorkflowNode } from '../../../domain/entities/Agent.js';
+import { BAAS_HTTP_TIMEOUT_MS, BAAS_MESSAGE_TIMEOUT } from '../baas.js';
 
 export const TEST_STEP_EXECUTOR_NODES: WorkflowNode[] = [
   {
@@ -36,11 +37,12 @@ export const TEST_STEP_EXECUTOR_NODES: WorkflowNode[] = [
     data: {
       method: 'POST',
       url: '{{node:input.baasHost}}/api/async/message',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
       },
-      body: '{"program":"takeScreenshot(\'screenshot\', \'timeout:10s\'); innerHtml(\'body\', \'timeout:10s\')","sessionID": "{{node:input.sessionID}}", "stopSession": false}',
+      body: '{"timeout":"' + BAAS_MESSAGE_TIMEOUT + '","program":"takeScreenshot(\'screenshot\', \'timeout:10s\'); innerHtml(\'body\', \'timeout:10s\')","sessionID": "{{node:input.sessionID}}", "stopSession": false}',
       persistedFields: ['body', 'sseEvents'],
     },
   },
@@ -58,6 +60,7 @@ export const TEST_STEP_EXECUTOR_NODES: WorkflowNode[] = [
     data: {
       method: 'GET',
       url: '{{node:input.baasHost}}/api/async/actions',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
@@ -273,11 +276,12 @@ The object must have exactly these 4 keys:
     data: {
       method: 'POST',
       url: '{{node:input.baasHost}}/api/async/message',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
       },
-      body: '{"program":"{{node:js-1.output}} {{node:js-extract-program.output}} sleep(\'5s\'); takeScreenshot(\'screenshot\', \'timeout:10s\');","sessionID": "{{node:js-2.output.sessionID}}", "stopSession": false}',
+      body: '{"timeout":"' + BAAS_MESSAGE_TIMEOUT + '","program":"{{node:js-1.output}} {{node:js-extract-program.output}} sleep(\'5s\'); takeScreenshot(\'screenshot\', \'timeout:10s\');","sessionID": "{{node:js-2.output.sessionID}}", "stopSession": false}',
       persistedFields: ['body', 'sseEvents'],
     },
   },

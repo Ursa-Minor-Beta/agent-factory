@@ -4,6 +4,7 @@
  */
 
 import type { WorkflowNode } from '../../../domain/entities/Agent.js';
+import { BAAS_HTTP_TIMEOUT_MS, BAAS_MESSAGE_TIMEOUT } from '../baas.js';
 
 export const TEST_ORCHESTRATOR_NODES: WorkflowNode[] = [
   {
@@ -39,6 +40,7 @@ export const TEST_ORCHESTRATOR_NODES: WorkflowNode[] = [
     data: {
       method: 'POST',
       url: '{{node:input.baasHost}}/api/async/start',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
@@ -52,11 +54,12 @@ export const TEST_ORCHESTRATOR_NODES: WorkflowNode[] = [
     data: {
       method: 'POST',
       url: '{{node:input.baasHost}}/api/async/message',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
       },
-      body: '{"program":"navigate(\'{{node:input.url}}\'); sleep(\'3s\'); waitReady(\'form\',\'timeout:20s\'); click(\'input[type=email]\'); sendKeysToElement(\'input[type=email]\',\'testkatja@testkatja.me\'); sleep(\'1s\'); click(\'button[type=submit]\'); waitReady(\'input[type=password]\',\'timeout:20s\'); click(\'input[type=password]\'); sendKeysToElement(\'input[type=password]\',\'Test1234!\'); click(\'button[type=submit]\'); sleep(\'10s\'); takeScreenshot(\'screenshot\', \'timeout:10s\');", "sessionID": "{{node:http-0.response.result.sessionID}}", "stopSession": false}',
+      body: '{"timeout":"' + BAAS_MESSAGE_TIMEOUT + '","program":"navigate(\'{{node:input.url}}\'); sleep(\'3s\'); waitReady(\'form\',\'timeout:20s\'); click(\'input[type=email]\'); sendKeysToElement(\'input[type=email]\',\'testkatja@testkatja.me\'); sleep(\'1s\'); click(\'button[type=submit]\'); waitReady(\'input[type=password]\',\'timeout:20s\'); click(\'input[type=password]\'); sendKeysToElement(\'input[type=password]\',\'Test1234!\'); click(\'button[type=submit]\'); sleep(\'10s\'); takeScreenshot(\'screenshot\', \'timeout:10s\');", "sessionID": "{{node:http-0.response.result.sessionID}}", "stopSession": false}',
       persistedFields: ['body', 'sseEvents', 'responseHeaders'],
     },
   },
@@ -325,6 +328,7 @@ Generate the test steps JSON array now.`,
     data: {
       method: 'POST',
       url: '{{node:input.baasHost}}/api/async/stop',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
