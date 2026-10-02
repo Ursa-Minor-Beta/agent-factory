@@ -18,6 +18,7 @@ import { toolRoutes } from './routes/tools.js';
 import { secretRoutes } from './routes/secrets.js';
 import { fileRoutes } from './routes/files.js';
 import { memoryRoutes } from './routes/memory.js';
+import { workspaceRoutes } from './routes/workspaces.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 import { isOriginAllowed } from './utils/cors.js';
@@ -48,6 +49,7 @@ async function bootstrap() {
         { name: 'auth', description: 'Authentication and API keys' },
         { name: 'users', description: 'User management (admin)' },
         { name: 'agents', description: 'Agent CRUD operations' },
+        { name: 'workspaces', description: 'Workspace organization for agents' },
         { name: 'runs', description: 'Agent execution and history' },
         { name: 'sessions', description: 'Conversation sessions with agents' },
         { name: 'providers', description: 'LLM provider configurations' },
@@ -163,6 +165,7 @@ async function bootstrap() {
   await app.register(authRoutes);
   await app.register(userRoutes);
   await app.register(agentRoutes);
+  await app.register(workspaceRoutes);
   await app.register(runRoutes);
   await app.register(sessionRoutes);
   await app.register(settingsRoutes);
@@ -178,7 +181,11 @@ async function bootstrap() {
     app.log.info('Connected to MongoDB');
 
     // Seed admin user and agents
-    const seedService = new SeedService(container.userRepository, container.agentRepository);
+    const seedService = new SeedService(
+      container.userRepository,
+      container.agentRepository,
+      container.workspaceRepository
+    );
 
     const { created: adminCreated, email } = await seedService.seedAdmin();
     if (adminCreated) {

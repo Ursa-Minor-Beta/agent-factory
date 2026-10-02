@@ -8,6 +8,7 @@ export interface AgentDocument extends Document {
   description: string;
   nodes: WorkflowNode[];
   editorData?: EditorData;
+  workspaceId?: mongoose.Types.ObjectId;
   systemName?: string;
   defaultName?: string;
   createdAt: Date;
@@ -50,6 +51,10 @@ const agentSchema = new Schema<AgentDocument>(
     editorData: {
       type: Schema.Types.Mixed,
     },
+    workspaceId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Workspace',
+    },
     systemName: {
       type: String,
     },
@@ -65,5 +70,7 @@ const agentSchema = new Schema<AgentDocument>(
 agentSchema.index({ userId: 1 });
 agentSchema.index({ systemName: 1 }, { sparse: true });
 agentSchema.index({ defaultName: 1 }, { sparse: true });
+agentSchema.index({ workspaceId: 1 }, { sparse: true });
+agentSchema.index({ userId: 1, workspaceId: 1 });
 
 export const AgentModel = mongoose.model<AgentDocument>('Agent', agentSchema);
