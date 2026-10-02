@@ -156,9 +156,12 @@ export class HttpNode extends BaseNode {
     interpolateOpts: { secrets: Record<string, string>; context: ExecutionContext }
   ): string | undefined {
     if (method === 'GET' || data.body === undefined) return undefined;
-    return typeof data.body === 'string'
-      ? interpolateAll(data.body, interpolateOpts)
+
+    const bodyString = typeof data.body === 'string'
+      ? data.body
       : JSON.stringify(data.body);
+
+    return interpolateAll(bodyString, interpolateOpts);
   }
 
   // ─────────────────────────────────────────────────────────────────
