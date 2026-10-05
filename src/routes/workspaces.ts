@@ -33,10 +33,13 @@ const workspaceSchema = {
 };
 
 export async function workspaceRoutes(app: FastifyInstance) {
-  const workspaceService = new WorkspaceService(
-    container.workspaceRepository,
-    container.agentRepository
-  );
+  const workspaceService = new WorkspaceService({
+    workspaceRepo: container.workspaceRepository,
+    agentRepo: container.agentRepository,
+    userSecretRepo: container.userSecretRepository,
+    providerConfigRepo: container.providerConfigRepository,
+    memorySchemaRepo: container.memorySchemaRepository,
+  });
 
   // List workspaces
   app.get(

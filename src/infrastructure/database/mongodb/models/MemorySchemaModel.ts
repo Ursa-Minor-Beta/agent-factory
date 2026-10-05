@@ -17,6 +17,7 @@ export interface MemorySchemaDocument extends Document {
   name: string;
   description: string | null;
   fields: MemorySchemaFieldDocument[];
+  workspaceId?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,14 +77,20 @@ const memorySchemaSchema = new Schema<MemorySchemaDocument>(
       type: [memorySchemaFieldSchema],
       default: [],
     },
+    workspaceId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Workspace',
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Unique constraint on userId + name
-memorySchemaSchema.index({ userId: 1, name: 1 }, { unique: true });
+// Unique constraint on userId + workspaceId + name (null workspace = global)
+memorySchemaSchema.index({ userId: 1, workspaceId: 1, name: 1 }, { unique: true });
+memorySchemaSchema.index({ userId: 1, workspaceId: 1 });
 memorySchemaSchema.index({ userId: 1, createdAt: -1 });
 
 export const MemorySchemaModel = mongoose.model<MemorySchemaDocument>(

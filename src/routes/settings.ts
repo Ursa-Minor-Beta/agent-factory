@@ -36,6 +36,8 @@ const providerConfigSchema = {
         baseUrl: { type: 'string' },
       },
     },
+    workspaceId: { type: 'string', nullable: true },
+    workspaceName: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -59,6 +61,15 @@ export async function settingsRoutes(app: FastifyInstance) {
       tags: ['providers'],
       summary: 'Get all provider configurations',
       security: [{ bearerAuth: [] }, { apiKey: [] }],
+      querystring: {
+        type: 'object',
+        properties: {
+          workspaceId: {
+            type: 'string',
+            description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
+          },
+        },
+      },
       response: {
         200: {
           type: 'object',
@@ -73,7 +84,16 @@ export async function settingsRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const configs = await providerConfigService.getAll(userId);
+    const query = request.query as { workspaceId?: string };
+
+    const options: { workspaceId?: string | null } = {};
+    if (query.workspaceId === 'null') {
+      options.workspaceId = null;
+    } else if (query.workspaceId) {
+      options.workspaceId = query.workspaceId;
+    }
+
+    const configs = await providerConfigService.getAll(userId, options);
 
     // Mask API keys in response
     const maskedConfigs = configs.map((c) => ({
@@ -82,6 +102,8 @@ export async function settingsRoutes(app: FastifyInstance) {
         ...c.config,
         apiKey: maskApiKey(c.config.apiKey),
       },
+      workspaceId: c.workspaceId ?? null,
+      workspaceName: c.workspaceName ?? null,
     }));
 
     return reply.send({
@@ -130,6 +152,8 @@ export async function settingsRoutes(app: FastifyInstance) {
           ...config.config,
           apiKey: maskApiKey(config.config.apiKey),
         },
+        workspaceId: config.workspaceId ?? null,
+        workspaceName: config.workspaceName ?? null,
       },
     });
   });
@@ -154,6 +178,10 @@ export async function settingsRoutes(app: FastifyInstance) {
               baseUrl: { type: 'string', description: 'Base URL (for ollama)' },
             },
           },
+          workspaceId: {
+            type: 'string',
+            description: 'Workspace ID to scope the config to. Omit for global scope.',
+          },
         },
       },
       response: {
@@ -175,6 +203,7 @@ export async function settingsRoutes(app: FastifyInstance) {
       name: string;
       isDefault?: boolean;
       config?: { apiKey?: string; baseUrl?: string };
+      workspaceId?: string;
     };
 
     const config = await providerConfigService.create(userId, {
@@ -182,6 +211,7 @@ export async function settingsRoutes(app: FastifyInstance) {
       name: body.name,
       isDefault: body.isDefault,
       config: body.config ?? {},
+      workspaceId: body.workspaceId,
     });
 
     return reply.status(201).send({
@@ -192,6 +222,8 @@ export async function settingsRoutes(app: FastifyInstance) {
           ...config.config,
           apiKey: maskApiKey(config.config.apiKey),
         },
+        workspaceId: config.workspaceId ?? null,
+        workspaceName: config.workspaceName ?? null,
       },
     });
   });
@@ -219,6 +251,11 @@ export async function settingsRoutes(app: FastifyInstance) {
               baseUrl: { type: 'string' },
             },
           },
+          workspaceId: {
+            type: 'string',
+            nullable: true,
+            description: 'Workspace ID to scope the config to. Set to null for global scope.',
+          },
         },
       },
       response: {
@@ -241,6 +278,7 @@ export async function settingsRoutes(app: FastifyInstance) {
     const body = request.body as {
       name?: string;
       config?: { apiKey?: string; baseUrl?: string };
+      workspaceId?: string | null;
     };
 
     const config = await providerConfigService.update(userId, id, body);
@@ -253,6 +291,8 @@ export async function settingsRoutes(app: FastifyInstance) {
           ...config.config,
           apiKey: maskApiKey(config.config.apiKey),
         },
+        workspaceId: config.workspaceId ?? null,
+        workspaceName: config.workspaceName ?? null,
       },
     });
   });
@@ -297,6 +337,8 @@ export async function settingsRoutes(app: FastifyInstance) {
           ...config.config,
           apiKey: maskApiKey(config.config.apiKey),
         },
+        workspaceId: config.workspaceId ?? null,
+        workspaceName: config.workspaceName ?? null,
       },
     });
   });

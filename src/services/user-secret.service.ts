@@ -1,4 +1,7 @@
-import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type {
+  IUserSecretRepository,
+  UserSecretQueryOptions,
+} from '../domain/interfaces/repositories/IUserSecretRepository.js';
 import type {
   UserSecret,
   CreateUserSecretDTO,
@@ -22,8 +25,8 @@ export class UserSecretService {
     }
   }
 
-  async getAll(userId: string): Promise<UserSecret[]> {
-    return this.userSecretRepo.findByUserId(userId);
+  async getAll(userId: string, options?: UserSecretQueryOptions): Promise<UserSecret[]> {
+    return this.userSecretRepo.findByUserId(userId, options);
   }
 
   async getById(userId: string, id: string): Promise<UserSecret> {
@@ -43,9 +46,12 @@ export class UserSecretService {
   ): Promise<UserSecret> {
     this.validateName(data.name);
 
-    const existing = await this.userSecretRepo.findByName(userId, data.name);
-    if (existing) {
-      throw new ConflictError(`Secret with name "${data.name}" already exists`);
+    // Check for duplicate within the same workspace scope
+    const workspaceIds: (string | null)[] = [data.workspaceId ?? null];
+    const existing = await this.userSecretRepo.findByName(userId, data.name, workspaceIds);
+    if (existing && existing.workspaceId === (data.workspaceId ?? null)) {
+      const scope = data.workspaceId ? 'workspace' : 'global';
+      throw new ConflictError(`Secret with name "${data.name}" already exists in ${scope} scope`);
     }
 
     return this.userSecretRepo.create({ ...data, userId });
@@ -67,9 +73,13 @@ export class UserSecretService {
     if (data.name !== undefined) {
       this.validateName(data.name);
       if (data.name !== existing.name) {
-        const duplicate = await this.userSecretRepo.findByName(userId, data.name);
-        if (duplicate) {
-          throw new ConflictError(`Secret with name "${data.name}" already exists`);
+        // Check for duplicate in the target workspace scope
+        const targetWorkspaceId = data.workspaceId !== undefined ? data.workspaceId : existing.workspaceId;
+        const workspaceIds: (string | null)[] = [targetWorkspaceId ?? null];
+        const duplicate = await this.userSecretRepo.findByName(userId, data.name, workspaceIds);
+        if (duplicate && duplicate.id !== id) {
+          const scope = targetWorkspaceId ? 'workspace' : 'global';
+          throw new ConflictError(`Secret with name "${data.name}" already exists in ${scope} scope`);
         }
       }
     }
@@ -93,9 +103,10 @@ export class UserSecretService {
   /**
    * Build a map of secret names to values for interpolation.
    * Used by RunService before workflow execution.
+   * @param workspaceId - If provided, includes workspace-scoped secrets (which take precedence)
    */
-  async buildSecretsMap(userId: string): Promise<Record<string, string>> {
-    const secrets = await this.userSecretRepo.findByUserId(userId);
+  async buildSecretsMap(userId: string, workspaceId?: string): Promise<Record<string, string>> {
+    const secrets = await this.userSecretRepo.findAvailableForAgent(userId, workspaceId);
     const map: Record<string, string> = {};
     for (const secret of secrets) {
       map[secret.name] = secret.value;

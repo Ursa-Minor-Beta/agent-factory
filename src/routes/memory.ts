@@ -46,6 +46,8 @@ const memorySchemaSchema = {
     name: { type: 'string' },
     description: { type: 'string', nullable: true },
     fields: { type: 'array', items: memorySchemaFieldSchema },
+    workspaceId: { type: 'string', nullable: true },
+    workspaceName: { type: 'string', nullable: true },
     recordCount: { type: 'number' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -82,6 +84,10 @@ export async function memoryRoutes(app: FastifyInstance) {
         properties: {
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
           offset: { type: 'integer', minimum: 0, default: 0 },
+          workspaceId: {
+            type: 'string',
+            description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
+          },
         },
       },
       response: {
@@ -98,9 +104,23 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { limit, offset } = request.query as { limit?: number; offset?: number };
+    const { limit, offset, workspaceId } = request.query as {
+      limit?: number;
+      offset?: number;
+      workspaceId?: string;
+    };
 
-    const schemas = await memorySchemaRepo.findByUserId(userId, { limit, offset });
+    const options: { limit?: number; offset?: number; workspaceId?: string | null } = {
+      limit,
+      offset,
+    };
+    if (workspaceId === 'null') {
+      options.workspaceId = null;
+    } else if (workspaceId) {
+      options.workspaceId = workspaceId;
+    }
+
+    const schemas = await memorySchemaRepo.findByUserId(userId, options);
 
     // Get record counts for all schemas in a single query
     const schemaIds = schemas.map((s) => s.id);
@@ -111,6 +131,8 @@ export async function memoryRoutes(app: FastifyInstance) {
     // Enrich schemas with record counts
     const enrichedSchemas = schemas.map((s) => ({
       ...s,
+      workspaceId: s.workspaceId ?? null,
+      workspaceName: s.workspaceName ?? null,
       recordCount: recordCounts.get(s.id) ?? 0,
     }));
 
@@ -159,7 +181,11 @@ export async function memoryRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
-      data: schema,
+      data: {
+        ...schema,
+        workspaceId: schema.workspaceId ?? null,
+        workspaceName: schema.workspaceName ?? null,
+      },
     });
   });
 
@@ -175,6 +201,10 @@ export async function memoryRoutes(app: FastifyInstance) {
           name: { type: 'string', minLength: 1, maxLength: 100 },
           description: { type: 'string', maxLength: 500 },
           fields: { type: 'array', items: memorySchemaFieldSchema, minItems: 1 },
+          workspaceId: {
+            type: 'string',
+            description: 'Workspace ID to scope the schema to. Omit for global scope.',
+          },
         },
         required: ['name', 'fields'],
       },
@@ -196,11 +226,13 @@ export async function memoryRoutes(app: FastifyInstance) {
     const { userId } = request.user as { userId: string };
     const body = request.body as Omit<CreateMemorySchemaDTO, 'userId'>;
 
-    // Check if name already exists
-    if (await memorySchemaRepo.nameExists(userId, body.name)) {
+    // Check if name already exists in the same scope
+    const workspaceId = body.workspaceId ?? null;
+    if (await memorySchemaRepo.nameExists(userId, body.name, workspaceId)) {
+      const scope = workspaceId ? 'workspace' : 'global';
       return reply.status(409).send({
         success: false,
-        error: { code: 'CONFLICT', message: `Collection "${body.name}" already exists` },
+        error: { code: 'CONFLICT', message: `Collection "${body.name}" already exists in ${scope} scope` },
       });
     }
 
@@ -211,7 +243,11 @@ export async function memoryRoutes(app: FastifyInstance) {
 
     return reply.status(201).send({
       success: true,
-      data: schema,
+      data: {
+        ...schema,
+        workspaceId: schema.workspaceId ?? null,
+        workspaceName: schema.workspaceName ?? null,
+      },
     });
   });
 
@@ -233,6 +269,11 @@ export async function memoryRoutes(app: FastifyInstance) {
           name: { type: 'string', minLength: 1, maxLength: 100 },
           description: { type: 'string', maxLength: 500 },
           fields: { type: 'array', items: memorySchemaFieldSchema },
+          workspaceId: {
+            type: 'string',
+            nullable: true,
+            description: 'Workspace ID to scope the schema to. Set to null for global scope.',
+          },
         },
       },
       response: {
@@ -264,19 +305,26 @@ export async function memoryRoutes(app: FastifyInstance) {
       });
     }
 
-    // Check name conflict
-    if (body.name && await memorySchemaRepo.nameExists(userId, body.name, id)) {
-      return reply.status(409).send({
-        success: false,
-        error: { code: 'CONFLICT', message: `Collection "${body.name}" already exists` },
-      });
+    // Check name conflict in target workspace scope
+    if (body.name) {
+      const targetWorkspaceId = body.workspaceId !== undefined ? body.workspaceId : existing.workspaceId;
+      if (await memorySchemaRepo.nameExists(userId, body.name, targetWorkspaceId ?? null, id)) {
+        return reply.status(409).send({
+          success: false,
+          error: { code: 'CONFLICT', message: `Collection "${body.name}" already exists` },
+        });
+      }
     }
 
     const schema = await memorySchemaRepo.update(id, body);
 
     return reply.send({
       success: true,
-      data: schema,
+      data: {
+        ...schema,
+        workspaceId: schema?.workspaceId ?? null,
+        workspaceName: schema?.workspaceName ?? null,
+      },
     });
   });
 

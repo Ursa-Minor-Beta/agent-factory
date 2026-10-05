@@ -1,5 +1,8 @@
 import type { IWorkspaceRepository } from '../domain/interfaces/repositories/IWorkspaceRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
+import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
+import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type {
   Workspace,
   CreateWorkspaceDTO,
@@ -11,11 +14,28 @@ import { NotFoundError, ForbiddenError, ValidationError } from '../utils/errors.
 
 export type WorkspaceDeletionMode = 'move-agents' | 'delete-agents';
 
+export interface WorkspaceServiceDependencies {
+  workspaceRepo: IWorkspaceRepository;
+  agentRepo?: IAgentRepository;
+  userSecretRepo?: IUserSecretRepository;
+  providerConfigRepo?: IProviderConfigRepository;
+  memorySchemaRepo?: IMemorySchemaRepository;
+}
+
 export class WorkspaceService {
-  constructor(
-    private workspaceRepo: IWorkspaceRepository,
-    private agentRepo?: IAgentRepository
-  ) {}
+  private workspaceRepo: IWorkspaceRepository;
+  private agentRepo?: IAgentRepository;
+  private userSecretRepo?: IUserSecretRepository;
+  private providerConfigRepo?: IProviderConfigRepository;
+  private memorySchemaRepo?: IMemorySchemaRepository;
+
+  constructor(deps: WorkspaceServiceDependencies) {
+    this.workspaceRepo = deps.workspaceRepo;
+    this.agentRepo = deps.agentRepo;
+    this.userSecretRepo = deps.userSecretRepo;
+    this.providerConfigRepo = deps.providerConfigRepo;
+    this.memorySchemaRepo = deps.memorySchemaRepo;
+  }
 
   async create(userId: string, data: Omit<CreateWorkspaceDTO, 'userId'>): Promise<Workspace> {
     return this.workspaceRepo.create({ ...data, userId });
@@ -84,6 +104,13 @@ export class WorkspaceService {
         await this.agentRepo.update(agent.id, { workspaceId: null });
       }
     }
+
+    // Delete workspace-scoped resources
+    await Promise.all([
+      this.userSecretRepo?.deleteByWorkspaceId(workspaceId),
+      this.providerConfigRepo?.deleteByWorkspaceId(workspaceId),
+      this.memorySchemaRepo?.deleteByWorkspaceId(workspaceId),
+    ]);
 
     // Delete the workspace
     await this.workspaceRepo.delete(workspaceId);
