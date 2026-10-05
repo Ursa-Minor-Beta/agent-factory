@@ -2,7 +2,7 @@ import type { WorkflowNode } from '../../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from '../base.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
-import { interpolateAll } from '../utils.js';
+import { interpolateAll } from '../interpolate.js';
 import * as memoryService from '../../../domain/services/memory.service.js';
 
 interface MemoryDeleteNodeData {

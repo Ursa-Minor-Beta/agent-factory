@@ -2,7 +2,7 @@ import type { WorkflowNode } from '../../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from '../base.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
-import { interpolateAll } from '../utils.js';
+import { interpolateDeep } from '../interpolate.js';
 import * as memoryService from '../../../domain/services/memory.service.js';
 import { extractAndStoreFiles } from '../file-helper.js';
 
@@ -43,7 +43,7 @@ export class MemorySearchNode extends BaseNode {
     }
 
     const interpolatedFilters = data.filters
-      ? this.interpolateObject(data.filters, interpolateOpts)
+      ? interpolateDeep(data.filters, interpolateOpts)
       : undefined;
 
     const records = await memoryService.searchMemoryRecords(
@@ -77,22 +77,5 @@ export class MemorySearchNode extends BaseNode {
       outputs: cleanedOutput as Record<string, unknown>,
       files: fileRefs.length > 0 ? fileRefs : undefined,
     };
-  }
-
-  private interpolateObject(
-    obj: Record<string, unknown>,
-    opts: { secrets: Record<string, string>; context: ExecutionContext }
-  ): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      if (typeof value === 'string') {
-        result[key] = interpolateAll(value, opts);
-      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-        result[key] = this.interpolateObject(value as Record<string, unknown>, opts);
-      } else {
-        result[key] = value;
-      }
-    }
-    return result;
   }
 }

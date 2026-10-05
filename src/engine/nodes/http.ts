@@ -2,7 +2,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { NodeExecutionError } from '../../utils/errors.js';
-import { interpolateAll } from './utils.js';
+import { interpolateAll } from './interpolate.js';
 import { extractAndStoreFiles } from './file-helper.js';
 
 type HttpPersistedField = 'url' | 'method' | 'headers' | 'body' | 'status' | 'responseHeaders' | 'sseEvents';
