@@ -3,7 +3,7 @@ import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { WorkflowExecutor } from '../executor.js';
 import { resolveRunOutput } from '../../utils/node-ref.js';
-import { interpolateAll } from './utils.js';
+import { interpolateAll } from './interpolate.js';
 import { extractAndStoreFiles } from './file-helper.js';
 
 interface AgentNodeData {
