@@ -1,8 +1,9 @@
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import type {
   CreateMemorySchemaDTO,
+  MemorySearchOptions,
   UpdateMemorySchemaDTO,
 } from '../domain/entities/Memory.js';
 import * as memoryService from '../domain/services/memory.service.js';
@@ -383,7 +384,7 @@ export async function memoryRoutes(app: FastifyInstance) {
   async function getSchemaWithOwnership(
     schemaId: string,
     userId: string,
-    reply: typeof import('fastify').FastifyReply.prototype
+    reply: FastifyReply
   ) {
     const schema = await memorySchemaRepo.findById(schemaId);
     if (!schema || schema.userId !== userId) {
