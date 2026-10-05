@@ -39,6 +39,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     userSecretRepo: container.userSecretRepository,
     providerConfigRepo: container.providerConfigRepository,
     memorySchemaRepo: container.memorySchemaRepository,
+    memoryStoreRepo: container.memoryStoreRepository,
   });
 
   // List workspaces
@@ -205,22 +206,12 @@ export async function workspaceRoutes(app: FastifyInstance) {
     {
       onRequest: [requireAuth],
       schema: {
-        description: 'Delete workspace with option to delete or move agents',
+        description: 'Delete workspace and all its contents (agents, secrets, providers, memory)',
         tags: ['workspaces'],
         params: {
           type: 'object',
           properties: {
             id: { type: 'string' },
-          },
-        },
-        querystring: {
-          type: 'object',
-          properties: {
-            mode: {
-              type: 'string',
-              enum: ['move-agents', 'delete-agents'],
-              default: 'move-agents',
-            },
           },
         },
         response: {
@@ -230,7 +221,6 @@ export async function workspaceRoutes(app: FastifyInstance) {
               success: { type: 'boolean' },
             },
           },
-          400: errorSchema,
           401: errorSchema,
           403: errorSchema,
           404: errorSchema,
@@ -240,9 +230,8 @@ export async function workspaceRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const user = request.user as AuthenticatedUser;
       const { id } = request.params as { id: string };
-      const { mode = 'move-agents' } = request.query as { mode?: 'move-agents' | 'delete-agents' };
 
-      await workspaceService.delete(user.userId, id, mode);
+      await workspaceService.delete(user.userId, id);
       return reply.send({ success: true });
     }
   );

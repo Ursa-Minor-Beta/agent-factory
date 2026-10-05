@@ -128,6 +128,11 @@ export class MongoAgentRepository implements IAgentRepository {
     return result !== null;
   }
 
+  async deleteByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await AgentModel.deleteMany({ workspaceId });
+    return result.deletedCount;
+  }
+
   async count(): Promise<number> {
     return AgentModel.countDocuments();
   }

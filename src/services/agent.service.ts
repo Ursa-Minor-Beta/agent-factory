@@ -13,8 +13,8 @@ import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 export class AgentService {
   constructor(
     private agentRepo: IAgentRepository,
-    private sessionRepo?: ISessionRepository,
-    private messageRepo?: IMessageRepository
+    private sessionRepo: ISessionRepository,
+    private messageRepo: IMessageRepository
   ) {}
 
   async create(userId: string, data: Omit<CreateAgentDTO, 'userId'>): Promise<Agent> {
@@ -62,14 +62,17 @@ export class AgentService {
     }
 
     // Cascade delete sessions and messages
-    if (this.sessionRepo && this.messageRepo) {
-      const sessions = await this.sessionRepo.findByAgentId(agentId);
-      for (const session of sessions) {
-        await this.messageRepo.deleteBySessionId(session.id);
-      }
-      await this.sessionRepo.deleteByAgentId(agentId);
-    }
+    const sessions = await this.sessionRepo.findByAgentId(agentId);
 
-    await this.agentRepo.delete(agentId);
+    // Delete all messages in parallel
+    await Promise.all(
+      sessions.map((session) => this.messageRepo.deleteBySessionId(session.id))
+    );
+
+    // Delete sessions and agent in parallel
+    await Promise.all([
+      this.sessionRepo.deleteByAgentId(agentId),
+      this.agentRepo.delete(agentId),
+    ]);
   }
 }

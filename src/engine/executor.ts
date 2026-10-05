@@ -190,6 +190,7 @@ export class WorkflowExecutor {
       fileRepo: options.fileRepo ?? this.fileRepo,
       callStack: options.callStack,
       userId: options.userId ?? userId,
+      workspaceId: agent.workspaceId, // For workspace-scoped resources
       currentRunId: runId,
       sessionId: options.sessionId,
       messages: options.messages,
