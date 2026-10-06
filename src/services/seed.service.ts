@@ -5,7 +5,7 @@ import type { WorkflowNode } from '../domain/entities/Agent.js';
 import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
 import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
-import { DEFAULT_AGENT } from '../engine/agents/default.js';
+import { CHAT_AGENT } from '../engine/agents/chat.js';
 import { BROWSER_SCREENSHOT } from '../engine/agents/browser-screenshot.js';
 import { BROWSER_EXECUTE } from '../engine/agents/browser-execute.js';
 import { TEST_STEP_EXECUTOR, TEST_ORCHESTRATOR, TEST_ORCHESTRATOR_NODES } from '../engine/agents/testing/index.js';
@@ -139,7 +139,7 @@ export class SeedService {
 
     // System agents → Start workspace
     await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes, startId);
-    await this.findOrCreateSystemAgent(admin.id, 'chat-agent', DEFAULT_AGENT.name, DEFAULT_AGENT.description, DEFAULT_AGENT.nodes, startId);
+    await this.findOrCreateSystemAgent(admin.id, 'chat-agent', CHAT_AGENT.name, CHAT_AGENT.description, CHAT_AGENT.nodes, startId);
 
     // Browser agents → QA workspace
     await this.findOrCreateDefaultAgent(admin.id, 'browser-screenshot', BROWSER_SCREENSHOT.name, BROWSER_SCREENSHOT.description, BROWSER_SCREENSHOT.nodes, qaId);
@@ -182,7 +182,7 @@ export class SeedService {
     // Update system agents (by systemName) → Start workspace
     const systemAgents = [
       { systemName: 'agent-creator', name: AGENT_CREATOR.name, desc: AGENT_CREATOR.description, nodes: AGENT_CREATOR.nodes },
-      { systemName: 'chat-agent', name: DEFAULT_AGENT.name, desc: DEFAULT_AGENT.description, nodes: DEFAULT_AGENT.nodes },
+      { systemName: 'chat-agent', name: CHAT_AGENT.name, desc: CHAT_AGENT.description, nodes: CHAT_AGENT.nodes },
     ];
 
     for (const { systemName, name, desc, nodes } of systemAgents) {
