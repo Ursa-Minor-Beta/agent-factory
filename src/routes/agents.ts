@@ -10,7 +10,14 @@ import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js'
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
-import { DEFAULT_AGENT } from '../engine/agents/default.js';
+import {
+  CHAT_AGENT,
+  AGENT_CREATOR,
+  BROWSER_SCREENSHOT,
+  BROWSER_EXECUTE,
+  TEST_STEP_EXECUTOR,
+  TEST_ORCHESTRATOR,
+} from '../engine/agents/index.js';
 import { isOriginAllowed } from '../utils/cors.js';
 
 // Schemas
@@ -283,7 +290,14 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (_request, reply) => {
     return reply.send({
       success: true,
-      data: [DEFAULT_AGENT],
+      data: [
+        CHAT_AGENT,
+        AGENT_CREATOR,
+        BROWSER_SCREENSHOT,
+        BROWSER_EXECUTE,
+        TEST_STEP_EXECUTOR,
+        TEST_ORCHESTRATOR,
+      ],
     });
   });
 
