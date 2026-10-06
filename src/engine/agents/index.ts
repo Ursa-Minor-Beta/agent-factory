@@ -1,4 +1,4 @@
-export { CHAT_AGENT, DEFAULT_NODES } from './chat.js';
+export { CHAT_AGENT, CHAT_NODES } from './chat.js';
 export { AGENT_CREATOR, AGENT_CREATOR_NODES } from './agent-creator.js';
 export { BROWSER_SCREENSHOT, BROWSER_SCREENSHOT_NODES } from './browser-screenshot.js';
 export { BROWSER_EXECUTE, BROWSER_EXECUTE_NODES } from './browser-execute.js';
