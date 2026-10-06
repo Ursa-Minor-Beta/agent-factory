@@ -72,7 +72,12 @@ export interface AgentQueryOptions {
   limit?: number;
 }
 
+/** Agent with workspace name populated from lookup */
+export interface AgentWithWorkspace extends Agent {
+  workspaceName?: string;
+}
+
 export interface AgentListResult {
-  agents: Agent[];
+  agents: AgentWithWorkspace[];
   total: number;
 }

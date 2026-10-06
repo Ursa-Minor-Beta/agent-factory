@@ -79,6 +79,7 @@ const agentSchema = {
     nodes: { type: 'array', items: nodeSchema },
     editorData: editorDataSchema,
     workspaceId: { type: 'string', nullable: true },
+    workspaceName: { type: 'string', nullable: true },
     systemName: { type: 'string', nullable: true },
     defaultName: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
