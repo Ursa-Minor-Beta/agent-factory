@@ -12,7 +12,12 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Composable Agents** - Agents can call other agents as sub-workflows
 - **Multi-Provider LLM** - OpenAI, Anthropic, Ollama
 - **Agent Creator** - System agent that builds custom agents through conversation
-- **Builtin Tools** - LLM function calling (`create_agent`, `get_agent`, `update_agent`, `update_session_notes`, `append_session_notes`)
+- **Memory System** - Persistent storage with collections, schemas, and CRUD operations
+- **Builtin Tools** - LLM function calling for agents, memory, collections, and session notes
+  - Agent tools: `create_agent`, `get_agent`, `update_agent`
+  - Memory tools: `memory_store`, `memory_search`, `memory_update`, `memory_delete`
+  - Collection tools: `create_collection`, `get_collection`, `update_collection`, `list_collections`, `delete_collection`
+  - Session tools: `update_session_notes`, `append_session_notes`
 - **Multi-User** - JWT auth + API keys
 - **Streaming Chat** - Real-time streaming status
 - **Encrypted Secrets** - Provider API keys encrypted at rest (AES-256-GCM)
@@ -106,7 +111,11 @@ On startup, the server creates:
 | `http` | HTTP/API requests with SSE streaming support |
 | `js` | JavaScript code execution |
 | `agent` | Execute sub-agent |
-| `if-else` | Conditional branching |
+| `branch` | Conditional branching (if-else) |
+| `memory-store` | Store data in memory collection |
+| `memory-search` | Search/retrieve memory records |
+| `memory-update` | Update existing memory records |
+| `memory-delete` | Delete memory records |
 
 Get full node documentation: `GET /api/nodes`
 

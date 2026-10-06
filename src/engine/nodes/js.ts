@@ -3,7 +3,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { config } from '../../config/index.js';
-import { interpolateAll } from './utils.js';
+import { interpolateDeep } from './interpolate.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { extractAndStoreFiles } from './file-helper.js';
 
@@ -107,7 +107,7 @@ export class JsNode extends BaseNode {
   async execute(
     node: WorkflowNode,
     context: ExecutionContext,
-    options: ExecutionOptions
+    _options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
     const data = node.data as unknown as JsNodeData;
     const code = data.code ?? 'output = input;';
@@ -115,7 +115,7 @@ export class JsNode extends BaseNode {
     const timeout = Math.min(data.timeout ?? defaultTimeoutMs, maxTimeoutMs);
     const memoryMb = Math.min(data.memoryMb ?? defaultMemoryMb, maxMemoryMb);
 
-    const input = this.resolveInput(data, context, options);
+    const input = this.resolveInput(data, context);
     const state = this.buildState(data, input);
 
     try {
@@ -144,20 +144,8 @@ export class JsNode extends BaseNode {
     }
   }
 
-  private resolveInput(
-    data: JsNodeData,
-    context: ExecutionContext,
-    options: ExecutionOptions
-  ): unknown {
-    if (data.input && typeof data.input === 'string') {
-      const interpolated = interpolateAll(data.input, { context });
-      try {
-        return JSON.parse(interpolated);
-      } catch {
-        return interpolated;
-      }
-    }
-    return options.workflowInput;
+  private resolveInput(data: JsNodeData, context: ExecutionContext): unknown {
+    return interpolateDeep(data.input, { context });
   }
 
   private buildState(data: JsNodeData, input: unknown): Record<string, unknown> | undefined {

@@ -1,7 +1,7 @@
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
-import { interpolateAll } from './utils.js';
+import { interpolateAll } from './interpolate.js';
 
 /**
  * Branch node - Multi-way conditional branching with execution control

@@ -43,7 +43,7 @@ Data flows between nodes using templates in node data. Use \`{{node:nodeId.path}
 \`\`\`
 
 Available template patterns:
-- \`{{node:nodeId.path}}\` - Reference another node's output (e.g., \`{{node:http-1.response.json}}\`, \`{{node:input-1.message}}\`)
+- \`{{node:nodeId.path}}\` - Reference another node's output (e.g., \`{{node:http-1.response.json}}\`, \`{{node:input.message}}\`)
 - \`{{secret:KEY}}\` - Reference a secret (e.g., \`{{secret:API_KEY}}\`)
 
 ## Workflow Guidelines
@@ -81,9 +81,9 @@ Google models:
 \`\`\`json
 {
   "nodes": [
-    { "id": "input-1", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
-    { "id": "llm-1", "type": "llm", "data": { "provider": "openai", "model": "gpt-4o", "userPrompt": "{{node:input-1.message}}" } },
-    { "id": "output-1", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
+    { "id": "input", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
+    { "id": "llm-1", "type": "llm", "data": { "provider": "openai", "model": "gpt-4o", "userPrompt": "{{node:input.message}}" } },
+    { "id": "output", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
   ]
 }
 \`\`\`
@@ -92,10 +92,10 @@ Google models:
 \`\`\`json
 {
   "nodes": [
-    { "id": "input-1", "type": "input", "data": { "schema": { "query": { "type": "string" } } } },
-    { "id": "http-1", "type": "http", "data": { "url": "https://api.example.com?q={{node:input-1.query}}" } },
+    { "id": "input", "type": "input", "data": { "schema": { "query": { "type": "string" } } } },
+    { "id": "http-1", "type": "http", "data": { "url": "https://api.example.com?q={{node:input.query}}" } },
     { "id": "js-1", "type": "js", "data": { "input": "{{node:http-1.response}}", "code": "return input.data;" } },
-    { "id": "output-1", "type": "output", "data": { "result": "{{node:js-1.output}}" } }
+    { "id": "output", "type": "output", "data": { "result": "{{node:js-1.output}}" } }
   ]
 }
 \`\`\`
@@ -106,12 +106,12 @@ The if-else node evaluates a condition and routes data to different paths. **IMP
 \`\`\`json
 {
   "nodes": [
-    { "id": "input-1", "type": "input", "data": { "schema": { "score": { "type": "number" } } } },
+    { "id": "input", "type": "input", "data": { "schema": { "score": { "type": "number" } } } },
     {
       "id": "if-else-1",
       "type": "if-else",
       "data": {
-        "input": "{{node:input-1.score}}",
+        "input": "{{node:input.score}}",
         "expression": "input >= 70"
       }
     },
@@ -134,7 +134,7 @@ The if-else node evaluates a condition and routes data to different paths. **IMP
       }
     },
     {
-      "id": "output-1",
+      "id": "output",
       "type": "output",
       "data": {
         "passed": "{{node:if-else-1.result}}",
@@ -159,7 +159,7 @@ When an LLM needs to call another agent as a tool:
 \`\`\`json
 {
   "nodes": [
-    { "id": "input-1", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
+    { "id": "input", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
     {
       "id": "llm-1",
       "type": "llm",
@@ -167,7 +167,7 @@ When an LLM needs to call another agent as a tool:
         "provider": "openai",
         "model": "gpt-4o-mini",
         "systemPrompt": "You are a helpful assistant. Use the available tools when needed.",
-        "userPrompt": "{{node:input-1.message}}",
+        "userPrompt": "{{node:input.message}}",
         "tools": [
           {
             "type": "agent",
@@ -186,7 +186,7 @@ When an LLM needs to call another agent as a tool:
         "maxToolCalls": 5
       }
     },
-    { "id": "output-1", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
+    { "id": "output", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
   ]
 }
 \`\`\`
@@ -300,13 +300,13 @@ Add builtin memory tools so the LLM can dynamically read/write:
 \`\`\`json
 {
   "nodes": [
-    { "id": "input-1", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
+    { "id": "input", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
     {
       "id": "llm-1",
       "type": "llm",
       "data": {
         "systemPrompt": "You are a helpful assistant with long-term memory.\\n\\nBefore answering, use memory_search to check for relevant past information.\\nAfter learning something important, use memory_store to save it for future reference.",
-        "userPrompt": "{{node:input-1.message}}",
+        "userPrompt": "{{node:input.message}}",
         "tools": [
           { "type": "builtin", "name": "memory_store" },
           { "type": "builtin", "name": "memory_search" },
@@ -316,7 +316,7 @@ Add builtin memory tools so the LLM can dynamically read/write:
         "maxToolCalls": 5
       }
     },
-    { "id": "output-1", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
+    { "id": "output", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
   ]
 }
 \`\`\`
@@ -342,13 +342,13 @@ For fixed data flow where memory operations happen at specific workflow points:
 \`\`\`json
 {
   "nodes": [
-    { "id": "input-1", "type": "input", "data": { "schema": { "query": { "type": "string" }, "topic": { "type": "string" } } } },
+    { "id": "input", "type": "input", "data": { "schema": { "query": { "type": "string" }, "topic": { "type": "string" } } } },
     {
       "id": "memory-search-1",
       "type": "memory-search",
       "data": {
         "collection": "knowledge_base",
-        "filters": { "topic": "{{node:input-1.topic}}" },
+        "filters": { "topic": "{{node:input.topic}}" },
         "limit": 5
       }
     },
@@ -359,7 +359,7 @@ For fixed data flow where memory operations happen at specific workflow points:
         "provider": "openai",
         "model": "gpt-4o",
         "systemPrompt": "Answer based on the following context:\\n{{node:memory-search-1.records}}",
-        "userPrompt": "{{node:input-1.query}}"
+        "userPrompt": "{{node:input.query}}"
       }
     },
     {
@@ -367,11 +367,11 @@ For fixed data flow where memory operations happen at specific workflow points:
       "type": "memory-store",
       "data": {
         "collection": "conversation_log",
-        "query": "{{node:input-1.query}}",
+        "query": "{{node:input.query}}",
         "response": "{{node:llm-1.response}}"
       }
     },
-    { "id": "output-1", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
+    { "id": "output", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
   ]
 }
 \`\`\`
@@ -436,7 +436,7 @@ Before creating any agent, mentally verify:
 
 export const AGENT_CREATOR_NODES: WorkflowNode[] = [
   {
-    id: 'input-1',
+    id: 'input',
     type: 'input',
     data: {
       schema: {
@@ -452,7 +452,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
       model: 'gpt-4o',
       maxMessages: '20',
       systemPrompt: AGENT_CREATOR_SYSTEM_PROMPT,
-      userPrompt: '{{node:input-1.message}}',
+      userPrompt: '{{node:input.message}}',
       temperature: 0.7,
       maxTokens: 4000,
       tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL, ...SESSION_NOTES_TOOLS, ...COLLECTION_TOOLS],
@@ -460,7 +460,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
     },
   },
   {
-    id: 'output-1',
+    id: 'output',
     type: 'output',
     data: {
       response: '{{node:llm-creator.response}}',

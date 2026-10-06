@@ -3,10 +3,11 @@
  */
 
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
+import { BAAS_HTTP_TIMEOUT_MS, BAAS_MESSAGE_TIMEOUT } from './baas.js';
 
 export const BROWSER_EXECUTE_NODES: WorkflowNode[] = [
   {
-    id: 'input-1',
+    id: 'input',
     type: 'input',
     data: {
       schema: {
@@ -31,17 +32,18 @@ export const BROWSER_EXECUTE_NODES: WorkflowNode[] = [
     type: 'http',
     data: {
       method: 'POST',
-      url: '{{node:input-1.baasHost}}/api/async/message',
+      url: '{{node:input.baasHost}}/api/async/message',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
       },
-      body: '{"program":"{{node:input-1.baasCode}}","sessionID": "{{node:input-1.sessionID}}", "stopSession": false}',
+      body: '{"timeout":"' + BAAS_MESSAGE_TIMEOUT + '","program":"{{node:input.baasCode}}","sessionID": "{{node:input.sessionID}}", "stopSession": false}',
       persistedFields: ['body', 'sseEvents'],
     },
   },
   {
-    id: 'output-1',
+    id: 'output',
     type: 'output',
     data: {
       value: '{{node:http-3.response.sessionID}}',

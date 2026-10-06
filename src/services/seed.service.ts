@@ -1,5 +1,6 @@
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
+import type { IWorkspaceRepository } from '../domain/interfaces/repositories/IWorkspaceRepository.js';
 import type { WorkflowNode } from '../domain/entities/Agent.js';
 import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
@@ -12,7 +13,8 @@ import { TEST_STEP_EXECUTOR, TEST_ORCHESTRATOR, TEST_ORCHESTRATOR_NODES } from '
 export class SeedService {
   constructor(
     private userRepo: IUserRepository,
-    private agentRepo: IAgentRepository
+    private agentRepo: IAgentRepository,
+    private workspaceRepo: IWorkspaceRepository
   ) {}
 
   private async getAdminUser() {
@@ -27,10 +29,15 @@ export class SeedService {
     systemName: string,
     name: string,
     description: string,
-    nodes: WorkflowNode[]
+    nodes: WorkflowNode[],
+    workspaceId?: string
   ): Promise<string> {
     const existing = await this.agentRepo.findBySystemName(systemName);
     if (existing) {
+      // Update workspace if provided
+      if (workspaceId && existing.workspaceId !== workspaceId) {
+        await this.agentRepo.update(existing.id, { workspaceId });
+      }
       return existing.id;
     }
     const agent = await this.agentRepo.createSystemAgent({
@@ -39,6 +46,7 @@ export class SeedService {
       description,
       nodes,
       systemName,
+      workspaceId,
     });
     return agent.id;
   }
@@ -51,10 +59,15 @@ export class SeedService {
     defaultName: string,
     name: string,
     description: string,
-    nodes: WorkflowNode[]
+    nodes: WorkflowNode[],
+    workspaceId?: string
   ): Promise<string> {
     const existing = await this.agentRepo.findByDefaultName(defaultName);
     if (existing) {
+      // Update workspace if provided
+      if (workspaceId && existing.workspaceId !== workspaceId) {
+        await this.agentRepo.update(existing.id, { workspaceId });
+      }
       return existing.id;
     }
     const agent = await this.agentRepo.create({
@@ -63,6 +76,7 @@ export class SeedService {
       description,
       nodes,
       defaultName,
+      workspaceId,
     });
     return agent.id;
   }
@@ -83,37 +97,72 @@ export class SeedService {
     return { created: true, email: config.admin.email! };
   }
 
+  async seedWorkspaces(): Promise<{ startId: string; qaId: string }> {
+    const admin = await this.getAdminUser();
+    if (!admin) {
+      throw new Error('Admin user not found - cannot seed workspaces');
+    }
+
+    // Upsert "Start" workspace
+    let startWorkspace = await this.workspaceRepo.findByDefaultName('start');
+    if (!startWorkspace) {
+      startWorkspace = await this.workspaceRepo.create({
+        userId: admin.id,
+        name: 'Start',
+        description: 'Default workspace for system and starter agents',
+        defaultName: 'start',
+      });
+    }
+
+    // Upsert "QA" workspace
+    let qaWorkspace = await this.workspaceRepo.findByDefaultName('qa');
+    if (!qaWorkspace) {
+      qaWorkspace = await this.workspaceRepo.create({
+        userId: admin.id,
+        name: 'QA',
+        description: 'Workspace for testing and QA agents',
+        defaultName: 'qa',
+      });
+    }
+
+    return { startId: startWorkspace.id, qaId: qaWorkspace.id };
+  }
+
   async seedSystemAgents(): Promise<{ created: string[] }> {
     const admin = await this.getAdminUser();
     if (!admin) {
       return { created: [] };
     }
 
-    // System agents (findBySystemName)
-    await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes);
-    await this.findOrCreateSystemAgent(admin.id, 'chat-agent', DEFAULT_AGENT.name, DEFAULT_AGENT.description, DEFAULT_AGENT.nodes);
+    // Seed workspaces first
+    const { startId, qaId } = await this.seedWorkspaces();
 
-    // Default agents (findByDefaultName)
-    await this.findOrCreateDefaultAgent(admin.id, 'browser-screenshot', BROWSER_SCREENSHOT.name, BROWSER_SCREENSHOT.description, BROWSER_SCREENSHOT.nodes);
-    await this.findOrCreateDefaultAgent(admin.id, 'browser-execute', BROWSER_EXECUTE.name, BROWSER_EXECUTE.description, BROWSER_EXECUTE.nodes);
+    // System agents → Start workspace
+    await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes, startId);
+    await this.findOrCreateSystemAgent(admin.id, 'chat-agent', DEFAULT_AGENT.name, DEFAULT_AGENT.description, DEFAULT_AGENT.nodes, startId);
 
-    // Test Step Executor
+    // Browser agents → QA workspace
+    await this.findOrCreateDefaultAgent(admin.id, 'browser-screenshot', BROWSER_SCREENSHOT.name, BROWSER_SCREENSHOT.description, BROWSER_SCREENSHOT.nodes, qaId);
+    await this.findOrCreateDefaultAgent(admin.id, 'browser-execute', BROWSER_EXECUTE.name, BROWSER_EXECUTE.description, BROWSER_EXECUTE.nodes, qaId);
+
+    // Test Step Executor → QA workspace
     const testStepExecutorId = await this.findOrCreateDefaultAgent(
       admin.id,
       'test-step-executor',
       TEST_STEP_EXECUTOR.name,
       TEST_STEP_EXECUTOR.description,
-      TEST_STEP_EXECUTOR.nodes
+      TEST_STEP_EXECUTOR.nodes,
+      qaId
     );
 
-    // Test Orchestrator (inject Test Step Executor ID)
+    // Test Orchestrator → QA workspace (inject Test Step Executor ID)
     const orchestratorNodes = JSON.parse(
       JSON.stringify(TEST_ORCHESTRATOR_NODES).replace(
         '{{AGENT_ID:Test Step Executor}}',
         testStepExecutorId
       )
     ) as WorkflowNode[];
-    await this.findOrCreateDefaultAgent(admin.id, 'test-orchestrator', TEST_ORCHESTRATOR.name, TEST_ORCHESTRATOR.description, orchestratorNodes);
+    await this.findOrCreateDefaultAgent(admin.id, 'test-orchestrator', TEST_ORCHESTRATOR.name, TEST_ORCHESTRATOR.description, orchestratorNodes, qaId);
 
     return { created: [] };
   }
@@ -127,7 +176,10 @@ export class SeedService {
     const updated: string[] = [];
     const created: string[] = [];
 
-    // Update system agents (by systemName)
+    // Seed workspaces first
+    const { startId, qaId } = await this.seedWorkspaces();
+
+    // Update system agents (by systemName) → Start workspace
     const systemAgents = [
       { systemName: 'agent-creator', name: AGENT_CREATOR.name, desc: AGENT_CREATOR.description, nodes: AGENT_CREATOR.nodes },
       { systemName: 'chat-agent', name: DEFAULT_AGENT.name, desc: DEFAULT_AGENT.description, nodes: DEFAULT_AGENT.nodes },
@@ -136,15 +188,15 @@ export class SeedService {
     for (const { systemName, name, desc, nodes } of systemAgents) {
       const existing = await this.agentRepo.findBySystemName(systemName);
       if (existing) {
-        await this.agentRepo.update(existing.id, { name, description: desc, nodes });
+        await this.agentRepo.update(existing.id, { name, description: desc, nodes, workspaceId: startId });
         updated.push(name);
       } else {
-        await this.agentRepo.createSystemAgent({ userId: admin.id, name, description: desc, nodes, systemName });
+        await this.agentRepo.createSystemAgent({ userId: admin.id, name, description: desc, nodes, systemName, workspaceId: startId });
         created.push(name);
       }
     }
 
-    // Get Test Step Executor ID first (create if missing)
+    // Get Test Step Executor ID first (create if missing) → QA workspace
     let testStepExecutor = await this.agentRepo.findByDefaultName('test-step-executor');
     if (!testStepExecutor) {
       testStepExecutor = await this.agentRepo.create({
@@ -153,6 +205,7 @@ export class SeedService {
         description: TEST_STEP_EXECUTOR.description,
         nodes: TEST_STEP_EXECUTOR.nodes,
         defaultName: 'test-step-executor',
+        workspaceId: qaId,
       });
       created.push(TEST_STEP_EXECUTOR.name);
     } else {
@@ -160,6 +213,7 @@ export class SeedService {
         name: TEST_STEP_EXECUTOR.name,
         description: TEST_STEP_EXECUTOR.description,
         nodes: TEST_STEP_EXECUTOR.nodes,
+        workspaceId: qaId,
       });
       updated.push(TEST_STEP_EXECUTOR.name);
     }
@@ -174,18 +228,18 @@ export class SeedService {
 
     // Update default agents (by defaultName)
     const defaultAgents = [
-      { defaultName: 'browser-screenshot', name: BROWSER_SCREENSHOT.name, desc: BROWSER_SCREENSHOT.description, nodes: BROWSER_SCREENSHOT.nodes },
-      { defaultName: 'browser-execute', name: BROWSER_EXECUTE.name, desc: BROWSER_EXECUTE.description, nodes: BROWSER_EXECUTE.nodes },
-      { defaultName: 'test-orchestrator', name: TEST_ORCHESTRATOR.name, desc: TEST_ORCHESTRATOR.description, nodes: orchestratorNodes },
+      { defaultName: 'browser-screenshot', name: BROWSER_SCREENSHOT.name, desc: BROWSER_SCREENSHOT.description, nodes: BROWSER_SCREENSHOT.nodes, workspaceId: qaId },
+      { defaultName: 'browser-execute', name: BROWSER_EXECUTE.name, desc: BROWSER_EXECUTE.description, nodes: BROWSER_EXECUTE.nodes, workspaceId: qaId },
+      { defaultName: 'test-orchestrator', name: TEST_ORCHESTRATOR.name, desc: TEST_ORCHESTRATOR.description, nodes: orchestratorNodes, workspaceId: qaId },
     ];
 
-    for (const { defaultName, name, desc, nodes } of defaultAgents) {
+    for (const { defaultName, name, desc, nodes, workspaceId } of defaultAgents) {
       const existing = await this.agentRepo.findByDefaultName(defaultName);
       if (existing) {
-        await this.agentRepo.update(existing.id, { name, description: desc, nodes });
+        await this.agentRepo.update(existing.id, { name, description: desc, nodes, workspaceId });
         updated.push(name);
       } else {
-        await this.agentRepo.create({ userId: admin.id, name, description: desc, nodes, defaultName });
+        await this.agentRepo.create({ userId: admin.id, name, description: desc, nodes, defaultName, workspaceId });
         created.push(name);
       }
     }

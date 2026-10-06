@@ -2,7 +2,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { NodeExecutionError } from '../../utils/errors.js';
-import { interpolateAll } from './utils.js';
+import { interpolateAll } from './interpolate.js';
 import { extractAndStoreFiles } from './file-helper.js';
 
 type HttpPersistedField = 'url' | 'method' | 'headers' | 'body' | 'status' | 'responseHeaders' | 'sseEvents';
@@ -156,9 +156,12 @@ export class HttpNode extends BaseNode {
     interpolateOpts: { secrets: Record<string, string>; context: ExecutionContext }
   ): string | undefined {
     if (method === 'GET' || data.body === undefined) return undefined;
-    return typeof data.body === 'string'
-      ? interpolateAll(data.body, interpolateOpts)
+
+    const bodyString = typeof data.body === 'string'
+      ? data.body
       : JSON.stringify(data.body);
+
+    return interpolateAll(bodyString, interpolateOpts);
   }
 
   // ─────────────────────────────────────────────────────────────────

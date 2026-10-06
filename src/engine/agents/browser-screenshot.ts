@@ -4,10 +4,11 @@
  */
 
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
+import { BAAS_HTTP_TIMEOUT_MS, BAAS_MESSAGE_TIMEOUT } from './baas.js';
 
 export const BROWSER_SCREENSHOT_NODES: WorkflowNode[] = [
   {
-    id: 'input-1',
+    id: 'input',
     type: 'input',
     data: {
       schema: {
@@ -28,7 +29,8 @@ export const BROWSER_SCREENSHOT_NODES: WorkflowNode[] = [
     type: 'http',
     data: {
       method: 'POST',
-      url: '{{node:input-1.baasHost}}/api/async/start',
+      url: '{{node:input.baasHost}}/api/async/start',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
@@ -41,17 +43,18 @@ export const BROWSER_SCREENSHOT_NODES: WorkflowNode[] = [
     type: 'http',
     data: {
       method: 'POST',
-      url: '{{node:input-1.baasHost}}/api/async/message',
+      url: '{{node:input.baasHost}}/api/async/message',
+      timeout: BAAS_HTTP_TIMEOUT_MS,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer {{secret:BAAS_API_KEY}}',
       },
-      body: '{"program":"navigate(\'{{node:input-1.url}}\'); sleep(\'3s\'); takeScreenshot(\'screenshot\', \'timeout:10s\');", "sessionID": "{{node:http-0.response.result.sessionID}}", "stopSession": false}',
+      body: '{"timeout":"' + BAAS_MESSAGE_TIMEOUT + '","program":"navigate(\'{{node:input.url}}\'); sleep(\'3s\'); takeScreenshot(\'screenshot\', \'timeout:10s\');", "sessionID": "{{node:http-0.response.result.sessionID}}", "stopSession": false}',
       persistedFields: ['body', 'sseEvents'],
     },
   },
   {
-    id: 'output-1',
+    id: 'output',
     type: 'output',
     data: {
       sessionID: "Session ID: \n\n {{node:http-0.response.result.sessionID}}",
