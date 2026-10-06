@@ -110,4 +110,32 @@ export class WorkspaceService {
 
     return this.workspaceRepo.countAgentsInWorkspace(workspaceId);
   }
+
+  async getByIdWithCounts(
+    userId: string,
+    workspaceId: string
+  ): Promise<Workspace & { agentCount: number; secretCount: number; providerCount: number; collectionCount: number }> {
+    const workspace = await this.workspaceRepo.findById(workspaceId);
+    if (!workspace) {
+      throw new NotFoundError('Workspace');
+    }
+    if (workspace.userId !== userId) {
+      throw new ForbiddenError('Access denied');
+    }
+
+    const [agentCount, secretCount, providerCount, collectionCount] = await Promise.all([
+      this.workspaceRepo.countAgentsInWorkspace(workspaceId),
+      this.userSecretRepo.count(userId, workspaceId),
+      this.providerConfigRepo.count(userId, workspaceId),
+      this.memorySchemaRepo.count(userId, workspaceId),
+    ]);
+
+    return {
+      ...workspace,
+      agentCount,
+      secretCount,
+      providerCount,
+      collectionCount,
+    };
+  }
 }

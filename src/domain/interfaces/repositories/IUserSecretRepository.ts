@@ -30,4 +30,8 @@ export interface IUserSecretRepository {
    * Workspace-scoped secrets take precedence over global on name conflict
    */
   findAvailableForAgent(userId: string, workspaceId?: string): Promise<UserSecret[]>;
+  /**
+   * Count secrets for a user within a workspace scope
+   */
+  count(userId: string, workspaceId?: string | null): Promise<number>;
 }

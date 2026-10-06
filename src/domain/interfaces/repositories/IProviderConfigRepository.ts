@@ -32,4 +32,8 @@ export interface IProviderConfigRepository {
    * Workspace-scoped configs take precedence over global on provider conflict
    */
   findAvailableForAgent(userId: string, workspaceId?: string): Promise<ProviderConfig[]>;
+  /**
+   * Count provider configs for a user within a workspace scope
+   */
+  count(userId: string, workspaceId?: string | null): Promise<number>;
 }

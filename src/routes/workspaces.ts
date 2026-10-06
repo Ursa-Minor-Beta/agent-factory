@@ -32,6 +32,22 @@ const workspaceSchema = {
   },
 };
 
+const workspaceWithCountsSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    userId: { type: 'string' },
+    name: { type: 'string' },
+    description: { type: 'string', nullable: true },
+    createdAt: { type: 'string', format: 'date-time' },
+    updatedAt: { type: 'string', format: 'date-time' },
+    agentCount: { type: 'number' },
+    secretCount: { type: 'number' },
+    providerCount: { type: 'number' },
+    collectionCount: { type: 'number' },
+  },
+};
+
 export async function workspaceRoutes(app: FastifyInstance) {
   const workspaceService = new WorkspaceService({
     workspaceRepo: container.workspaceRepository,
@@ -135,7 +151,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     {
       onRequest: [requireAuth],
       schema: {
-        description: 'Get workspace by ID',
+        description: 'Get workspace by ID with resource counts',
         tags: ['workspaces'],
         params: {
           type: 'object',
@@ -144,7 +160,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
           },
         },
         response: {
-          200: workspaceSchema,
+          200: workspaceWithCountsSchema,
           401: errorSchema,
           403: errorSchema,
           404: errorSchema,
@@ -155,7 +171,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
       const user = request.user as AuthenticatedUser;
       const { id } = request.params as { id: string };
 
-      const workspace = await workspaceService.getById(user.userId, id);
+      const workspace = await workspaceService.getByIdWithCounts(user.userId, id);
       return reply.send(workspace);
     }
   );

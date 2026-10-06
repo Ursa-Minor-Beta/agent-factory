@@ -244,4 +244,12 @@ export class MongoProviderConfigRepository implements IProviderConfigRepository 
 
     return Array.from(configMap.values());
   }
+
+  async count(userId: string, workspaceId?: string | null): Promise<number> {
+    const query: Record<string, unknown> = { userId: new Types.ObjectId(userId) };
+    if (workspaceId !== undefined) {
+      query.workspaceId = workspaceId === null ? null : new Types.ObjectId(workspaceId);
+    }
+    return ProviderConfigModel.countDocuments(query);
+  }
 }
