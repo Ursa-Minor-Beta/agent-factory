@@ -69,6 +69,23 @@ const editorDataSchema = {
   additionalProperties: true,
 };
 
+const agentListItemSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    userId: { type: 'string' },
+    name: { type: 'string' },
+    description: { type: 'string' },
+    editorData: editorDataSchema,
+    workspaceId: { type: 'string', nullable: true },
+    workspaceName: { type: 'string', nullable: true },
+    systemName: { type: 'string', nullable: true },
+    defaultName: { type: 'string', nullable: true },
+    createdAt: { type: 'string', format: 'date-time' },
+    updatedAt: { type: 'string', format: 'date-time' },
+  },
+};
+
 const agentSchema = {
   type: 'object',
   properties: {
@@ -140,7 +157,7 @@ export async function agentRoutes(app: FastifyInstance) {
             data: {
               type: 'object',
               properties: {
-                agents: { type: 'array', items: agentSchema },
+                agents: { type: 'array', items: agentListItemSchema },
                 total: { type: 'integer' },
               },
             },

@@ -3,7 +3,7 @@ import { AgentModel, AgentDocument } from '../models/AgentModel.js';
 import type { IAgentRepository } from '../../../../domain/interfaces/repositories/IAgentRepository.js';
 import type {
   Agent,
-  AgentWithWorkspace,
+  AgentListItem,
   CreateAgentDTO,
   UpdateAgentDTO,
   AgentQueryOptions,
@@ -67,10 +67,15 @@ export class MongoAgentRepository implements IAgentRepository {
     const limit = options.limit || 50;
 
     const [result] = await AgentModel.aggregate<{
-      data: Array<AgentDocument & { workspaceName?: string }>;
+      data: Array<Omit<AgentDocument, 'nodes'> & { workspaceName?: string }>;
       total: Array<{ count: number }>;
     }>([
       { $match: matchQuery },
+      {
+        $project: {
+          nodes: 0,
+        },
+      },
       {
         $lookup: {
           from: 'workspaces',
@@ -111,18 +116,17 @@ export class MongoAgentRepository implements IAgentRepository {
     const total = result?.total[0]?.count ?? 0;
 
     return {
-      agents: docs.map((doc) => this.toEntityWithWorkspace(doc)),
+      agents: docs.map((doc) => this.toListItem(doc)),
       total,
     };
   }
 
-  private toEntityWithWorkspace(doc: AgentDocument & { workspaceName?: string }): AgentWithWorkspace {
+  private toListItem(doc: Omit<AgentDocument, 'nodes'> & { workspaceName?: string }): AgentListItem {
     return {
       id: doc._id.toString(),
       userId: doc.userId.toString(),
       name: doc.name,
       description: doc.description,
-      nodes: doc.nodes,
       editorData: doc.editorData,
       workspaceId: doc.workspaceId?.toString(),
       workspaceName: doc.workspaceName,

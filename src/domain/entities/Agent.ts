@@ -72,12 +72,12 @@ export interface AgentQueryOptions {
   limit?: number;
 }
 
-/** Agent with workspace name populated from lookup */
-export interface AgentWithWorkspace extends Agent {
+/** Agent list item - excludes nodes for performance, includes workspace name */
+export type AgentListItem = Omit<Agent, 'nodes'> & {
   workspaceName?: string;
-}
+};
 
 export interface AgentListResult {
-  agents: AgentWithWorkspace[];
+  agents: AgentListItem[];
   total: number;
 }
