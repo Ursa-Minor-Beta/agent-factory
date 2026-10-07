@@ -12,6 +12,9 @@ import { validateWorkflow } from '../engine/graph.js';
 import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
 import { DEFAULT_AGENT } from '../engine/agents/default.js';
 import { isOriginAllowed } from '../utils/cors.js';
+import * as agentExportService from '../domain/services/agent-export.service.js';
+import { AGENT_EXPORT_VERSION } from '../domain/entities/AgentExport.js';
+import { PROVIDER_TYPES } from '../domain/entities/ProviderConfig.js';
 
 // Schemas
 const errorSchema = {
@@ -324,6 +327,243 @@ export async function agentRoutes(app: FastifyInstance) {
       data: agent,
     });
   });
+
+  // Export agent with dependencies
+  app.get('/api/agents/:id/export', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Export agent with dependencies',
+      description: 'Export an agent with all its dependencies (nested agents, collections, required secrets/providers) as a JSON package.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                version: { type: 'string' },
+                exportedAt: { type: 'string', format: 'date-time' },
+                workspace: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                  },
+                },
+                agent: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                    nodes: { type: 'array', items: nodeSchema },
+                    originalId: { type: 'string' },
+                  },
+                },
+                dependencies: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      description: { type: 'string' },
+                      nodes: { type: 'array', items: nodeSchema },
+                      originalId: { type: 'string' },
+                    },
+                  },
+                },
+                collections: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      description: { type: 'string', nullable: true },
+                      fields: { type: 'array' },
+                    },
+                  },
+                },
+                secrets: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      description: { type: 'string' },
+                    },
+                  },
+                },
+                providers: {
+                  type: 'array',
+                  items: { type: 'string', enum: PROVIDER_TYPES as unknown as string[] },
+                },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id } = request.params as { id: string };
+
+    const exportData = await agentExportService.exportAgent(id, userId, {
+      agentRepo: container.agentRepository,
+      workspaceRepo: container.workspaceRepository,
+      memorySchemaRepo: container.memorySchemaRepository,
+    });
+
+    return reply.send({
+      success: true,
+      data: exportData,
+    });
+  });
+
+  // Import agent with dependencies
+  // app.post('/api/agents/import', {
+  //   schema: {
+  //     tags: ['agents'],
+  //     summary: 'Import agent with dependencies',
+  //     description: 'Import an agent from an export package. Creates workspace, collections, and agents. Returns info about required secrets/providers.',
+  //     security: [{ bearerAuth: [] }, { apiKey: [] }],
+  //     body: {
+  //       type: 'object',
+  //       required: ['package'],
+  //       properties: {
+  //         package: {
+  //           type: 'object',
+  //           description: 'The agent export package (from /export endpoint)',
+  //         },
+  //         workspaceId: {
+  //           type: 'string',
+  //           description: 'Import into existing workspace (if not provided, creates new workspace)',
+  //         },
+  //         workspaceName: {
+  //           type: 'string',
+  //           description: 'Override workspace name (only used when creating new workspace)',
+  //         },
+  //         skipExistingCollections: {
+  //           type: 'boolean',
+  //           default: false,
+  //           description: 'Skip collections that already exist by name',
+  //         },
+  //         skipExistingAgents: {
+  //           type: 'boolean',
+  //           default: false,
+  //           description: 'Skip agents that already exist by name',
+  //         },
+  //       },
+  //     },
+  //     response: {
+  //       200: {
+  //         type: 'object',
+  //         properties: {
+  //           success: { type: 'boolean' },
+  //           data: {
+  //             type: 'object',
+  //             properties: {
+  //               workspace: {
+  //                 type: 'object',
+  //                 properties: {
+  //                   id: { type: 'string' },
+  //                   name: { type: 'string' },
+  //                   created: { type: 'boolean' },
+  //                 },
+  //               },
+  //               agents: {
+  //                 type: 'array',
+  //                 items: {
+  //                   type: 'object',
+  //                   properties: {
+  //                     id: { type: 'string' },
+  //                     name: { type: 'string' },
+  //                     originalId: { type: 'string' },
+  //                   },
+  //                 },
+  //               },
+  //               mainAgent: {
+  //                 type: 'object',
+  //                 properties: {
+  //                   id: { type: 'string' },
+  //                   name: { type: 'string' },
+  //                   originalId: { type: 'string' },
+  //                 },
+  //               },
+  //               collections: {
+  //                 type: 'array',
+  //                 items: {
+  //                   type: 'object',
+  //                   properties: {
+  //                     id: { type: 'string' },
+  //                     name: { type: 'string' },
+  //                   },
+  //                 },
+  //               },
+  //               requiredSecrets: {
+  //                 type: 'array',
+  //                 items: { type: 'string' },
+  //                 description: 'Secret names that need to be configured',
+  //               },
+  //               requiredProviders: {
+  //                 type: 'array',
+  //                 items: { type: 'string', enum: PROVIDER_TYPES as unknown as string[] },
+  //                 description: 'Provider types that need to be configured',
+  //               },
+  //               warnings: {
+  //                 type: 'array',
+  //                 items: { type: 'string' },
+  //               },
+  //             },
+  //           },
+  //         },
+  //       },
+  //       400: errorSchema,
+  //       401: errorSchema,
+  //     },
+  //   },
+  //   preHandler: requireAuth,
+  // }, async (request, reply) => {
+  //   const { userId } = request.user as { userId: string };
+  //   const body = request.body as {
+  //     package: unknown;
+  //     workspaceId?: string;
+  //     workspaceName?: string;
+  //     skipExistingCollections?: boolean;
+  //     skipExistingAgents?: boolean;
+  //   };
+
+  //   const result = await agentImportService.importAgent(
+  //     body.package,
+  //     userId,
+  //     {
+  //       agentRepo: container.agentRepository,
+  //       workspaceRepo: container.workspaceRepository,
+  //       memorySchemaRepo: container.memorySchemaRepository,
+  //     },
+  //     {
+  //       workspaceId: body.workspaceId,
+  //       workspaceName: body.workspaceName,
+  //       skipExistingCollections: body.skipExistingCollections,
+  //       skipExistingAgents: body.skipExistingAgents,
+  //     }
+  //   );
+
+  //   return reply.send({
+  //     success: true,
+  //     data: result,
+  //   });
+  // });
 
   // Update agent
   app.put('/api/agents/:id', {

@@ -2,9 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { ProviderConfigService } from '../services/provider-config.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
-import type { ProviderType } from '../domain/entities/ProviderConfig.js';
-
-const PROVIDER_TYPES = ['openai', 'anthropic', 'ollama'];
+import { PROVIDER_TYPES, type ProviderType } from '../domain/entities/ProviderConfig.js';
 
 // Schemas
 const errorSchema = {

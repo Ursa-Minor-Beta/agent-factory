@@ -1,4 +1,5 @@
-export type ProviderType = 'openai' | 'anthropic' | 'ollama';
+export const PROVIDER_TYPES = ['openai', 'anthropic', 'ollama'] as const;
+export type ProviderType = (typeof PROVIDER_TYPES)[number];
 
 export interface ProviderConfig {
   id: string;
