@@ -30,12 +30,19 @@ export interface ImportWarnings {
   collectionsWithoutSchema: string[];
 }
 
+export interface CreatedCollection {
+  id: string;
+  name: string;
+}
+
 export interface ImportResult {
   workspaceId: string;
   workspaceName: string;
   agentId: string;
   /** Map of original agent IDs to new IDs */
   agentIdMap: Record<string, string>;
+  /** Collections created during import */
+  createdCollections: CreatedCollection[];
   warnings: ImportWarnings;
 }
 
@@ -133,15 +140,17 @@ export async function importAgent(
   }
 
   // 3. Create collections (only if schema exists)
+  const createdCollections: CreatedCollection[] = [];
   for (const collection of pkg.collections) {
     if (collection.schema) {
-      await deps.memorySchemaRepo.create({
+      const created = await deps.memorySchemaRepo.create({
         userId,
         name: collection.name,
         description: collection.schema.description ?? undefined,
         fields: collection.schema.fields,
         workspaceId: workspaceId,
       });
+      createdCollections.push({ id: created.id, name: created.name });
     } else {
       warnings.collectionsWithoutSchema.push(collection.name);
     }
@@ -172,6 +181,7 @@ export async function importAgent(
     workspaceName,
     agentId: mainAgentId,
     agentIdMap: Object.fromEntries(idMap),
+    createdCollections,
     warnings,
   };
 }

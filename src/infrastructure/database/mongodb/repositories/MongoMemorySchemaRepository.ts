@@ -58,18 +58,28 @@ export class MongoMemorySchemaRepository implements IMemorySchemaRepository {
   ): Promise<MemorySchema | null> {
     if (!workspaceIds || workspaceIds.length === 0) {
       // Default: search in global only (workspaceName will be undefined for global)
-      const doc = await MemorySchemaModel.findOne({ userId, name });
+      const doc = await MemorySchemaModel.findOne({
+        userId: new Types.ObjectId(userId),
+        name,
+      });
       if (!doc) return null;
       const workspaceName = await this.getWorkspaceName(doc.workspaceId);
       return this.toEntity(doc, workspaceName);
     }
 
     // Search with workspace precedence
+    // Convert string IDs to ObjectIds for MongoDB query
+    const workspaceIdObjects = workspaceIds.map((id) =>
+      id ? new Types.ObjectId(id) : null
+    );
+
+    console.log('[findByName] Query:', { userId, name, workspaceIds, workspaceIdObjects: workspaceIdObjects.map(o => o?.toString() ?? null) });
     const docs = await MemorySchemaModel.find({
-      userId,
+      userId: new Types.ObjectId(userId),
       name,
-      workspaceId: { $in: workspaceIds },
+      workspaceId: { $in: workspaceIdObjects },
     }).sort({ workspaceId: -1 });
+    console.log('[findByName] Found docs:', docs.length, docs.map(d => ({ id: d._id.toString(), name: d.name, workspaceId: d.workspaceId?.toString() })));
 
     if (docs.length === 0) return null;
 

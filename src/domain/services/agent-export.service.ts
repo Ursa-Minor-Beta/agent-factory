@@ -208,9 +208,11 @@ export async function exportAgent(
     : [null];
 
   const collectionNames = Array.from(analysis.collectionNames);
+  console.log('[export] Looking for collections:', collectionNames, 'in workspaces:', workspaceIds, 'for user:', userId);
   const schemas = await Promise.all(
     collectionNames.map((name) => deps.memorySchemaRepo.findByName(userId, name, workspaceIds))
   );
+  console.log('[export] Found schemas:', schemas.map(s => s ? { name: s.name, id: s.id } : null));
 
   const collections = collectionNames.map((name, i) => toExportedCollection(name, schemas[i] ?? null));
 
@@ -224,6 +226,8 @@ export async function exportAgent(
   const secrets: RequiredSecret[] = Array.from(analysis.secretNames).map(
     (name) => ({ name })
   );
+
+  console.log('[export] Found schemas:', schemas.map(s => s ? { name: s.name, id: s.id } : null));
 
   // 8. Build export package
   return {

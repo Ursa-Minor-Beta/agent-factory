@@ -386,8 +386,14 @@ export async function agentRoutes(app: FastifyInstance) {
                     type: 'object',
                     properties: {
                       name: { type: 'string' },
-                      description: { type: 'string', nullable: true },
-                      fields: { type: 'array' },
+                      schema: {
+                        type: 'object',
+                        nullable: true,
+                        properties: {
+                          description: { type: 'string', nullable: true },
+                          fields: { type: 'array' },
+                        },
+                      },
                     },
                   },
                 },
@@ -467,6 +473,17 @@ export async function agentRoutes(app: FastifyInstance) {
                   type: 'object',
                   additionalProperties: { type: 'string' },
                   description: 'Map of original agent IDs to new IDs',
+                },
+                createdCollections: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      name: { type: 'string' },
+                    },
+                  },
+                  description: 'Collections created during import',
                 },
                 warnings: {
                   type: 'object',
