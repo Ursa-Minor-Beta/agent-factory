@@ -86,6 +86,37 @@ async function collectDependencyAgentIds(
   return agentsMap;
 }
 
+/**
+ * Topologically sort agents so dependencies come before dependents
+ * Uses DFS post-order traversal
+ */
+function topologicalSortAgents(agents: Map<string, Agent>, mainAgentId: string): Agent[] {
+  const result: Agent[] = [];
+  const visited = new Set<string>();
+
+  function visit(agentId: string): void {
+    if (visited.has(agentId)) return;
+    visited.add(agentId);
+
+    const agent = agents.get(agentId);
+    if (!agent) return;
+
+    // Visit dependencies first
+    for (const depId of extractAgentIdsFromNodes(agent.nodes)) {
+      if (agents.has(depId)) {
+        visit(depId);
+      }
+    }
+
+    // Add after dependencies (post-order)
+    result.push(agent);
+  }
+
+  // Start from main agent - this will visit all reachable dependencies
+  visit(mainAgentId);
+
+  return result;
+}
 
 /**
  * Analyze all agents for export metadata using stringify + regex
@@ -183,8 +214,9 @@ export async function exportAgent(
 
   const collections = collectionNames.map((name, i) => toExportedCollection(name, schemas[i] ?? null));
 
-  // 6. Build dependency list (excluding main agent)
-  const dependencies = Array.from(agentsMap.values())
+  // 6. Build dependency list (topologically sorted, excluding main agent)
+  const sortedAgents = topologicalSortAgents(agentsMap, mainAgent.id);
+  const dependencies = sortedAgents
       .filter((a) => a.id !== mainAgent.id)
       .map(toExportedAgent);
 
