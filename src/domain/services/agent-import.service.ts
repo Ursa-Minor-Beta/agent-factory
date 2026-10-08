@@ -4,16 +4,14 @@
  */
 
 import type { WorkflowNode } from '../entities/Agent.js';
-import type { AgentExport, ExportedAgent } from '../entities/AgentExport.js';
+import type { AgentExport, ExportedAgent, ExportedCollection } from '../entities/AgentExport.js';
 import { validateExportPackage } from './agent-export.service.js';
 import type { IAgentRepository } from '../interfaces/repositories/IAgentRepository.js';
 import type { IWorkspaceRepository } from '../interfaces/repositories/IWorkspaceRepository.js';
-import type { IMemorySchemaRepository } from '../interfaces/repositories/IMemorySchemaRepository.js';
 
 export interface ImportServiceDependencies {
   agentRepo: IAgentRepository;
   workspaceRepo: IWorkspaceRepository;
-  memorySchemaRepo: IMemorySchemaRepository;
 }
 
 export interface ImportOptions {
@@ -26,13 +24,8 @@ export interface ImportWarnings {
   missingSecrets: string[];
   /** Provider types required (user needs to configure) */
   missingProviders: string[];
-  /** Collections without schema (couldn't be created) */
-  collectionsWithoutSchema: string[];
-}
-
-export interface CreatedCollection {
-  id: string;
-  name: string;
+  /** Collections required by the agent (user needs to create) */
+  missingCollections: ExportedCollection[];
 }
 
 export interface ImportResult {
@@ -41,8 +34,6 @@ export interface ImportResult {
   agentId: string;
   /** Map of original agent IDs to new IDs */
   agentIdMap: Record<string, string>;
-  /** Collections created during import */
-  createdCollections: CreatedCollection[];
   warnings: ImportWarnings;
 }
 
@@ -109,7 +100,7 @@ export async function importAgent(
   const warnings: ImportWarnings = {
     missingSecrets: pkg.secrets.map((s) => s.name),
     missingProviders: [...pkg.providers],
-    collectionsWithoutSchema: [],
+    missingCollections: [...pkg.collections],
   };
 
   // 2. Get or create workspace
@@ -139,22 +130,7 @@ export async function importAgent(
     workspaceId = workspace.id;
   }
 
-  // 3. Create collections (only if schema exists)
-  const createdCollections: CreatedCollection[] = [];
-  for (const collection of pkg.collections) {
-    if (collection.schema) {
-      const created = await deps.memorySchemaRepo.create({
-        userId,
-        name: collection.name,
-        description: collection.schema.description ?? undefined,
-        fields: collection.schema.fields,
-        workspaceId: workspaceId,
-      });
-      createdCollections.push({ id: created.id, name: created.name });
-    } else {
-      warnings.collectionsWithoutSchema.push(collection.name);
-    }
-  }
+  // 3. Collections are not auto-created - they appear in warnings.missingCollections
 
   // 5. Create agents (dependencies first, then main)
   const idMap = new Map<string, string>();
@@ -181,7 +157,6 @@ export async function importAgent(
     workspaceName,
     agentId: mainAgentId,
     agentIdMap: Object.fromEntries(idMap),
-    createdCollections,
     warnings,
   };
 }

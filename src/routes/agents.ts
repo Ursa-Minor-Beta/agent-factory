@@ -488,17 +488,6 @@ export async function agentRoutes(app: FastifyInstance) {
                   additionalProperties: { type: 'string' },
                   description: 'Map of original agent IDs to new IDs',
                 },
-                createdCollections: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      id: { type: 'string' },
-                      name: { type: 'string' },
-                    },
-                  },
-                  description: 'Collections created during import',
-                },
                 warnings: {
                   type: 'object',
                   properties: {
@@ -512,10 +501,23 @@ export async function agentRoutes(app: FastifyInstance) {
                       items: { type: 'string' },
                       description: 'Provider types that need to be configured',
                     },
-                    collectionsWithoutSchema: {
+                    missingCollections: {
                       type: 'array',
-                      items: { type: 'string' },
-                      description: 'Collections that could not be created (no schema)',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          name: { type: 'string' },
+                          schema: {
+                            type: 'object',
+                            nullable: true,
+                            properties: {
+                              description: { type: 'string', nullable: true },
+                              fields: { type: 'array' },
+                            },
+                          },
+                        },
+                      },
+                      description: 'Collections that need to be created (with schema)',
                     },
                   },
                 },
@@ -541,7 +543,6 @@ export async function agentRoutes(app: FastifyInstance) {
       {
         agentRepo: container.agentRepository,
         workspaceRepo: container.workspaceRepository,
-        memorySchemaRepo: container.memorySchemaRepository,
       },
       { workspaceId: body.workspaceId }
     );
