@@ -72,9 +72,13 @@ export interface AgentQueryOptions {
   limit?: number;
 }
 
-/** Agent list item - excludes nodes for performance, includes workspace name */
+/** Agent list item - excludes nodes for performance, includes workspace name and GitHub info */
 export type AgentListItem = Omit<Agent, 'nodes'> & {
   workspaceName?: string;
+  /** GitHub repository if linked (e.g., "owner/repo") */
+  githubRepository?: string;
+  /** GitHub file path if linked */
+  githubPath?: string;
 };
 
 export interface AgentListResult {

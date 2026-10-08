@@ -92,6 +92,8 @@ const agentListItemSchema = {
     workspaceName: { type: 'string', nullable: true },
     systemName: { type: 'string', nullable: true },
     defaultName: { type: 'string', nullable: true },
+    githubRepository: { type: 'string', nullable: true, description: 'GitHub repository if linked' },
+    githubPath: { type: 'string', nullable: true, description: 'GitHub file path if linked' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },

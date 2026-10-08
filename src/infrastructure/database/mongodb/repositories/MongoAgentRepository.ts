@@ -67,7 +67,11 @@ export class MongoAgentRepository implements IAgentRepository {
     const limit = options.limit || 50;
 
     const [result] = await AgentModel.aggregate<{
-      data: Array<Omit<AgentDocument, 'nodes'> & { workspaceName?: string }>;
+      data: Array<Omit<AgentDocument, 'nodes'> & {
+        workspaceName?: string;
+        githubRepository?: string;
+        githubPath?: string;
+      }>;
       total: Array<{ count: number }>;
     }>([
       { $match: matchQuery },
@@ -90,14 +94,46 @@ export class MongoAgentRepository implements IAgentRepository {
           preserveNullAndEmptyArrays: true,
         },
       },
+      // Lookup GitHub sync
+      {
+        $lookup: {
+          from: 'githubsyncs',
+          let: { agentId: '$_id', agentUserId: '$userId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$entityId', '$$agentId'] },
+                    { $eq: ['$userId', '$$agentUserId'] },
+                    { $eq: ['$entityType', 'agent'] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+            { $project: { repository: 1, path: 1 } },
+          ],
+          as: 'githubSync',
+        },
+      },
+      {
+        $unwind: {
+          path: '$githubSync',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
       {
         $addFields: {
           workspaceName: '$workspace.name',
+          githubRepository: '$githubSync.repository',
+          githubPath: '$githubSync.path',
         },
       },
       {
         $project: {
           workspace: 0,
+          githubSync: 0,
         },
       },
       {
@@ -121,7 +157,11 @@ export class MongoAgentRepository implements IAgentRepository {
     };
   }
 
-  private toListItem(doc: Omit<AgentDocument, 'nodes'> & { workspaceName?: string }): AgentListItem {
+  private toListItem(doc: Omit<AgentDocument, 'nodes'> & {
+    workspaceName?: string;
+    githubRepository?: string;
+    githubPath?: string;
+  }): AgentListItem {
     return {
       id: doc._id.toString(),
       userId: doc.userId.toString(),
@@ -132,6 +172,8 @@ export class MongoAgentRepository implements IAgentRepository {
       workspaceName: doc.workspaceName,
       systemName: doc.systemName,
       defaultName: doc.defaultName,
+      githubRepository: doc.githubRepository,
+      githubPath: doc.githubPath,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
