@@ -151,4 +151,47 @@ export class RunService {
   async listParentsWithChildIdsSummary(options?: RunWithChildrenQueryOptions): Promise<RunSummaryQueryResult> {
     return this.runRepo.findParentsWithChildIdsSummary(options);
   }
+
+  /**
+   * Delete runs by ID(s) or agentId(s).
+   * Users can only delete their own runs.
+   * Admins can delete any runs.
+   */
+  async delete(
+    userId: string,
+    role: string,
+    options: { id?: string | string[]; agentId?: string | string[] }
+  ): Promise<number> {
+    // Validate that at least one option is provided
+    if (!options.id && !options.agentId) {
+      throw new Error('At least one of id or agentId must be provided');
+    }
+
+    // For non-admin users, verify ownership before deletion
+    if (role !== 'admin') {
+      // If deleting by ID(s), verify ownership of all runs
+      if (options.id) {
+        const ids = Array.isArray(options.id) ? options.id : [options.id];
+        for (const id of ids) {
+          const run = await this.runRepo.findById(id);
+          if (run && run.userId !== userId) {
+            throw new ForbiddenError('Access denied');
+          }
+        }
+      }
+
+      // If deleting by agentId(s), verify ownership of all agents
+      if (options.agentId) {
+        const agentIds = Array.isArray(options.agentId) ? options.agentId : [options.agentId];
+        for (const agentId of agentIds) {
+          const agent = await this.agentRepo.findById(agentId);
+          if (agent && agent.userId !== userId) {
+            throw new ForbiddenError('Access denied');
+          }
+        }
+      }
+    }
+
+    return this.runRepo.deleteBy(options);
+  }
 }
