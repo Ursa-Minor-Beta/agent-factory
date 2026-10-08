@@ -94,6 +94,7 @@ const agentListItemSchema = {
     defaultName: { type: 'string', nullable: true },
     githubRepository: { type: 'string', nullable: true, description: 'GitHub repository if linked' },
     githubPath: { type: 'string', nullable: true, description: 'GitHub file path if linked' },
+    nodesCount: { type: 'integer', nullable: true, description: 'Number of nodes in the agent workflow' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },

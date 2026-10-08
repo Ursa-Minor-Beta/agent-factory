@@ -79,6 +79,8 @@ export type AgentListItem = Omit<Agent, 'nodes'> & {
   githubRepository?: string;
   /** GitHub file path if linked */
   githubPath?: string;
+  /** Number of nodes in the agent workflow */
+  nodesCount?: number;
 };
 
 export interface AgentListResult {

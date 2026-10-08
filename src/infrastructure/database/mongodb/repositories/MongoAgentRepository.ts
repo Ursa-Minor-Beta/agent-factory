@@ -71,10 +71,16 @@ export class MongoAgentRepository implements IAgentRepository {
         workspaceName?: string;
         githubRepository?: string;
         githubPath?: string;
+        nodesCount?: number;
       }>;
       total: Array<{ count: number }>;
     }>([
       { $match: matchQuery },
+      {
+        $addFields: {
+          nodesCount: { $size: '$nodes' },
+        },
+      },
       {
         $project: {
           nodes: 0,
@@ -161,6 +167,7 @@ export class MongoAgentRepository implements IAgentRepository {
     workspaceName?: string;
     githubRepository?: string;
     githubPath?: string;
+    nodesCount?: number;
   }): AgentListItem {
     return {
       id: doc._id.toString(),
@@ -174,6 +181,7 @@ export class MongoAgentRepository implements IAgentRepository {
       defaultName: doc.defaultName,
       githubRepository: doc.githubRepository,
       githubPath: doc.githubPath,
+      nodesCount: doc.nodesCount,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
