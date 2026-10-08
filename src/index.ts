@@ -19,6 +19,7 @@ import { secretRoutes } from './routes/secrets.js';
 import { fileRoutes } from './routes/files.js';
 import { memoryRoutes } from './routes/memory.js';
 import { workspaceRoutes } from './routes/workspaces.js';
+import { githubRoutes } from './routes/github.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 import { isOriginAllowed } from './utils/cors.js';
@@ -174,6 +175,7 @@ async function bootstrap() {
   await app.register(nodeRoutes);
   await app.register(toolRoutes);
   await app.register(memoryRoutes);
+  await app.register(githubRoutes);
 
   try {
     // Connect to MongoDB

@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import type { ProviderType } from '../../../../domain/entities/ProviderConfig.js';
+import { PROVIDER_TYPES } from '../../../../domain/entities/ProviderConfig.js';
 
 export interface ProviderConfigDocument extends Document {
   _id: mongoose.Types.ObjectId;
@@ -26,7 +27,7 @@ const providerConfigSchema = new Schema<ProviderConfigDocument>(
     provider: {
       type: String,
       required: true,
-      enum: ['openai', 'anthropic', 'ollama'],
+      enum: PROVIDER_TYPES,
     },
     name: {
       type: String,
