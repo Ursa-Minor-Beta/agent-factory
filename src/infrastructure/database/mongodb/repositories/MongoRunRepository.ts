@@ -454,4 +454,28 @@ export class MongoRunRepository implements IRunRepository {
     );
     return doc ? this.toEntity(doc) : null;
   }
+
+  async deleteBy(options: { id?: string | string[]; agentId?: string | string[] }): Promise<number> {
+    const query: Record<string, unknown> = {};
+
+    if (options.id) {
+      if (Array.isArray(options.id)) {
+        const objectIds = options.id.map((idStr) => new mongoose.Types.ObjectId(idStr));
+        query._id = { $in: objectIds };
+      } else {
+        query._id = new mongoose.Types.ObjectId(options.id);
+      }
+    }
+
+    if (options.agentId) {
+      if (Array.isArray(options.agentId)) {
+        query.agentId = { $in: options.agentId };
+      } else {
+        query.agentId = options.agentId;
+      }
+    }
+
+    const result = await RunModel.deleteMany(query);
+    return result.deletedCount ?? 0;
+  }
 }
