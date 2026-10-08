@@ -100,7 +100,7 @@ export class MongoAgentRepository implements IAgentRepository {
           preserveNullAndEmptyArrays: true,
         },
       },
-      // Lookup GitHub sync
+      // Lookup GitHub sync (main agent or subagent in agentIdMap)
       {
         $lookup: {
           from: 'githubsyncs',
@@ -110,9 +110,27 @@ export class MongoAgentRepository implements IAgentRepository {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ['$entityId', '$$agentId'] },
                     { $eq: ['$userId', '$$agentUserId'] },
                     { $eq: ['$entityType', 'agent'] },
+                    {
+                      $or: [
+                        // Main agent (current behavior)
+                        { $eq: ['$entityId', '$$agentId'] },
+                        // Subagent (in agentIdMap values)
+                        {
+                          $in: [
+                            { $toString: '$$agentId' },
+                            {
+                              $map: {
+                                input: { $objectToArray: { $ifNull: ['$agentIdMap', {}] } },
+                                as: 'kv',
+                                in: '$$kv.v',
+                              },
+                            },
+                          ],
+                        },
+                      ],
+                    },
                   ],
                 },
               },
