@@ -56,6 +56,9 @@ ENCRYPTION_KEY=your-32-byte-hex-key
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=your-secure-password
 ADMIN_NAME=Admin
+
+# Agent Versions (optional)
+AGENT_MAX_SNAPSHOTS=50  # Maximum snapshots per agent (default: 50)
 ```
 
 ## Quick Start

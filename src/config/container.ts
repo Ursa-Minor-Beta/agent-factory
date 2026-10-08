@@ -2,6 +2,7 @@ import { MongoUserRepository } from '../infrastructure/database/mongodb/reposito
 import { MongoApiKeyRepository } from '../infrastructure/database/mongodb/repositories/MongoApiKeyRepository.js';
 import { MongoProviderConfigRepository } from '../infrastructure/database/mongodb/repositories/MongoProviderConfigRepository.js';
 import { MongoAgentRepository } from '../infrastructure/database/mongodb/repositories/MongoAgentRepository.js';
+import { MongoAgentVersionRepository } from '../infrastructure/database/mongodb/repositories/MongoAgentVersionRepository.js';
 import { MongoWorkspaceRepository } from '../infrastructure/database/mongodb/repositories/MongoWorkspaceRepository.js';
 import { MongoRunRepository } from '../infrastructure/database/mongodb/repositories/MongoRunRepository.js';
 import { MongoSessionRepository } from '../infrastructure/database/mongodb/repositories/MongoSessionRepository.js';
@@ -18,6 +19,7 @@ import type { IUserRepository } from '../domain/interfaces/repositories/IUserRep
 import type { IApiKeyRepository } from '../domain/interfaces/repositories/IApiKeyRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
+import type { IAgentVersionRepository } from '../domain/interfaces/repositories/IAgentVersionRepository.js';
 import type { IWorkspaceRepository } from '../domain/interfaces/repositories/IWorkspaceRepository.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
@@ -33,6 +35,7 @@ export interface Container {
   apiKeyRepository: IApiKeyRepository;
   providerConfigRepository: IProviderConfigRepository;
   agentRepository: IAgentRepository;
+  agentVersionRepository: IAgentVersionRepository;
   workspaceRepository: IWorkspaceRepository;
   runRepository: IRunRepository;
   sessionRepository: ISessionRepository;
@@ -69,6 +72,7 @@ export const container: Container = {
   apiKeyRepository: new MongoApiKeyRepository(),
   providerConfigRepository: new MongoProviderConfigRepository(),
   agentRepository: new MongoAgentRepository(),
+  agentVersionRepository: new MongoAgentVersionRepository(),
   workspaceRepository: new MongoWorkspaceRepository(),
   runRepository,
   sessionRepository: new MongoSessionRepository(),

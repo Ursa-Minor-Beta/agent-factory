@@ -121,6 +121,7 @@ const agentSchema = {
 export async function agentRoutes(app: FastifyInstance) {
   const agentService = new AgentService(
     container.agentRepository,
+    container.agentVersionRepository,
     container.sessionRepository,
     container.messageRepository
   );
@@ -604,6 +605,154 @@ export async function agentRoutes(app: FastifyInstance) {
     };
 
     const agent = await agentService.update(userId, id, body);
+
+    return reply.send({
+      success: true,
+      data: agent,
+    });
+  });
+
+  // List agent versions
+  app.get('/api/agents/:id/versions', {
+    schema: {
+      tags: ['agents'],
+      summary: 'List agent versions',
+      description: 'Get historical snapshots of an agent.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      querystring: {
+        type: 'object',
+        properties: {
+          skip: { type: 'integer', minimum: 0, default: 0 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                versions: {
+                  type: 'array',
+                  items: {
+                    ...agentSchema,
+                    properties: {
+                      ...agentSchema.properties,
+                      agentIdRef: { type: 'string' },
+                    },
+                  },
+                },
+                total: { type: 'integer' },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id } = request.params as { id: string };
+    const { skip, limit } = request.query as { skip?: number; limit?: number };
+
+    const result = await agentService.listVersions(userId, id, { skip, limit });
+
+    return reply.send({
+      success: true,
+      data: result,
+    });
+  });
+
+  // Get specific agent version
+  app.get('/api/agents/:id/versions/:versionId', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Get agent version',
+      description: 'Get a specific historical snapshot of an agent.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          versionId: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              ...agentSchema,
+              properties: {
+                ...agentSchema.properties,
+                agentIdRef: { type: 'string' },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { versionId } = request.params as { id: string; versionId: string };
+
+    const version = await agentService.getVersionById(userId, versionId);
+
+    return reply.send({
+      success: true,
+      data: version,
+    });
+  });
+
+  // Restore agent version
+  app.post('/api/agents/:id/versions/:versionId/restore', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Restore agent version',
+      description: 'Restore an agent to a previous version. Creates a snapshot of the current state before restoring.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          versionId: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: agentSchema,
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { versionId } = request.params as { id: string; versionId: string };
+
+    const agent = await agentService.restoreVersion(userId, versionId);
 
     return reply.send({
       success: true,
