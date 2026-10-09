@@ -423,7 +423,13 @@ export async function memoryRoutes(app: FastifyInstance) {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            data: { type: 'array', items: memoryRecordSchema },
+            data: {
+              type: 'object',
+              properties: {
+                records: { type: 'array', items: memoryRecordSchema },
+                total: { type: 'number' },
+              },
+            },
           },
         },
         401: errorSchema,
@@ -444,15 +450,18 @@ export async function memoryRoutes(app: FastifyInstance) {
     const schema = await getSchemaWithOwnership(schemaId, userId, reply);
     if (!schema) return;
 
-    const records = await memoryStoreRepo.findBySchemaId(schema.id, {
-      limit,
-      offset,
-      sort: sortField ? { field: sortField, direction: sortDirection ?? 'desc' } : undefined,
-    });
+    const [records, total] = await Promise.all([
+      memoryStoreRepo.findBySchemaId(schema.id, {
+        limit,
+        offset,
+        sort: sortField ? { field: sortField, direction: sortDirection ?? 'desc' } : undefined,
+      }),
+      memoryStoreRepo.count(schema.id),
+    ]);
 
     return reply.send({
       success: true,
-      data: records,
+      data: { records, total },
     });
   });
 
@@ -497,6 +506,7 @@ export async function memoryRoutes(app: FastifyInstance) {
                 },
               },
             },
+            total: { type: 'number' },
           },
         },
         401: errorSchema,
@@ -512,17 +522,21 @@ export async function memoryRoutes(app: FastifyInstance) {
     const schema = await getSchemaWithOwnership(schemaId, userId, reply);
     if (!schema) return;
 
-    const results = await memoryStoreRepo.search({
-      schemaId: schema.id,
-      filters: body.filters,
-      limit: body.limit ?? 10,
-      offset: body.offset ?? 0,
-      sort: body.sort,
-    });
+    const [results, total] = await Promise.all([
+      memoryStoreRepo.search({
+        schemaId: schema.id,
+        filters: body.filters,
+        limit: body.limit ?? 10,
+        offset: body.offset ?? 0,
+        sort: body.sort,
+      }),
+      memoryStoreRepo.count(schema.id, body.filters),
+    ]);
 
     return reply.send({
       success: true,
       data: results.map(r => ({ record: r.record })),
+      total,
     });
   });
 
