@@ -339,6 +339,33 @@ export async function githubRoutes(app: FastifyInstance) {
               type: 'object',
               properties: {
                 agentId: { type: 'string' },
+                workspaceId: { type: 'string' },
+                workspaceName: { type: 'string' },
+                agentIdMap: { type: 'object', additionalProperties: { type: 'string' } },
+                warnings: {
+                  type: 'object',
+                  properties: {
+                    missingSecrets: { type: 'array', items: { type: 'string' } },
+                    missingProviders: { type: 'array', items: { type: 'string' } },
+                    missingCollections: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          name: { type: 'string' },
+                          schema: {
+                            type: 'object',
+                            nullable: true,
+                            properties: {
+                              description: { type: 'string', nullable: true },
+                              fields: { type: 'array' },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
                 message: { type: 'string' },
               },
             },
@@ -380,7 +407,7 @@ export async function githubRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
-      data: { agentId: result.agentId, message: result.message },
+      data: result,
     });
   });
 

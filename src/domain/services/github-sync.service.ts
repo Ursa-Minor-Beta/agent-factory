@@ -12,7 +12,7 @@ import type { IAgentRepository } from '../interfaces/repositories/IAgentReposito
 import type { ExportedAgent } from '../entities/AgentExport.js';
 import type { WorkflowNode } from '../entities/Agent.js';
 import { exportAgent, validateExportPackage, type ExportServiceDependencies } from './agent-export.service.js';
-import { importAgent, type ImportServiceDependencies } from './agent-import.service.js';
+import { importAgent, type ImportServiceDependencies, type ImportResult, type ImportWarnings } from './agent-import.service.js';
 import * as github from '../../infrastructure/github/github.service.js';
 
 export interface GitHubSyncDependencies {
@@ -68,6 +68,10 @@ export interface PushResult {
 export interface PullResult {
   success: boolean;
   agentId?: string;
+  workspaceId?: string;
+  workspaceName?: string;
+  agentIdMap?: Record<string, string>;
+  warnings?: ImportWarnings;
   message?: string;
   error?: string;
 }
@@ -375,6 +379,8 @@ export async function importFromGitHub(
     // Import agent (creates new agents for main + all dependencies)
     const result = await importAgent(exportData, userId, deps.importDeps, { workspaceId });
 
+    console.log('remissingCollectionssult', result?.warnings?.missingCollections)
+
     // Create sync link
     const sync = await deps.gitHubSyncRepo.create({
       userId,
@@ -395,7 +401,7 @@ export async function importFromGitHub(
       agentIdMap: result.agentIdMap,
     });
 
-    return { success: true, agentId: result.agentId, message: 'Agent imported from GitHub' };
+    return { success: true, ...result, message: 'Agent imported from GitHub' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     return { success: false, error: `[importFromGitHub] ${msg}` };
