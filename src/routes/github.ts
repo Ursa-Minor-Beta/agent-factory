@@ -238,7 +238,7 @@ export async function githubRoutes(app: FastifyInstance) {
     const result = await githubSyncService.pushAgent(
       userId,
       id,
-      message ?? 'Update agent',
+      message ?? '[AF] Update agent',
       getDeps()
     );
 

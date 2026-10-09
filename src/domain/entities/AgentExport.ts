@@ -15,8 +15,8 @@ export interface ExportedAgent {
   name: string;
   description: string;
   nodes: WorkflowNode[];
-  /** Original agent ID (for reference mapping during import) */
-  originalId: string;
+  /** Stable reference ID based on name (for reference mapping during import) */
+  refId: string;
 }
 
 /**

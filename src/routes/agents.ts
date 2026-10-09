@@ -21,6 +21,7 @@ import {
 import { isOriginAllowed } from '../utils/cors.js';
 import * as agentExportService from '../domain/services/agent-export.service.js';
 import * as agentImportService from '../domain/services/agent-import.service.js';
+import * as githubSyncService from '../domain/services/github-sync.service.js';
 import { AGENT_EXPORT_VERSION } from '../domain/entities/AgentExport.js';
 import { PROVIDER_TYPES } from '../domain/entities/ProviderConfig.js';
 
@@ -380,10 +381,10 @@ export async function agentRoutes(app: FastifyInstance) {
                 agent: {
                   type: 'object',
                   properties: {
+                    refId: { type: 'string' },
                     name: { type: 'string' },
                     description: { type: 'string' },
                     nodes: { type: 'array', items: nodeSchema },
-                    originalId: { type: 'string' },
                   },
                 },
                 dependencies: {
@@ -391,10 +392,10 @@ export async function agentRoutes(app: FastifyInstance) {
                   items: {
                     type: 'object',
                     properties: {
+                      refId: { type: 'string' },
                       name: { type: 'string' },
                       description: { type: 'string' },
                       nodes: { type: 'array', items: nodeSchema },
-                      originalId: { type: 'string' },
                     },
                   },
                 },
@@ -490,7 +491,7 @@ export async function agentRoutes(app: FastifyInstance) {
                 agentIdMap: {
                   type: 'object',
                   additionalProperties: { type: 'string' },
-                  description: 'Map of original agent IDs to new IDs',
+                  description: 'Map of refIds to new IDs',
                 },
                 warnings: {
                   type: 'object',
@@ -606,6 +607,11 @@ export async function agentRoutes(app: FastifyInstance) {
     };
 
     const agent = await agentService.update(userId, id, body);
+
+    // Mark GitHub sync as local_ahead if linked
+    await githubSyncService.markAgentAsLocalAhead(userId, id, {
+      gitHubSyncRepo: container.gitHubSyncRepository,
+    });
 
     return reply.send({
       success: true,
@@ -751,9 +757,14 @@ export async function agentRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { versionId } = request.params as { id: string; versionId: string };
+    const { id, versionId } = request.params as { id: string; versionId: string };
 
     const agent = await agentService.restoreVersion(userId, versionId);
+
+    // Mark GitHub sync as local_ahead if linked
+    await githubSyncService.markAgentAsLocalAhead(userId, id, {
+      gitHubSyncRepo: container.gitHubSyncRepository,
+    });
 
     return reply.send({
       success: true,
@@ -838,6 +849,12 @@ export async function agentRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     await agentService.delete(userId, id);
+
+    // Unlink from GitHub if linked (cleanup orphaned sync record)
+    const sync = await container.gitHubSyncRepository.findByEntity(userId, 'agent', id);
+    if (sync) {
+      await container.gitHubSyncRepository.delete(sync.id);
+    }
 
     return reply.send({
       success: true,

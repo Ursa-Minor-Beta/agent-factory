@@ -24,23 +24,6 @@ export interface GitHubSyncDependencies {
 }
 
 /**
- * Build agentIdMap from export data
- * Maps originalId → localId for main agent + all dependencies
- */
-function buildAgentIdMap(
-  mainAgentLocalId: string,
-  exportData: AgentExport,
-  existingMap: Record<string, string> = {}
-): Record<string, string> {
-  const map: Record<string, string> = { ...existingMap };
-
-  // Main agent
-  map[exportData.agent.originalId] = mainAgentLocalId;
-
-  return map;
-}
-
-/**
  * Remap agentId references in nodes to use local IDs
  */
 function remapNodeReferences(
@@ -120,8 +103,6 @@ async function getGitHubClient(
   if (!provider.config.apiKey) {
     throw new Error(`GitHub provider "${provider.name}" has no API key configured`);
   }
-
-  console.log('-------provider', provider)
 
   return github.createGitHubClient(provider.config.apiKey, provider.config.baseUrl);
 }
@@ -209,12 +190,12 @@ export async function pushAgent(
     const exportData = await exportAgent(agentId, userId, deps.exportDeps);
     const content = JSON.stringify(exportData, null, 2);
 
-    // Build agentIdMap: originalId → localId
+    // Build agentIdMap: refId → localId
     const agentIdMap: Record<string, string> = {};
-    agentIdMap[exportData.agent.originalId] = agentId;
+    agentIdMap[exportData.agent.refId] = agentId;
     for (const dep of exportData.dependencies) {
-      // For push, the originalId IS the local ID (we're exporting local agents)
-      agentIdMap[dep.originalId] = dep.originalId;
+      // For push, we map refId to the local agent ID
+      agentIdMap[dep.refId] = dep.refId;
     }
 
     // Check if file exists (for update)
@@ -292,18 +273,18 @@ export async function pullAgent(
     const existingMap = sync.agentIdMap || {};
     const newMap: Record<string, string> = {};
 
-    // Collect all originalIds from export
-    const exportOriginalIds = new Set<string>();
-    exportOriginalIds.add(exportData.agent.originalId);
+    // Collect all refIds from export
+    const exportRefIds = new Set<string>();
+    exportRefIds.add(exportData.agent.refId);
     for (const dep of exportData.dependencies) {
-      exportOriginalIds.add(dep.originalId);
+      exportRefIds.add(dep.refId);
     }
 
     // Process dependencies first, then main agent
     const allAgents: ExportedAgent[] = [...exportData.dependencies, exportData.agent];
 
     for (const exportedAgent of allAgents) {
-      const existingLocalId = existingMap[exportedAgent.originalId];
+      const existingLocalId = existingMap[exportedAgent.refId];
 
       if (existingLocalId) {
         // Update existing agent - remap node references first
@@ -313,7 +294,7 @@ export async function pullAgent(
           description: exportedAgent.description,
           nodes: remappedNodes,
         });
-        newMap[exportedAgent.originalId] = existingLocalId;
+        newMap[exportedAgent.refId] = existingLocalId;
       } else {
         // Create new agent
         const remappedNodes = remapNodeReferences(exportedAgent.nodes, { ...existingMap, ...newMap });
@@ -323,13 +304,13 @@ export async function pullAgent(
           description: exportedAgent.description,
           nodes: remappedNodes,
         });
-        newMap[exportedAgent.originalId] = created.id;
+        newMap[exportedAgent.refId] = created.id;
       }
     }
 
     // Delete agents that were removed from GitHub (Option B)
-    for (const [originalId, localId] of Object.entries(existingMap)) {
-      if (!exportOriginalIds.has(originalId) && localId !== agentId) {
+    for (const [refId, localId] of Object.entries(existingMap)) {
+      if (!exportRefIds.has(refId) && localId !== agentId) {
         // This agent was removed from the export - delete it locally
         await deps.agentRepo.delete(localId);
       }
@@ -439,3 +420,25 @@ export async function listAgentCommits(
 
   return github.listCommits(client, { owner, repo, path: sync.path, branch: sync.branch });
 }
+
+/**
+ * Mark agent as local_ahead when modified locally
+ * Called after agent updates to indicate unpushed changes
+ */
+export async function markAgentAsLocalAhead(
+  userId: string,
+  agentId: string,
+  deps: { gitHubSyncRepo: IGitHubSyncRepository }
+): Promise<void> {
+  const sync = await deps.gitHubSyncRepo.findByEntity(
+    userId,
+    GITHUB_SYNC_ENTITY.AGENT,
+    agentId
+  );
+  if (sync && sync.status === GITHUB_SYNC_STATUS.SYNCED) {
+    await deps.gitHubSyncRepo.update(sync.id, {
+      status: GITHUB_SYNC_STATUS.LOCAL_AHEAD,
+    });
+  }
+}
+

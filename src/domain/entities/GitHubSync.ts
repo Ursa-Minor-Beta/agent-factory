@@ -38,7 +38,7 @@ export interface GitHubSync {
   lastCommitSha: string | null;
   lastSyncedAt: Date | null;
 
-  /** Maps export originalId → local agentId (for main + all dependencies) */
+  /** Maps export refId → local agentId (for main + all dependencies) */
   agentIdMap: Record<string, string>;
 
   createdAt: Date;

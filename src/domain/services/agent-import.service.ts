@@ -32,7 +32,7 @@ export interface ImportResult {
   workspaceId: string;
   workspaceName: string;
   agentId: string;
-  /** Map of original agent IDs to new IDs */
+  /** Map of refIds to new IDs */
   agentIdMap: Record<string, string>;
   warnings: ImportWarnings;
 }
@@ -147,10 +147,10 @@ export async function importAgent(
       workspaceId: workspaceId,
     });
 
-    idMap.set(exportedAgent.originalId, created.id);
+    idMap.set(exportedAgent.refId, created.id);
   }
 
-  const mainAgentId = idMap.get(pkg.agent.originalId)!;
+  const mainAgentId = idMap.get(pkg.agent.refId)!;
 
   return {
     workspaceId,
