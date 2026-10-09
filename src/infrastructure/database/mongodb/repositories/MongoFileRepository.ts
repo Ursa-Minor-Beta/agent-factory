@@ -85,13 +85,17 @@ export class MongoFileRepository implements IFileRepository {
     return docs.map((doc) => this.toEntity(doc as unknown as FileDocument));
   }
 
-  async delete(id: string): Promise<boolean> {
-    const result = await FileModel.deleteOne({ _id: id });
-    return result.deletedCount > 0;
-  }
+  async deleteBy(options: { id?: string | string[]; userId?: string }): Promise<number> {
+    const query: Record<string, unknown> = {};
 
-  async deleteByUserId(userId: string): Promise<number> {
-    const result = await FileModel.deleteMany({ userId });
-    return result.deletedCount;
+    if (options.id) {
+      query._id = Array.isArray(options.id) ? { $in: options.id } : options.id;
+    }
+
+    if (options.userId) {
+      query.userId = options.userId;
+    }
+
+    return (await FileModel.deleteMany(query)).deletedCount ?? 0;
   }
 }

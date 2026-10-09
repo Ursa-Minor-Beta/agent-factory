@@ -81,3 +81,14 @@ export interface AgentListResult {
   agents: AgentListItem[];
   total: number;
 }
+
+export interface AgentVersion extends Omit<Agent, 'id'> {
+  id: string;
+  /** Reference to the current agent */
+  agentIdRef: string;
+}
+
+export interface AgentVersionListResult {
+  versions: AgentVersion[];
+  total: number;
+}
