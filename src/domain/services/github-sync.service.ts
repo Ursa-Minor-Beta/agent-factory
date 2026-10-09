@@ -263,6 +263,10 @@ export async function pullAgent(
       return { success: false, error: 'File not found in GitHub repository' };
     }
 
+    // Get the latest commit SHA for this file
+    const commits = await github.listCommits(client, { owner, repo, path: sync.path, branch: sync.branch });
+    const latestCommitSha = commits[0]?.sha ?? null;
+
     // Parse and validate
     const exportData = JSON.parse(file.content) as AgentExport;
     if (!validateExportPackage(exportData)) {
@@ -295,7 +299,8 @@ export async function pullAgent(
           nodes: remappedNodes,
         });
         newMap[exportedAgent.refId] = existingLocalId;
-      } else {
+      } 
+      else {
         // Create new agent
         const remappedNodes = remapNodeReferences(exportedAgent.nodes, { ...existingMap, ...newMap });
         const created = await deps.agentRepo.create({
@@ -319,7 +324,7 @@ export async function pullAgent(
     // Update sync record with new agentIdMap
     await deps.gitHubSyncRepo.update(sync.id, {
       status: GITHUB_SYNC_STATUS.SYNCED,
-      lastCommitSha: file.sha,
+      lastCommitSha: latestCommitSha,
       lastSyncedAt: new Date(),
       agentIdMap: newMap,
     });
@@ -354,6 +359,10 @@ export async function importFromGitHub(
       return { success: false, error: 'File not found in GitHub repository' };
     }
 
+    // Get the latest commit SHA for this file
+    const commits = await github.listCommits(client, { owner, repo, path, branch });
+    const latestCommitSha = commits[0]?.sha ?? null;
+
     // Parse and validate
     const exportData = JSON.parse(file.content);
     if (!validateExportPackage(exportData)) {
@@ -378,7 +387,7 @@ export async function importFromGitHub(
     // Update with sync state and agentIdMap
     await deps.gitHubSyncRepo.update(sync.id, {
       status: GITHUB_SYNC_STATUS.SYNCED,
-      lastCommitSha: file.sha,
+      lastCommitSha: latestCommitSha,
       lastSyncedAt: new Date(),
       agentIdMap: result.agentIdMap,
     });

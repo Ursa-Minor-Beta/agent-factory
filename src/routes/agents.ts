@@ -13,10 +13,6 @@ import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
 import {
   CHAT_AGENT,
   AGENT_CREATOR,
-  BROWSER_SCREENSHOT,
-  BROWSER_EXECUTE,
-  TEST_STEP_EXECUTOR,
-  TEST_ORCHESTRATOR,
 } from '../engine/agents/index.js';
 import { isOriginAllowed } from '../utils/cors.js';
 import * as agentExportService from '../domain/services/agent-export.service.js';
@@ -302,10 +298,6 @@ export async function agentRoutes(app: FastifyInstance) {
       data: [
         CHAT_AGENT,
         AGENT_CREATOR,
-        BROWSER_SCREENSHOT,
-        BROWSER_EXECUTE,
-        TEST_STEP_EXECUTOR,
-        TEST_ORCHESTRATOR,
       ],
     });
   });
