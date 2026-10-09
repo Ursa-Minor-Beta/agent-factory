@@ -85,9 +85,9 @@ export interface IRunRepository {
   addUsage(id: string, provider: LLMProvider, usage: TokenUsage): Promise<Run | null>;
 
   /**
-   * Delete runs by ID(s) or agentId(s).
+   * Delete runs by ID(s), agentId(s), or userId.
    * At least one parameter must be provided.
    * Returns the number of deleted documents.
    */
-  deleteBy(options: { id?: string | string[]; agentId?: string | string[] }): Promise<number>;
+  deleteBy(options: { id?: string | string[]; agentId?: string | string[]; userId?: string }): Promise<number>;
 }

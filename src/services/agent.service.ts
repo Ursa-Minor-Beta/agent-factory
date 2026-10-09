@@ -73,10 +73,10 @@ export class AgentService {
     // Cascade delete sessions and messages
     if (this.sessionRepo && this.messageRepo) {
       const sessions = await this.sessionRepo.findByAgentId(agentId);
-      for (const session of sessions) {
-        await this.messageRepo.deleteBySessionId(session.id);
+      if (sessions.length > 0) {
+        await this.messageRepo.deleteBy({ sessionId: sessions.map((s) => s.id) });
       }
-      await this.sessionRepo.deleteByAgentId(agentId);
+      await this.sessionRepo.deleteBy({ agentId });
     }
 
     // Delete all versions

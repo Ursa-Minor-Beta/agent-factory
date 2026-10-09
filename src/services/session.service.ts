@@ -440,8 +440,50 @@ export class SessionService {
 
     // Persisted session
     const session = await this.getById(userId, sessionId);
-    await this.messageRepo.deleteBySessionId(session.id);
-    await this.sessionRepo.delete(session.id);
+    await this.messageRepo.deleteBy({ sessionId: session.id });
+    await this.sessionRepo.deleteBy({ id: session.id });
+  }
+
+  /**
+   * Delete sessions by ID(s) or agentId(s).
+   * Users can only delete their own sessions.
+   * Admins can delete any sessions.
+   * Also deletes associated messages.
+   */
+  async deleteMany(
+    userId: string,
+    role: string,
+    options: { id?: string | string[]; agentId?: string | string[] }
+  ): Promise<number> {
+    if (!options.id && !options.agentId) {
+      throw new Error('At least one of id or agentId must be provided');
+    }
+
+    // For non-admin users, include userId in query to ensure they can only delete their own sessions
+    const deleteOptions = role === 'admin' ? options : { ...options, userId };
+
+    // Collect session IDs for message cleanup
+    const sessionIdsToDelete: string[] = [];
+
+    if (options.id) {
+      const ids = Array.isArray(options.id) ? options.id : [options.id];
+      sessionIdsToDelete.push(...ids);
+    }
+
+    if (options.agentId) {
+      const agentIds = Array.isArray(options.agentId) ? options.agentId : [options.agentId];
+      for (const agentId of agentIds) {
+        const sessions = await this.sessionRepo.findByAgentId(agentId, role === 'admin' ? {} : { userId });
+        sessionIdsToDelete.push(...sessions.map((s) => s.id));
+      }
+    }
+
+    // Delete messages for all sessions
+    if (sessionIdsToDelete.length > 0) {
+      await this.messageRepo.deleteBy({ sessionId: sessionIdsToDelete });
+    }
+
+    return this.sessionRepo.deleteBy(deleteOptions);
   }
 
   async getMessages(

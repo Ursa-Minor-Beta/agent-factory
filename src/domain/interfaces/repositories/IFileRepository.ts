@@ -13,6 +13,5 @@ export interface IFileRepository {
   listByUserId(userId: string, options?: { limit?: number; offset?: number }): Promise<FileListItem[]>;
   create(data: CreateFileDTO): Promise<File>;
   createMany(data: CreateFileDTO[]): Promise<File[]>;
-  delete(id: string): Promise<boolean>;
-  deleteByUserId(userId: string): Promise<number>;
+  deleteBy(options: { id?: string | string[]; userId?: string }): Promise<number>;
 }
