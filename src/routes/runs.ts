@@ -48,6 +48,7 @@ const runSummarySchema: Record<string, unknown> = {
   properties: {
     id: { type: 'string' },
     agentId: { type: 'string' },
+    agentName: { type: 'string' },
     userId: { type: 'string' },
     status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'] },
     error: { type: 'string', nullable: true },
@@ -64,6 +65,7 @@ const runSchema: Record<string, unknown> = {
   properties: {
     id: { type: 'string' },
     agentId: { type: 'string' },
+    agentName: { type: 'string' },
     userId: { type: 'string' },
     input: { type: 'object', additionalProperties: true },
     output: { type: 'object', additionalProperties: true, nullable: true },
@@ -283,17 +285,17 @@ export async function runRoutes(app: FastifyInstance) {
   });
 
   // Delete runs by ID(s) or agentId(s)
-  app.delete('/api/runs', {
+  app.post('/api/runs/delete', {
     schema: {
       tags: ['runs'],
       summary: 'Delete runs',
-      description: 'Delete runs by ID(s) or agentId(s). Users can only delete their own runs. Admins can delete any runs. At least one parameter (id or agentId) must be provided. Can accept single or multiple values.',
+      description: 'Delete runs by ID(s) or agentId(s). Users can only delete their own runs. Admins can delete any runs. At least one parameter (id or agentId) must be provided.',
       security: [{ bearerAuth: [] }, { apiKey: [] }],
-      querystring: {
+      body: {
         type: 'object',
         properties: {
-          id: { description: 'Run ID(s) to delete (single string or array)' },
-          agentId: { description: 'Agent ID(s) - delete all runs for these agents (single string or array)' },
+          id: { description: 'Run ID(s) to delete' },
+          agentId: { description: 'Agent ID(s) - delete all runs for these agents' },
         },
       },
       response: {
@@ -317,12 +319,12 @@ export async function runRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId, role } = request.user as { userId: string; role: string };
-    const query = request.query as {
+    const body = request.body as {
       id?: string | string[];
       agentId?: string | string[];
     };
 
-    if (!query.id && !query.agentId) {
+    if (!body.id && !body.agentId) {
       return reply.code(400).send({
         success: false,
         error: {
@@ -333,8 +335,8 @@ export async function runRoutes(app: FastifyInstance) {
     }
 
     const deletedCount = await runService.delete(userId, role, {
-      id: query.id,
-      agentId: query.agentId,
+      id: body.id,
+      agentId: body.agentId,
     });
 
     return reply.send({

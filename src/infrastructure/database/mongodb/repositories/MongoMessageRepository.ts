@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { MessageModel, MessageDocument } from '../models/MessageModel.js';
 import type { IMessageRepository } from '../../../../domain/interfaces/repositories/IMessageRepository.js';
 import type { Message, CreateMessageDTO } from '../../../../domain/entities/Message.js';
@@ -88,9 +89,22 @@ export class MongoMessageRepository implements IMessageRepository {
     return docs.map((doc) => this.toEntity(doc as unknown as MessageDocument));
   }
 
-  async deleteBySessionId(sessionId: string): Promise<number> {
-    const result = await MessageModel.deleteMany({ sessionId });
-    return result.deletedCount;
+  async deleteBy(options: { id?: string | string[]; sessionId?: string | string[] }): Promise<number> {
+    const query: Record<string, unknown> = {};
+
+    if (options.id) {
+        query._id = Array.isArray(options.id)
+          ? { $in: options.id.map((idStr) => new mongoose.Types.ObjectId(idStr)) }
+          : new mongoose.Types.ObjectId(options.id);
+    }
+
+    if (options.sessionId) {
+        query.sessionId = Array.isArray(options.sessionId)
+          ? { $in: options.sessionId }
+          : options.sessionId;
+    }
+
+    return (await MessageModel.deleteMany(query)).deletedCount ?? 0;
   }
 
   async count(sessionId: string): Promise<number> {

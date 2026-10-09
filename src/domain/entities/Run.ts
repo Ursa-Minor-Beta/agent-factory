@@ -42,6 +42,8 @@ export interface RunTrigger {
 export interface Run {
   id: string;
   agentId: string;
+  /** Agent name (populated via aggregation) */
+  agentName?: string;
   userId: string;
   input: Record<string, unknown>;
   output: Record<string, unknown> | null;
@@ -67,6 +69,8 @@ export interface Run {
 export interface RunSummary {
   id: string;
   agentId: string;
+  /** Agent name (populated via aggregation) */
+  agentName?: string;
   userId: string;
   status: RunStatus;
   error: string | null;

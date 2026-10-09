@@ -5,7 +5,7 @@ import type { Run, RunSummary, CreateRunDTO, RunStatus, NodeState } from '../../
 import type { LLMProvider, TokenUsage } from '../../../../engine/nodes/llm/types.js';
 
 export class MongoRunRepository implements IRunRepository {
-  private toEntity(doc: RunDocument, childDocs?: RunDocument[]): Run {
+  private toEntity(doc: RunDocument & { agentName?: string }, childDocs?: (RunDocument & { agentName?: string })[]): Run {
     const nodeStates: Record<string, NodeState> = {};
     if (doc.nodeStates) {
       // Handle both Map (from Mongoose) and plain object (from aggregation)
@@ -24,6 +24,7 @@ export class MongoRunRepository implements IRunRepository {
     const run: Run = {
       id: doc._id.toString(),
       agentId: doc.agentId.toString(),
+      agentName: doc.agentName,
       userId: doc.userId.toString(),
       input: doc.input,
       output: doc.output,
@@ -45,10 +46,11 @@ export class MongoRunRepository implements IRunRepository {
     return run;
   }
 
-  private toSummary(doc: RunDocument, childIds?: string[]): RunSummary {
+  private toSummary(doc: RunDocument & { agentName?: string }, childIds?: string[]): RunSummary {
     const summary: RunSummary = {
       id: doc._id.toString(),
       agentId: doc.agentId.toString(),
+      agentName: doc.agentName,
       userId: doc.userId.toString(),
       status: doc.status,
       error: doc.error,
@@ -326,24 +328,24 @@ export class MongoRunRepository implements IRunRepository {
   };
 
   async findAllSummary(options?: RunQueryOptions): Promise<RunSummaryQueryResult> {
-    const query: Record<string, unknown> = {};
+    const match: Record<string, unknown> = {};
 
     if (options?.userId) {
-      query.userId = options.userId;
+      match.userId = new mongoose.Types.ObjectId(options.userId);
     }
     if (options?.agentId) {
-      query.agentId = options.agentId;
+      match.agentId = new mongoose.Types.ObjectId(options.agentId);
     }
     if (options?.status) {
-      query.status = options.status;
+      match.status = options.status;
     }
     if (options?.startedAfter || options?.startedBefore) {
-      query.startedAt = {};
+      match.startedAt = {};
       if (options.startedAfter) {
-        (query.startedAt as Record<string, Date>).$gte = options.startedAfter;
+        (match.startedAt as Record<string, Date>).$gte = options.startedAfter;
       }
       if (options.startedBefore) {
-        (query.startedAt as Record<string, Date>).$lte = options.startedBefore;
+        (match.startedAt as Record<string, Date>).$lte = options.startedBefore;
       }
     }
 
@@ -351,12 +353,24 @@ export class MongoRunRepository implements IRunRepository {
     const sortOrder = options?.sortOrder === 'asc' ? 1 : -1;
 
     const [docs, total] = await Promise.all([
-      RunModel.find(query)
-        .select(MongoRunRepository.SUMMARY_PROJECTION)
-        .sort({ [sortField]: sortOrder })
-        .skip(options?.skip ?? 0)
-        .limit(options?.limit ?? 50),
-      RunModel.countDocuments(query),
+      RunModel.aggregate([
+        { $match: match },
+        { $sort: { [sortField]: sortOrder } },
+        { $skip: options?.skip ?? 0 },
+        { $limit: options?.limit ?? 50 },
+        { $project: MongoRunRepository.SUMMARY_PROJECTION },
+        {
+          $lookup: {
+            from: 'agents',
+            localField: 'agentId',
+            foreignField: '_id',
+            as: 'agent',
+          },
+        },
+        { $addFields: { agentName: { $arrayElemAt: ['$agent.name', 0] } } },
+        { $project: { agent: 0 } },
+      ]),
+      RunModel.countDocuments(match),
     ]);
 
     return {
@@ -371,10 +385,10 @@ export class MongoRunRepository implements IRunRepository {
     };
 
     if (options?.userId) {
-      match.userId = options.userId;
+      match.userId = new mongoose.Types.ObjectId(options.userId);
     }
     if (options?.agentId) {
-      match.agentId = options.agentId;
+      match.agentId = new mongoose.Types.ObjectId(options.agentId);
     }
     if (options?.status) {
       match.status = options.status;
@@ -397,11 +411,7 @@ export class MongoRunRepository implements IRunRepository {
     const [results, countResult] = await Promise.all([
       RunModel.aggregate([
         { $match: match },
-        {
-          $project: {
-            ...MongoRunRepository.SUMMARY_PROJECTION,
-          },
-        },
+        { $project: MongoRunRepository.SUMMARY_PROJECTION },
         { $sort: { [sortField]: sortOrder } },
         { $skip: skip },
         { $limit: limit },
@@ -410,10 +420,20 @@ export class MongoRunRepository implements IRunRepository {
             from: 'runs',
             localField: '_id',
             foreignField: 'parentRunId',
-            pipeline: [{ $project: { _id: 1 } }], // Only get child IDs
+            pipeline: [{ $project: { _id: 1 } }],
             as: 'childRuns',
           },
         },
+        {
+          $lookup: {
+            from: 'agents',
+            localField: 'agentId',
+            foreignField: '_id',
+            as: 'agent',
+          },
+        },
+        { $addFields: { agentName: { $arrayElemAt: ['$agent.name', 0] } } },
+        { $project: { agent: 0 } },
       ]),
       RunModel.countDocuments(match),
     ]);
@@ -455,27 +475,23 @@ export class MongoRunRepository implements IRunRepository {
     return doc ? this.toEntity(doc) : null;
   }
 
-  async deleteBy(options: { id?: string | string[]; agentId?: string | string[] }): Promise<number> {
+  async deleteBy(options: { id?: string | string[]; agentId?: string | string[]; userId?: string }): Promise<number> {
     const query: Record<string, unknown> = {};
 
     if (options.id) {
-      if (Array.isArray(options.id)) {
-        const objectIds = options.id.map((idStr) => new mongoose.Types.ObjectId(idStr));
-        query._id = { $in: objectIds };
-      } else {
-        query._id = new mongoose.Types.ObjectId(options.id);
-      }
+      query._id = Array.isArray(options.id)
+        ? { $in: options.id.map((idStr) => new mongoose.Types.ObjectId(idStr)) }
+        : new mongoose.Types.ObjectId(options.id);
     }
 
     if (options.agentId) {
-      if (Array.isArray(options.agentId)) {
-        query.agentId = { $in: options.agentId };
-      } else {
-        query.agentId = options.agentId;
-      }
+      query.agentId = Array.isArray(options.agentId) ? { $in: options.agentId } : options.agentId;
     }
 
-    const result = await RunModel.deleteMany(query);
-    return result.deletedCount ?? 0;
+    if (options.userId) {
+      query.userId = options.userId;
+    }
+
+    return (await RunModel.deleteMany(query)).deletedCount ?? 0;
   }
 }
