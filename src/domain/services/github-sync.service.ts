@@ -234,11 +234,13 @@ export async function pushAgent(
 
 /**
  * Pull agent from GitHub - updates existing agents in place
+ * @param commitSha - Optional specific commit SHA to pull (defaults to latest)
  */
 export async function pullAgent(
   userId: string,
   agentId: string,
-  deps: GitHubSyncDependencies
+  deps: GitHubSyncDependencies,
+  commitSha?: string
 ): Promise<PullResult> {
   // Get sync config
   const sync = await deps.gitHubSyncRepo.findByEntity(userId, GITHUB_SYNC_ENTITY.AGENT, agentId);
@@ -251,21 +253,22 @@ export async function pullAgent(
     const client = await getGitHubClient(userId, sync.providerName, sync.publicRepo, deps);
     const { owner, repo } = parseRepo(sync.repository);
 
-    // Get file from GitHub
+    // Get file from GitHub (at specific commit if provided)
     const file = await github.getFile(client, {
       owner,
       repo,
       path: sync.path,
       branch: sync.branch,
+      ref: commitSha, // Will use branch if undefined
     });
 
     if (!file) {
       return { success: false, error: 'File not found in GitHub repository' };
     }
 
-    // Get the latest commit SHA for this file
-    const commits = await github.listCommits(client, { owner, repo, path: sync.path, branch: sync.branch });
-    const latestCommitSha = commits[0]?.sha ?? null;
+    // Use provided commit SHA or get the latest
+    const targetCommitSha: string | undefined = commitSha 
+        || (await github.listCommits(client, { owner, repo, path: sync.path, branch: sync.branch }))?.[0]?.sha;
 
     // Parse and validate
     const exportData = JSON.parse(file.content) as AgentExport;
@@ -324,7 +327,7 @@ export async function pullAgent(
     // Update sync record with new agentIdMap
     await deps.gitHubSyncRepo.update(sync.id, {
       status: GITHUB_SYNC_STATUS.SYNCED,
-      lastCommitSha: latestCommitSha,
+      lastCommitSha: targetCommitSha,
       lastSyncedAt: new Date(),
       agentIdMap: newMap,
     });

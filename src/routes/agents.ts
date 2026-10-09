@@ -89,8 +89,16 @@ const agentListItemSchema = {
     workspaceName: { type: 'string', nullable: true },
     systemName: { type: 'string', nullable: true },
     defaultName: { type: 'string', nullable: true },
-    githubRepository: { type: 'string', nullable: true, description: 'GitHub repository if linked' },
-    githubPath: { type: 'string', nullable: true, description: 'GitHub file path if linked' },
+    github: {
+      type: 'object',
+      nullable: true,
+      description: 'GitHub sync info if linked',
+      properties: {
+        repository: { type: 'string', description: 'GitHub repository (e.g., "owner/repo")' },
+        path: { type: 'string', description: 'GitHub file path' },
+        rootId: { type: 'string', nullable: true, description: 'ID of root agent if this is a subagent, absent if this is the root' },
+      },
+    },
     nodesCount: { type: 'integer', nullable: true, description: 'Number of nodes in the agent workflow' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },

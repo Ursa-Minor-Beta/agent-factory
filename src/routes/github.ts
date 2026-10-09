@@ -267,6 +267,12 @@ export async function githubRoutes(app: FastifyInstance) {
           id: { type: 'string' },
         },
       },
+      body: {
+        type: 'object',
+        properties: {
+          commitSha: { type: 'string', description: 'Specific commit SHA to pull (defaults to latest)' },
+        },
+      },
       response: {
         200: {
           type: 'object',
@@ -289,8 +295,9 @@ export async function githubRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id } = request.params as { id: string };
+    const { commitSha } = request.body as { commitSha?: string };
 
-    const result = await githubSyncService.pullAgent(userId, id, getDeps());
+    const result = await githubSyncService.pullAgent(userId, id, getDeps(), commitSha);
 
     if (!result.success) {
       return reply.status(400).send({

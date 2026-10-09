@@ -4,6 +4,7 @@ import type { IAgentRepository } from '../../../../domain/interfaces/repositorie
 import type {
   Agent,
   AgentListItem,
+  AgentGitHubInfo,
   CreateAgentDTO,
   UpdateAgentDTO,
   AgentQueryOptions,
@@ -69,8 +70,7 @@ export class MongoAgentRepository implements IAgentRepository {
     const [result] = await AgentModel.aggregate<{
       data: Array<Omit<AgentDocument, 'nodes'> & {
         workspaceName?: string;
-        githubRepository?: string;
-        githubPath?: string;
+        github?: AgentGitHubInfo;
         nodesCount?: number;
       }>;
       total: Array<{ count: number }>;
@@ -136,7 +136,14 @@ export class MongoAgentRepository implements IAgentRepository {
               },
             },
             { $limit: 1 },
-            { $project: { repository: 1, path: 1 } },
+            {
+              $project: {
+                repository: 1,
+                path: 1,
+                entityId: 1,
+                isRootMatch: { $eq: ['$entityId', '$$agentId'] },
+              },
+            },
           ],
           as: 'githubSync',
         },
@@ -150,8 +157,27 @@ export class MongoAgentRepository implements IAgentRepository {
       {
         $addFields: {
           workspaceName: '$workspace.name',
-          githubRepository: '$githubSync.repository',
-          githubPath: '$githubSync.path',
+          github: {
+            $cond: {
+              if: { $ifNull: ['$githubSync', false] },
+              then: {
+                $mergeObjects: [
+                  {
+                    repository: '$githubSync.repository',
+                    path: '$githubSync.path',
+                  },
+                  {
+                    $cond: {
+                      if: '$githubSync.isRootMatch',
+                      then: {},
+                      else: { rootId: { $toString: '$githubSync.entityId' } },
+                    },
+                  },
+                ],
+              },
+              else: '$$REMOVE',
+            },
+          },
         },
       },
       {
@@ -183,8 +209,7 @@ export class MongoAgentRepository implements IAgentRepository {
 
   private toListItem(doc: Omit<AgentDocument, 'nodes'> & {
     workspaceName?: string;
-    githubRepository?: string;
-    githubPath?: string;
+    github?: AgentGitHubInfo;
     nodesCount?: number;
   }): AgentListItem {
     return {
@@ -197,8 +222,7 @@ export class MongoAgentRepository implements IAgentRepository {
       workspaceName: doc.workspaceName,
       systemName: doc.systemName,
       defaultName: doc.defaultName,
-      githubRepository: doc.githubRepository,
-      githubPath: doc.githubPath,
+      github: doc.github,
       nodesCount: doc.nodesCount,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
