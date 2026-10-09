@@ -3,6 +3,7 @@ import { AgentModel, AgentDocument } from '../models/AgentModel.js';
 import type { IAgentRepository } from '../../../../domain/interfaces/repositories/IAgentRepository.js';
 import type {
   Agent,
+  AgentWithDetails,
   AgentListItem,
   AgentGitHubInfo,
   CreateAgentDTO,
@@ -28,9 +29,134 @@ export class MongoAgentRepository implements IAgentRepository {
     };
   }
 
-  async findById(id: string): Promise<Agent | null> {
-    const doc = await AgentModel.findById(id);
-    return doc ? this.toEntity(doc) : null;
+  async findById(id: string): Promise<AgentWithDetails | null> {
+    const [doc] = await AgentModel.aggregate<AgentDocument & {
+      workspaceName?: string;
+      github?: AgentGitHubInfo;
+    }>([
+      { $match: { _id: new mongoose.Types.ObjectId(id) } },
+      {
+        $lookup: {
+          from: 'workspaces',
+          localField: 'workspaceId',
+          foreignField: '_id',
+          as: 'workspace',
+        },
+      },
+      {
+        $unwind: {
+          path: '$workspace',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Lookup GitHub sync (main agent or subagent in agentIdMap)
+      {
+        $lookup: {
+          from: 'githubsyncs',
+          let: { agentId: '$_id', agentUserId: '$userId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$userId', '$$agentUserId'] },
+                    { $eq: ['$entityType', 'agent'] },
+                    {
+                      $or: [
+                        { $eq: ['$entityId', '$$agentId'] },
+                        {
+                          $in: [
+                            { $toString: '$$agentId' },
+                            {
+                              $map: {
+                                input: { $objectToArray: { $ifNull: ['$agentIdMap', {}] } },
+                                as: 'kv',
+                                in: '$$kv.v',
+                              },
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+            {
+              $project: {
+                repository: 1,
+                path: 1,
+                entityId: 1,
+                isRootMatch: { $eq: ['$entityId', '$$agentId'] },
+              },
+            },
+          ],
+          as: 'githubSync',
+        },
+      },
+      {
+        $unwind: {
+          path: '$githubSync',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          workspaceName: '$workspace.name',
+          github: {
+            $cond: {
+              if: { $ifNull: ['$githubSync', false] },
+              then: {
+                $mergeObjects: [
+                  {
+                    repository: '$githubSync.repository',
+                    path: '$githubSync.path',
+                  },
+                  {
+                    $cond: {
+                      if: '$githubSync.isRootMatch',
+                      then: {},
+                      else: { rootId: { $toString: '$githubSync.entityId' } },
+                    },
+                  },
+                ],
+              },
+              else: '$$REMOVE',
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          workspace: 0,
+          githubSync: 0,
+        },
+      },
+    ]);
+
+    return doc ? this.toEntityWithDetails(doc) : null;
+  }
+
+  private toEntityWithDetails(doc: AgentDocument & {
+    workspaceName?: string;
+    github?: AgentGitHubInfo;
+  }): AgentWithDetails {
+    return {
+      id: doc._id.toString(),
+      userId: doc.userId.toString(),
+      name: doc.name,
+      description: doc.description,
+      nodes: doc.nodes,
+      editorData: doc.editorData,
+      workspaceId: doc.workspaceId?.toString(),
+      workspaceName: doc.workspaceName,
+      systemName: doc.systemName,
+      defaultName: doc.defaultName,
+      github: doc.github,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    };
   }
 
   async findByUserId(userId: string, options: AgentQueryOptions = {}): Promise<AgentListResult> {

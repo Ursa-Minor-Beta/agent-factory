@@ -91,6 +91,13 @@ export type AgentListItem = Omit<Agent, 'nodes'> & {
   nodesCount?: number;
 };
 
+/** Agent with full details including GitHub info */
+export type AgentWithDetails = Agent & {
+  workspaceName?: string;
+  /** GitHub sync info if linked */
+  github?: AgentGitHubInfo;
+};
+
 export interface AgentListResult {
   agents: AgentListItem[];
   total: number;
