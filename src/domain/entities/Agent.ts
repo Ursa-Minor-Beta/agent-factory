@@ -72,8 +72,13 @@ export interface AgentQueryOptions {
   limit?: number;
 }
 
+/** Agent list item - excludes nodes for performance, includes workspace name */
+export type AgentListItem = Omit<Agent, 'nodes'> & {
+  workspaceName?: string;
+};
+
 export interface AgentListResult {
-  agents: Agent[];
+  agents: AgentListItem[];
   total: number;
 }
 

@@ -27,7 +27,8 @@ export const handleCreateCollection: ToolHandler = async (args, options) => {
       name,
       description,
       fields ?? [],
-      { memorySchemaRepo: options.memorySchemaRepo }
+      { memorySchemaRepo: options.memorySchemaRepo },
+      { workspaceId: options.workspaceId }
     );
 
     return {
@@ -61,7 +62,8 @@ export const handleGetCollection: ToolHandler = async (args, options) => {
     const schema = await collectionService.getCollection(
       options.userId,
       name,
-      { memorySchemaRepo: options.memorySchemaRepo }
+      { memorySchemaRepo: options.memorySchemaRepo },
+      { workspaceId: options.workspaceId }
     );
 
     return {
@@ -112,7 +114,8 @@ export const handleUpdateCollection: ToolHandler = async (args, options) => {
       options.userId,
       name,
       updates,
-      { memorySchemaRepo: options.memorySchemaRepo }
+      { memorySchemaRepo: options.memorySchemaRepo },
+      { workspaceId: options.workspaceId }
     );
 
     return {
@@ -145,7 +148,7 @@ export const handleListCollections: ToolHandler = async (args, options) => {
   try {
     const collections = await collectionService.listCollections(
       options.userId,
-      { limit, includeRecordCounts: true },
+      { limit, includeRecordCounts: true, workspaceId: options.workspaceId },
       {
         memorySchemaRepo: options.memorySchemaRepo,
         memoryStoreRepo: options.memoryStoreRepo,
@@ -182,7 +185,8 @@ export const handleDeleteCollection: ToolHandler = async (args, options) => {
     await collectionService.deleteCollection(
       options.userId,
       name,
-      { memorySchemaRepo: options.memorySchemaRepo }
+      { memorySchemaRepo: options.memorySchemaRepo },
+      { workspaceId: options.workspaceId }
     );
 
     return {

@@ -1,7 +1,9 @@
+import mongoose from 'mongoose';
 import { AgentModel, AgentDocument } from '../models/AgentModel.js';
 import type { IAgentRepository } from '../../../../domain/interfaces/repositories/IAgentRepository.js';
 import type {
   Agent,
+  AgentListItem,
   CreateAgentDTO,
   UpdateAgentDTO,
   AgentQueryOptions,
@@ -31,26 +33,28 @@ export class MongoAgentRepository implements IAgentRepository {
   }
 
   async findByUserId(userId: string, options: AgentQueryOptions = {}): Promise<AgentListResult> {
-    const query: Record<string, unknown> = { userId };
+    const matchQuery: Record<string, unknown> = { userId: new mongoose.Types.ObjectId(userId) };
 
     // Filters
     if (options.id) {
-      query._id = options.id;
+      matchQuery._id = new mongoose.Types.ObjectId(options.id);
     }
     if (options.name) {
-      query.name = { $regex: options.name, $options: 'i' };
+      matchQuery.name = { $regex: options.name, $options: 'i' };
     }
     if (options.description) {
-      query.description = { $regex: options.description, $options: 'i' };
+      matchQuery.description = { $regex: options.description, $options: 'i' };
     }
     if (options.workspaceId !== undefined) {
-      query.workspaceId = options.workspaceId;
+      matchQuery.workspaceId = options.workspaceId === null
+        ? null
+        : new mongoose.Types.ObjectId(options.workspaceId);
     }
     if (options.createdAfter) {
-      query.createdAt = { ...((query.createdAt as object) || {}), $gte: options.createdAfter };
+      matchQuery.createdAt = { ...((matchQuery.createdAt as object) || {}), $gte: options.createdAfter };
     }
     if (options.createdBefore) {
-      query.createdAt = { ...((query.createdAt as object) || {}), $lte: options.createdBefore };
+      matchQuery.createdAt = { ...((matchQuery.createdAt as object) || {}), $lte: options.createdBefore };
     }
 
     // Sorting
@@ -58,18 +62,78 @@ export class MongoAgentRepository implements IAgentRepository {
     const sortOrder = options.sortOrder === 'asc' ? 1 : -1;
     const sort: Record<string, 1 | -1> = { [sortField]: sortOrder };
 
-    // Count total before pagination
-    const total = await AgentModel.countDocuments(query);
-
     // Pagination
     const skip = options.skip || 0;
     const limit = options.limit || 50;
 
-    const docs = await AgentModel.find(query).sort(sort).skip(skip).limit(limit);
+    const [result] = await AgentModel.aggregate<{
+      data: Array<Omit<AgentDocument, 'nodes'> & { workspaceName?: string }>;
+      total: Array<{ count: number }>;
+    }>([
+      { $match: matchQuery },
+      {
+        $project: {
+          nodes: 0,
+        },
+      },
+      {
+        $lookup: {
+          from: 'workspaces',
+          localField: 'workspaceId',
+          foreignField: '_id',
+          as: 'workspace',
+        },
+      },
+      {
+        $unwind: {
+          path: '$workspace',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          workspaceName: '$workspace.name',
+        },
+      },
+      {
+        $project: {
+          workspace: 0,
+        },
+      },
+      {
+        $facet: {
+          data: [
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          total: [{ $count: 'count' }],
+        },
+      },
+    ]);
+
+    const docs = result?.data ?? [];
+    const total = result?.total[0]?.count ?? 0;
 
     return {
-      agents: docs.map((doc) => this.toEntity(doc)),
+      agents: docs.map((doc) => this.toListItem(doc)),
       total,
+    };
+  }
+
+  private toListItem(doc: Omit<AgentDocument, 'nodes'> & { workspaceName?: string }): AgentListItem {
+    return {
+      id: doc._id.toString(),
+      userId: doc.userId.toString(),
+      name: doc.name,
+      description: doc.description,
+      editorData: doc.editorData,
+      workspaceId: doc.workspaceId?.toString(),
+      workspaceName: doc.workspaceName,
+      systemName: doc.systemName,
+      defaultName: doc.defaultName,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
     };
   }
 
@@ -126,6 +190,11 @@ export class MongoAgentRepository implements IAgentRepository {
   async delete(id: string): Promise<boolean> {
     const result = await AgentModel.findByIdAndDelete(id);
     return result !== null;
+  }
+
+  async deleteByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await AgentModel.deleteMany({ workspaceId });
+    return result.deletedCount;
   }
 
   async count(): Promise<number> {

@@ -16,9 +16,9 @@ import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 export class AgentService {
   constructor(
     private agentRepo: IAgentRepository,
-    private versionRepo?: IAgentVersionRepository,
-    private sessionRepo?: ISessionRepository,
-    private messageRepo?: IMessageRepository
+    private versionRepo: IAgentVersionRepository,
+    private sessionRepo: ISessionRepository,
+    private messageRepo: IMessageRepository
   ) {}
 
   async create(userId: string, data: Omit<CreateAgentDTO, 'userId'>): Promise<Agent> {

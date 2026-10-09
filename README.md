@@ -19,6 +19,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
   - Collection tools: `create_collection`, `get_collection`, `update_collection`, `list_collections`, `delete_collection`
   - Session tools: `update_session_notes`, `append_session_notes`
 - **Multi-User** - JWT auth + API keys
+- **Workspaces** - Organize agents, secrets, collections, and providers into isolated workspaces
 - **Streaming Chat** - Real-time streaming status
 - **Encrypted Secrets** - Provider API keys encrypted at rest (AES-256-GCM)
 - **File Storage** - Built-in file storage for agent artifacts
@@ -121,6 +122,19 @@ On startup, the server creates:
 | `memory-delete` | Delete memory records |
 
 Get full node documentation: `GET /api/nodes`
+
+## Workspace Scoping
+
+Workspaces provide isolation for organizing resources. Secrets, collections (memory schemas), and provider configurations can be scoped to a workspace or kept global.
+
+### Scope Resolution
+
+When an agent runs, it has access to:
+- **Global resources** (no workspaceId) - Available to all agents
+- **Workspace resources** - Only available to agents in that workspace
+
+If the same name exists in both scopes, **workspace takes precedence** over global.
+
 
 ## Scripts
 

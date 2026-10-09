@@ -1,12 +1,10 @@
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import type {
   CreateMemorySchemaDTO,
-  UpdateMemorySchemaDTO,
-  CreateMemoryRecordDTO,
-  UpdateMemoryRecordDTO,
   MemorySearchOptions,
+  UpdateMemorySchemaDTO,
 } from '../domain/entities/Memory.js';
 import * as memoryService from '../domain/services/memory.service.js';
 
@@ -46,6 +44,8 @@ const memorySchemaSchema = {
     name: { type: 'string' },
     description: { type: 'string', nullable: true },
     fields: { type: 'array', items: memorySchemaFieldSchema },
+    workspaceId: { type: 'string', nullable: true },
+    workspaceName: { type: 'string', nullable: true },
     recordCount: { type: 'number' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -82,6 +82,10 @@ export async function memoryRoutes(app: FastifyInstance) {
         properties: {
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
           offset: { type: 'integer', minimum: 0, default: 0 },
+          workspaceId: {
+            type: 'string',
+            description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
+          },
         },
       },
       response: {
@@ -98,9 +102,23 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { limit, offset } = request.query as { limit?: number; offset?: number };
+    const { limit, offset, workspaceId } = request.query as {
+      limit?: number;
+      offset?: number;
+      workspaceId?: string;
+    };
 
-    const schemas = await memorySchemaRepo.findByUserId(userId, { limit, offset });
+    const options: { limit?: number; offset?: number; workspaceId?: string | null } = {
+      limit,
+      offset,
+    };
+    if (workspaceId === 'null') {
+      options.workspaceId = null;
+    } else if (workspaceId) {
+      options.workspaceId = workspaceId;
+    }
+
+    const schemas = await memorySchemaRepo.findByUserId(userId, options);
 
     // Get record counts for all schemas in a single query
     const schemaIds = schemas.map((s) => s.id);
@@ -111,6 +129,8 @@ export async function memoryRoutes(app: FastifyInstance) {
     // Enrich schemas with record counts
     const enrichedSchemas = schemas.map((s) => ({
       ...s,
+      workspaceId: s.workspaceId ?? null,
+      workspaceName: s.workspaceName ?? null,
       recordCount: recordCounts.get(s.id) ?? 0,
     }));
 
@@ -159,7 +179,11 @@ export async function memoryRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
-      data: schema,
+      data: {
+        ...schema,
+        workspaceId: schema.workspaceId ?? null,
+        workspaceName: schema.workspaceName ?? null,
+      },
     });
   });
 
@@ -175,6 +199,10 @@ export async function memoryRoutes(app: FastifyInstance) {
           name: { type: 'string', minLength: 1, maxLength: 100 },
           description: { type: 'string', maxLength: 500 },
           fields: { type: 'array', items: memorySchemaFieldSchema, minItems: 1 },
+          workspaceId: {
+            type: 'string',
+            description: 'Workspace ID to scope the schema to. Omit for global scope.',
+          },
         },
         required: ['name', 'fields'],
       },
@@ -196,11 +224,13 @@ export async function memoryRoutes(app: FastifyInstance) {
     const { userId } = request.user as { userId: string };
     const body = request.body as Omit<CreateMemorySchemaDTO, 'userId'>;
 
-    // Check if name already exists
-    if (await memorySchemaRepo.nameExists(userId, body.name)) {
+    // Check if name already exists in the same scope
+    const workspaceId = body.workspaceId ?? null;
+    if (await memorySchemaRepo.nameExists(userId, body.name, workspaceId)) {
+      const scope = workspaceId ? 'workspace' : 'global';
       return reply.status(409).send({
         success: false,
-        error: { code: 'CONFLICT', message: `Collection "${body.name}" already exists` },
+        error: { code: 'CONFLICT', message: `Collection "${body.name}" already exists in ${scope} scope` },
       });
     }
 
@@ -211,7 +241,11 @@ export async function memoryRoutes(app: FastifyInstance) {
 
     return reply.status(201).send({
       success: true,
-      data: schema,
+      data: {
+        ...schema,
+        workspaceId: schema.workspaceId ?? null,
+        workspaceName: schema.workspaceName ?? null,
+      },
     });
   });
 
@@ -233,6 +267,11 @@ export async function memoryRoutes(app: FastifyInstance) {
           name: { type: 'string', minLength: 1, maxLength: 100 },
           description: { type: 'string', maxLength: 500 },
           fields: { type: 'array', items: memorySchemaFieldSchema },
+          workspaceId: {
+            type: 'string',
+            nullable: true,
+            description: 'Workspace ID to scope the schema to. Set to null for global scope.',
+          },
         },
       },
       response: {
@@ -264,19 +303,26 @@ export async function memoryRoutes(app: FastifyInstance) {
       });
     }
 
-    // Check name conflict
-    if (body.name && await memorySchemaRepo.nameExists(userId, body.name, id)) {
-      return reply.status(409).send({
-        success: false,
-        error: { code: 'CONFLICT', message: `Collection "${body.name}" already exists` },
-      });
+    // Check name conflict in target workspace scope
+    if (body.name) {
+      const targetWorkspaceId = body.workspaceId !== undefined ? body.workspaceId : existing.workspaceId;
+      if (await memorySchemaRepo.nameExists(userId, body.name, targetWorkspaceId ?? null, id)) {
+        return reply.status(409).send({
+          success: false,
+          error: { code: 'CONFLICT', message: `Collection "${body.name}" already exists` },
+        });
+      }
     }
 
     const schema = await memorySchemaRepo.update(id, body);
 
     return reply.send({
       success: true,
-      data: schema,
+      data: {
+        ...schema,
+        workspaceId: schema?.workspaceId ?? null,
+        workspaceName: schema?.workspaceName ?? null,
+      },
     });
   });
 
@@ -334,8 +380,25 @@ export async function memoryRoutes(app: FastifyInstance) {
   // Memory Record Routes (Data Operations)
   // ========================================
 
+  // Helper to get and verify schema ownership
+  async function getSchemaWithOwnership(
+    schemaId: string,
+    userId: string,
+    reply: FastifyReply
+  ) {
+    const schema = await memorySchemaRepo.findById(schemaId);
+    if (!schema || schema.userId !== userId) {
+      reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Collection not found' },
+      });
+      return null;
+    }
+    return schema;
+  }
+
   // List records in a collection
-  app.get('/api/memory/:collection/records', {
+  app.get('/api/memory/:schemaId/records', {
     schema: {
       tags: ['memory'],
       summary: 'List records in a memory collection',
@@ -343,7 +406,7 @@ export async function memoryRoutes(app: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          collection: { type: 'string' },
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
         },
       },
       querystring: {
@@ -370,7 +433,7 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { collection } = request.params as { collection: string };
+    const { schemaId } = request.params as { schemaId: string };
     const { limit, offset, sortField, sortDirection } = request.query as {
       limit?: number;
       offset?: number;
@@ -378,14 +441,8 @@ export async function memoryRoutes(app: FastifyInstance) {
       sortDirection?: 'asc' | 'desc';
     };
 
-    // Get schema
-    const schema = await memorySchemaRepo.findByName(userId, collection);
-    if (!schema) {
-      return reply.status(404).send({
-        success: false,
-        error: { code: 'NOT_FOUND', message: `Collection "${collection}" not found` },
-      });
-    }
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
 
     const records = await memoryStoreRepo.findBySchemaId(schema.id, {
       limit,
@@ -400,7 +457,7 @@ export async function memoryRoutes(app: FastifyInstance) {
   });
 
   // Search records
-  app.post('/api/memory/:collection/search', {
+  app.post('/api/memory/:schemaId/search', {
     schema: {
       tags: ['memory'],
       summary: 'Search records in a memory collection',
@@ -408,7 +465,7 @@ export async function memoryRoutes(app: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          collection: { type: 'string' },
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
         },
       },
       body: {
@@ -449,39 +506,28 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { collection } = request.params as { collection: string };
+    const { schemaId } = request.params as { schemaId: string };
     const body = request.body as Omit<MemorySearchOptions, 'schemaId'>;
 
-    try {
-      const records = await memoryService.searchMemoryRecords(
-        userId,
-        collection,
-        {
-          filters: body.filters,
-          limit: body.limit,
-          offset: body.offset,
-          sort: body.sort,
-        },
-        { memorySchemaRepo, memoryStoreRepo }
-      );
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
 
-      return reply.send({
-        success: true,
-        data: records.map(record => ({ record })), // Maintain response format
-      });
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        return reply.status(404).send({
-          success: false,
-          error: { code: 'NOT_FOUND', message: error.message },
-        });
-      }
-      throw error;
-    }
+    const results = await memoryStoreRepo.search({
+      schemaId: schema.id,
+      filters: body.filters,
+      limit: body.limit ?? 10,
+      offset: body.offset ?? 0,
+      sort: body.sort,
+    });
+
+    return reply.send({
+      success: true,
+      data: results.map(r => ({ record: r.record })),
+    });
   });
 
   // Create record
-  app.post('/api/memory/:collection/records', {
+  app.post('/api/memory/:schemaId/records', {
     schema: {
       tags: ['memory'],
       summary: 'Create a record in a memory collection',
@@ -489,7 +535,7 @@ export async function memoryRoutes(app: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          collection: { type: 'string' },
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
         },
       },
       body: {
@@ -513,16 +559,19 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { collection } = request.params as { collection: string };
-    const body = request.body as Omit<CreateMemoryRecordDTO, 'schemaId'>;
+    const { schemaId } = request.params as { schemaId: string };
+    const body = request.body as Record<string, unknown>;
+
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
 
     try {
-      const record = await memoryService.saveMemoryRecord(
-        userId,
-        collection,
-        body,
-        { memorySchemaRepo, memoryStoreRepo }
-      );
+      memoryService.validateMemoryData(body, schema.fields);
+
+      const record = await memoryStoreRepo.create({
+        schemaId: schema.id,
+        ...body,
+      });
 
       return reply.status(201).send({
         success: true,
@@ -530,12 +579,6 @@ export async function memoryRoutes(app: FastifyInstance) {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message.includes('not found')) {
-          return reply.status(404).send({
-            success: false,
-            error: { code: 'NOT_FOUND', message: error.message },
-          });
-        }
         if (error.message.includes('reserved') || error.message.includes('Required field')) {
           return reply.status(400).send({
             success: false,
@@ -548,7 +591,7 @@ export async function memoryRoutes(app: FastifyInstance) {
   });
 
   // Get record by ID
-  app.get('/api/memory/:collection/records/:id', {
+  app.get('/api/memory/:schemaId/records/:id', {
     schema: {
       tags: ['memory'],
       summary: 'Get a record by ID',
@@ -556,7 +599,7 @@ export async function memoryRoutes(app: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          collection: { type: 'string' },
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
           id: { type: 'string' },
         },
       },
@@ -575,16 +618,10 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { collection, id } = request.params as { collection: string; id: string };
+    const { schemaId, id } = request.params as { schemaId: string; id: string };
 
-    // Get schema to verify ownership
-    const schema = await memorySchemaRepo.findByName(userId, collection);
-    if (!schema) {
-      return reply.status(404).send({
-        success: false,
-        error: { code: 'NOT_FOUND', message: `Collection "${collection}" not found` },
-      });
-    }
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
 
     const record = await memoryStoreRepo.findById(id);
     if (!record || record.schemaId !== schema.id) {
@@ -601,7 +638,7 @@ export async function memoryRoutes(app: FastifyInstance) {
   });
 
   // Update record
-  app.patch('/api/memory/:collection/records/:id', {
+  app.patch('/api/memory/:schemaId/records/:id', {
     schema: {
       tags: ['memory'],
       summary: 'Update a record',
@@ -609,7 +646,7 @@ export async function memoryRoutes(app: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          collection: { type: 'string' },
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
           id: { type: 'string' },
         },
       },
@@ -634,30 +671,38 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { collection, id } = request.params as { collection: string; id: string };
-    const body = request.body as UpdateMemoryRecordDTO;
+    const { schemaId, id } = request.params as { schemaId: string; id: string };
+    const body = request.body as Record<string, unknown>;
+
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
+
+    // Verify record exists and belongs to this collection
+    const existingRecord = await memoryStoreRepo.findById(id);
+    if (!existingRecord || existingRecord.schemaId !== schema.id) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Record not found' },
+      });
+    }
 
     try {
-      const record = await memoryService.updateMemoryRecord(
-        userId,
-        collection,
-        id,
-        body,
-        { memorySchemaRepo, memoryStoreRepo }
-      );
+      memoryService.validateMemoryData(body, schema.fields);
+
+      const updated = await memoryStoreRepo.update(id, body);
+      if (!updated) {
+        return reply.status(404).send({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Record not found' },
+        });
+      }
 
       return reply.send({
         success: true,
-        data: record,
+        data: updated,
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message.includes('not found')) {
-          return reply.status(404).send({
-            success: false,
-            error: { code: 'NOT_FOUND', message: error.message },
-          });
-        }
         if (error.message.includes('reserved') || error.message.includes('Required field')) {
           return reply.status(400).send({
             success: false,
@@ -670,7 +715,7 @@ export async function memoryRoutes(app: FastifyInstance) {
   });
 
   // Delete record
-  app.delete('/api/memory/:collection/records/:id', {
+  app.delete('/api/memory/:schemaId/records/:id', {
     schema: {
       tags: ['memory'],
       summary: 'Delete a record',
@@ -678,7 +723,7 @@ export async function memoryRoutes(app: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          collection: { type: 'string' },
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
           id: { type: 'string' },
         },
       },
@@ -696,32 +741,35 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { collection, id } = request.params as { collection: string; id: string };
+    const { schemaId, id } = request.params as { schemaId: string; id: string };
 
-    try {
-      await memoryService.deleteMemoryRecord(
-        userId,
-        collection,
-        id,
-        { memorySchemaRepo, memoryStoreRepo }
-      );
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
 
-      return reply.send({
-        success: true,
+    // Verify record exists and belongs to this collection
+    const existingRecord = await memoryStoreRepo.findById(id);
+    if (!existingRecord || existingRecord.schemaId !== schema.id) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Record not found' },
       });
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('not found')) {
-        return reply.status(404).send({
-          success: false,
-          error: { code: 'NOT_FOUND', message: error.message },
-        });
-      }
-      throw error;
     }
+
+    const deleted = await memoryStoreRepo.delete(id);
+    if (!deleted) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Record not found' },
+      });
+    }
+
+    return reply.send({
+      success: true,
+    });
   });
 
   // Count records
-  app.post('/api/memory/:collection/count', {
+  app.post('/api/memory/:schemaId/count', {
     schema: {
       tags: ['memory'],
       summary: 'Count records in a collection',
@@ -729,7 +777,7 @@ export async function memoryRoutes(app: FastifyInstance) {
       params: {
         type: 'object',
         properties: {
-          collection: { type: 'string' },
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
         },
       },
       body: {
@@ -753,17 +801,11 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { collection } = request.params as { collection: string };
+    const { schemaId } = request.params as { schemaId: string };
     const { filters } = request.body as { filters?: Record<string, unknown> };
 
-    // Get schema
-    const schema = await memorySchemaRepo.findByName(userId, collection);
-    if (!schema) {
-      return reply.status(404).send({
-        success: false,
-        error: { code: 'NOT_FOUND', message: `Collection "${collection}" not found` },
-      });
-    }
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
 
     const count = await memoryStoreRepo.count(schema.id, filters);
 

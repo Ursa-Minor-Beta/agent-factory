@@ -17,5 +17,6 @@ export interface IAgentRepository {
   createSystemAgent(data: CreateAgentDTO): Promise<Agent>;
   update(id: string, data: UpdateAgentDTO): Promise<Agent | null>;
   delete(id: string): Promise<boolean>;
+  deleteByWorkspaceId(workspaceId: string): Promise<number>;
   count(): Promise<number>;
 }

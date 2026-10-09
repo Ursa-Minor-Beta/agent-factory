@@ -181,6 +181,7 @@ export class WorkerExecutor {
       memorySchemaRepo: this.memorySchemaRepo,
       memoryStoreRepo: this.memoryStoreRepo,
       userId,
+      workspaceId: agent.workspaceId, // For workspace-scoped resources
       currentRunId: runId, // For parent-child run linking
       resolvedSecrets: options.resolvedSecrets,
       callStack: new Set([agent.id]), // Initialize call stack with current agent

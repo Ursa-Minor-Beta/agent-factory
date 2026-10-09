@@ -36,11 +36,11 @@ export class RunService {
       throw new ForbiddenError('Access denied');
     }
 
-    // Build provider config from stored defaults
-    const providers = await this.providerConfigService.buildExecutionConfig(userId);
+    // Build provider config from stored defaults (workspace-scoped takes precedence)
+    const providers = await this.providerConfigService.buildExecutionConfig(userId, agent.workspaceId);
 
-    // Pre-resolve all user secrets for {{secret:KEY}} interpolation
-    const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId);
+    // Pre-resolve all user secrets for {{secret:KEY}} interpolation (workspace-scoped takes precedence)
+    const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId, agent.workspaceId);
 
     // Create run record
     let run = await this.runRepo.create({

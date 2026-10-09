@@ -17,6 +17,11 @@ export interface MemoryServiceDependencies {
   memoryStoreRepo: IMemoryStoreRepository;
 }
 
+export interface MemoryServiceOptions {
+  /** Workspace ID for workspace-scoped collection lookup */
+  workspaceId?: string;
+}
+
 /**
  * Validate memory data
  * - Checks for reserved system fields
@@ -49,13 +54,20 @@ export function validateMemoryData(
 
 /**
  * Find schema by collection name
+ * @param options.workspaceId - If provided, searches workspace-scoped first, then global
  */
 export async function findCollectionSchema(
   userId: string,
   collection: string,
-  deps: MemoryServiceDependencies
+  deps: MemoryServiceDependencies,
+  options?: MemoryServiceOptions
 ): Promise<MemorySchema> {
-  const schema = await deps.memorySchemaRepo.findByName(userId, collection);
+  // Search in workspace first (if provided), then global
+  const workspaceIds: (string | null)[] = options?.workspaceId
+    ? [options.workspaceId, null]
+    : [null];
+
+  const schema = await deps.memorySchemaRepo.findByName(userId, collection, workspaceIds);
   if (!schema) {
     throw new Error(`Collection "${collection}" not found`);
   }
@@ -69,7 +81,8 @@ export async function saveMemoryRecord(
   userId: string,
   collection: string,
   data: Record<string, unknown>,
-  deps: MemoryServiceDependencies
+  deps: MemoryServiceDependencies,
+  options?: MemoryServiceOptions
 ): Promise<MemoryRecord> {
   if (!collection) {
     throw new Error('Collection name is required');
@@ -80,7 +93,7 @@ export async function saveMemoryRecord(
   }
 
   // Find schema and validate data
-  const schema = await findCollectionSchema(userId, collection, deps);
+  const schema = await findCollectionSchema(userId, collection, deps, options);
   validateMemoryData(data, schema.fields);
 
   // Create record
@@ -98,28 +111,29 @@ export async function saveMemoryRecord(
 export async function searchMemoryRecords(
   userId: string,
   collection: string,
-  options: {
+  searchOptions: {
     filters?: Record<string, unknown>;
     limit?: number;
     offset?: number;
     sort?: { field: string; direction: 'asc' | 'desc' };
   },
-  deps: MemoryServiceDependencies
+  deps: MemoryServiceDependencies,
+  options?: MemoryServiceOptions
 ): Promise<MemoryRecord[]> {
   if (!collection) {
     throw new Error('Collection name is required');
   }
 
   // Find schema
-  const schema = await findCollectionSchema(userId, collection, deps);
+  const schema = await findCollectionSchema(userId, collection, deps, options);
 
   // Search records
   const results = await deps.memoryStoreRepo.search({
     schemaId: schema.id,
-    filters: options.filters,
-    limit: options.limit ?? 10,
-    offset: options.offset ?? 0,
-    sort: options.sort,
+    filters: searchOptions.filters,
+    limit: searchOptions.limit ?? 10,
+    offset: searchOptions.offset ?? 0,
+    sort: searchOptions.sort,
   });
 
   return results.map((r) => r.record);
@@ -133,7 +147,8 @@ export async function updateMemoryRecord(
   collection: string,
   id: string,
   data: Record<string, unknown>,
-  deps: MemoryServiceDependencies
+  deps: MemoryServiceDependencies,
+  options?: MemoryServiceOptions
 ): Promise<MemoryRecord> {
   if (!collection) {
     throw new Error('Collection name is required');
@@ -148,7 +163,7 @@ export async function updateMemoryRecord(
   }
 
   // Find schema and validate data
-  const schema = await findCollectionSchema(userId, collection, deps);
+  const schema = await findCollectionSchema(userId, collection, deps, options);
   validateMemoryData(data, schema.fields);
 
   // Verify record exists and belongs to this collection
@@ -176,7 +191,8 @@ export async function deleteMemoryRecord(
   userId: string,
   collection: string,
   id: string,
-  deps: MemoryServiceDependencies
+  deps: MemoryServiceDependencies,
+  options?: MemoryServiceOptions
 ): Promise<void> {
   if (!collection) {
     throw new Error('Collection name is required');
@@ -187,7 +203,7 @@ export async function deleteMemoryRecord(
   }
 
   // Find schema
-  const schema = await findCollectionSchema(userId, collection, deps);
+  const schema = await findCollectionSchema(userId, collection, deps, options);
 
   // Verify record exists and belongs to this collection
   const existingRecord = await deps.memoryStoreRepo.findById(id);
@@ -212,7 +228,8 @@ export async function getMemoryRecord(
   userId: string,
   collection: string,
   id: string,
-  deps: MemoryServiceDependencies
+  deps: MemoryServiceDependencies,
+  options?: MemoryServiceOptions
 ): Promise<MemoryRecord> {
   if (!collection) {
     throw new Error('Collection name is required');
@@ -223,7 +240,7 @@ export async function getMemoryRecord(
   }
 
   // Find schema
-  const schema = await findCollectionSchema(userId, collection, deps);
+  const schema = await findCollectionSchema(userId, collection, deps, options);
 
   // Get record
   const record = await deps.memoryStoreRepo.findById(id);

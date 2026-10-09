@@ -41,6 +41,7 @@ export const handleCreateAgent: ToolHandler = async (args, options) => {
     name,
     description,
     nodes: nodes as unknown as WorkflowNode[],
+    workspaceId: options.workspaceId,
   });
 
   return {

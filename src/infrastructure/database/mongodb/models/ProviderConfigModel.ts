@@ -11,6 +11,7 @@ export interface ProviderConfigDocument extends Document {
     apiKey?: string;
     baseUrl?: string;
   };
+  workspaceId?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,14 +41,20 @@ const providerConfigSchema = new Schema<ProviderConfigDocument>(
       apiKey: { type: String },
       baseUrl: { type: String },
     },
+    workspaceId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Workspace',
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-providerConfigSchema.index({ userId: 1, provider: 1 });
-providerConfigSchema.index({ userId: 1, isDefault: 1 });
+providerConfigSchema.index({ userId: 1, workspaceId: 1, provider: 1 });
+providerConfigSchema.index({ userId: 1, workspaceId: 1, isDefault: 1 });
+providerConfigSchema.index({ userId: 1, workspaceId: 1 });
 
 export const ProviderConfigModel = mongoose.model<ProviderConfigDocument>(
   'ProviderConfig',
