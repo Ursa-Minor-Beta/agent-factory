@@ -33,6 +33,7 @@ const gitHubSyncSchema = {
     status: { type: 'string', enum: Object.values(GITHUB_SYNC_STATUS) },
     lastCommitSha: { type: 'string', nullable: true },
     lastSyncedAt: { type: 'string', format: 'date-time', nullable: true },
+    agentIdMap: { type: 'object', additionalProperties: { type: 'string' } },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -191,6 +192,79 @@ export async function githubRoutes(app: FastifyInstance) {
     );
 
     return reply.send({ success: true, data: sync });
+  });
+
+  // Update GitHub sync settings
+  app.put('/api/agents/:id/github', {
+    schema: {
+      tags: ['github'],
+      summary: 'Update GitHub sync settings',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          providerName: { type: 'string', description: 'GitHub provider name' },
+          publicRepo: { type: 'boolean', description: 'Public repo - no auth needed (read-only)' },
+          repository: { type: 'string', description: 'GitHub repository (owner/repo or full URL)' },
+          branch: { type: 'string' },
+          path: { type: 'string', description: 'File path in repository' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: gitHubSyncSchema,
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id } = request.params as { id: string };
+    const { providerName, publicRepo, repository, branch, path } = request.body as {
+      providerName?: string;
+      publicRepo?: boolean;
+      repository?: string;
+      branch?: string;
+      path?: string;
+    };
+
+    // Find existing sync
+    const sync = await container.gitHubSyncRepository.findByEntity(
+      userId,
+      GITHUB_SYNC_ENTITY.AGENT,
+      id
+    );
+
+    if (!sync) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Agent is not linked to GitHub' },
+      });
+    }
+
+    // Update sync settings
+    const updated = await container.gitHubSyncRepository.update(sync.id, {
+      ...(providerName !== undefined && { providerName }),
+      ...(publicRepo !== undefined && { publicRepo }),
+      ...(repository !== undefined && { repository }),
+      ...(branch !== undefined && { branch }),
+      ...(path !== undefined && { path }),
+    });
+
+    return reply.send({ success: true, data: updated });
   });
 
   // Push agent to GitHub
