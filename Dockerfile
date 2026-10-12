@@ -5,6 +5,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
+RUN npm audit --audit-level=high
+
 COPY tsconfig.json ./
 COPY src ./src
 
