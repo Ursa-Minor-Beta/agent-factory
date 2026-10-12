@@ -441,22 +441,22 @@ export async function listAgentCommits(
 
 /**
  * Mark agent as local_ahead when modified locally
- * Called after agent updates to indicate unpushed changes
+ * Also marks parent syncs that include this agent as a dependency
  */
 export async function markAgentAsLocalAhead(
   userId: string,
   agentId: string,
   deps: { gitHubSyncRepo: IGitHubSyncRepository }
 ): Promise<void> {
-  const sync = await deps.gitHubSyncRepo.findByEntity(
-    userId,
-    GITHUB_SYNC_ENTITY.AGENT,
-    agentId
-  );
-  if (sync && sync.status === GITHUB_SYNC_STATUS.SYNCED) {
-    await deps.gitHubSyncRepo.update(sync.id, {
-      status: GITHUB_SYNC_STATUS.LOCAL_AHEAD,
-    });
+  // Find all syncs where this agent appears (as main or dependency)
+  const syncs = await deps.gitHubSyncRepo.findByAgentInMap(userId, agentId);
+
+  for (const sync of syncs) {
+    if (sync.status === GITHUB_SYNC_STATUS.SYNCED) {
+      await deps.gitHubSyncRepo.update(sync.id, {
+        status: GITHUB_SYNC_STATUS.LOCAL_AHEAD,
+      });
+    }
   }
 }
 

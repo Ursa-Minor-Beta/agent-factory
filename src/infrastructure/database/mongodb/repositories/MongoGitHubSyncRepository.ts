@@ -60,6 +60,19 @@ export class MongoGitHubSyncRepository implements IGitHubSyncRepository {
     return docs.map((doc) => this.toEntity(doc));
   }
 
+  async findByAgentInMap(userId: string, agentId: string): Promise<GitHubSync[]> {
+    const docs = await GitHubSyncModel.find({
+      userId,
+      $expr: {
+        $in: [
+          agentId,
+          { $map: { input: { $objectToArray: '$agentIdMap' }, as: 'item', in: '$$item.v' } },
+        ],
+      },
+    });
+    return docs.map((doc) => this.toEntity(doc));
+  }
+
   async create(data: CreateGitHubSyncDTO): Promise<GitHubSync> {
     const doc = await GitHubSyncModel.create({
       userId: data.userId,
