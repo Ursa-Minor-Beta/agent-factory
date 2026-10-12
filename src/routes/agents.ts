@@ -1043,6 +1043,10 @@ export async function agentRoutes(app: FastifyInstance) {
           case 'branch': return 'Evaluating condition...';
           case 'input': return 'Processing input...';
           case 'output': return 'Preparing output...';
+          case 'memory-store': return 'Saving to memory...';
+          case 'memory-search': return 'Searching memory...';
+          case 'memory-update': return 'Updating memory...';
+          case 'memory-delete': return 'Deleting from memory...';
           default: return 'Processing...';
         }
       };
