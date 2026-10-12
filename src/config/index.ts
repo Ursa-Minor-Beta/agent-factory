@@ -41,6 +41,12 @@ export const config = {
   agentVersions: {
     maxSnapshots: parseInt(process.env['AGENT_MAX_SNAPSHOTS'] ?? '10', 10),
   },
+  llm: {
+    /** Hard limit on tool calls per LLM invocation (if defined, overrides node settings) */
+    maxToolCalls: process.env['LLM_MAX_TOOL_CALLS']
+      ? parseInt(process.env['LLM_MAX_TOOL_CALLS'], 10)
+      : undefined,
+  },
 } as const;
 
 // Validate required config

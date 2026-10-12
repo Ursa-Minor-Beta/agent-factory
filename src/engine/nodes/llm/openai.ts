@@ -13,6 +13,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
 } from './constants.js';
 import { buildToolErrorSummary, resolveTools } from './utils.js';
+import { config } from '../../../config/index.js';
 
 type ToolCallResult = {
   toolCallId: string;
@@ -193,7 +194,11 @@ export async function callOpenAI(
     tools: openaiTools,
   };
 
-  const maxIterations = data.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
+  // Config limit overrides node settings if defined
+  const nodeMaxToolCalls = data.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
+  const maxIterations = config.llm.maxToolCalls !== undefined
+    ? Math.min(nodeMaxToolCalls, config.llm.maxToolCalls)
+    : nodeMaxToolCalls;
   const totalUsage = {
     inputTokens: 0,
     outputTokens: 0,
