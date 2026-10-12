@@ -222,6 +222,12 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         type: 'object',
         description: 'Array of tool definitions for function calling.',
       },
+      {
+        name: 'maxToolCalls',
+        type: 'number',
+        description: `Maximum tool call iterations before stopping${config.llm.maxToolCalls ? ` (server limit: ${config.llm.maxToolCalls})` : ''}.`,
+        default: Math.min(20, config.llm.maxToolCalls || 20)
+      },
     ],
     features: [
       'Template interpolation with {{node:id.path}} syntax',
@@ -239,6 +245,25 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           userPrompt: '{{node:input-1.text}}',
           temperature: 0.7,
           maxTokens: 1000,
+        },
+      },
+      {
+        name: 'With builtin tools',
+        description: 'LLM with memory search tool. Builtin tools receive parameters from LLM function calling.',
+        id: 'llm-2',
+        type: 'llm',
+        data: {
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          systemPrompt: 'You are a helpful assistant. Use the memory_search tool to find relevant information. The tool accepts: collection (string), filters (object, optional), limit (number, optional).',
+          userPrompt: '{{node:input-1.text}}',
+          tools: [
+            {
+              type: 'builtin',
+              name: 'memory_search',
+            },
+          ],
+          maxToolCalls: 5,
         },
       },
     ],
