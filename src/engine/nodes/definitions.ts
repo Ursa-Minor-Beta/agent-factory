@@ -222,6 +222,12 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         type: 'object',
         description: 'Array of tool definitions for function calling.',
       },
+      {
+        name: 'maxToolCalls',
+        type: 'number',
+        description: `Maximum tool call iterations before stopping${config.llm.maxToolCalls ? ` (server limit: ${config.llm.maxToolCalls})` : ''}.`,
+        default: Math.min(20, config.llm.maxToolCalls || 20)
+      },
     ],
     features: [
       'Template interpolation with {{node:id.path}} syntax',
