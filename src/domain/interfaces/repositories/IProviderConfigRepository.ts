@@ -6,6 +6,8 @@ import type {
 } from '../../entities/ProviderConfig.js';
 
 export interface ProviderConfigQueryOptions {
+  /** Filter by provider type (e.g., "github", "openai") */
+  provider?: ProviderType;
   /** Filter by workspace: undefined = all, null = global only, "<id>" = workspace only */
   workspaceId?: string | null;
 }

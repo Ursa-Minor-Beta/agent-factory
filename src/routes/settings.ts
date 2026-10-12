@@ -24,7 +24,7 @@ const providerConfigSchema = {
   properties: {
     id: { type: 'string' },
     userId: { type: 'string' },
-    provider: { type: 'string', enum: PROVIDER_TYPES, description: 'Provider type: openai | anthropic | ollama' },
+    provider: { type: 'string', enum: PROVIDER_TYPES, description: 'Provider type: openai | anthropic | ollama | ...' },
     name: { type: 'string' },
     isDefault: { type: 'boolean' },
     config: {
@@ -62,6 +62,11 @@ export async function settingsRoutes(app: FastifyInstance) {
       querystring: {
         type: 'object',
         properties: {
+          provider: {
+            type: 'string',
+            enum: PROVIDER_TYPES,
+            description: 'Filter by provider type (e.g., "github", "openai")',
+          },
           workspaceId: {
             type: 'string',
             description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
@@ -82,9 +87,12 @@ export async function settingsRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const query = request.query as { workspaceId?: string };
+    const query = request.query as { provider?: ProviderType; workspaceId?: string };
 
-    const options: { workspaceId?: string | null } = {};
+    const options: { provider?: ProviderType; workspaceId?: string | null } = {};
+    if (query.provider) {
+      options.provider = query.provider;
+    }
     if (query.workspaceId === 'null') {
       options.workspaceId = null;
     } else if (query.workspaceId) {

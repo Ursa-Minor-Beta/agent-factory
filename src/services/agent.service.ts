@@ -49,15 +49,16 @@ export class AgentService {
       throw new ForbiddenError('Access denied');
     }
 
-    // Create snapshot before updating
-    if (this.versionRepo) {
-      await this.versionRepo.createSnapshot(agent);
-    }
-
     const updated = await this.agentRepo.update(agentId, data);
     if (!updated) {
       throw new NotFoundError('Agent');
     }
+
+    // Create snapshot before updating
+    if (this.versionRepo) {
+      this.versionRepo.createSnapshot(agent);
+    }
+
     return updated;
   }
 
@@ -81,7 +82,7 @@ export class AgentService {
 
     // Delete all versions
     if (this.versionRepo) {
-      await this.versionRepo.deleteVersionsByAgentId(agentId);
+      this.versionRepo.deleteVersionsByAgentId(agentId);
     }
 
     await this.agentRepo.delete(agentId);
