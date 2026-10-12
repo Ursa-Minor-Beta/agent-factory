@@ -266,6 +266,34 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           maxToolCalls: 5,
         },
       },
+      {
+        name: 'With agent tool',
+        description: 'LLM that can call another agent as a tool. The agent runs and returns its output.',
+        id: 'llm-3',
+        type: 'llm',
+        data: {
+          provider: 'openai',
+          model: 'gpt-4o',
+          systemPrompt: 'You are an assistant that can delegate tasks to specialized agents.',
+          userPrompt: '{{node:input.text}}',
+          tools: [
+            {
+              type: 'agent',
+              agentId: '<agent-id>',
+              name: 'summarizer',
+              description: 'Summarizes long text into key points',
+              parameters: {
+                type: 'object',
+                properties: {
+                  text: { type: 'string', description: 'The text to summarize' },
+                },
+                required: ['text'],
+              },
+            },
+          ],
+          maxToolCalls: 3,
+        },
+      },
     ],
   },
   {
