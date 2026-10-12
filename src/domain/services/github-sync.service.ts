@@ -253,6 +253,10 @@ export async function pullAgent(
   }
 
   try {
+    // Get main agent to retrieve workspaceId for new dependencies
+    const mainAgent = await deps.agentRepo.findById(agentId);
+    const workspaceId = mainAgent?.workspaceId ?? undefined;
+
     // Get GitHub client
     const client = await getGitHubClient(userId, sync.providerName, sync.publicRepo, deps);
     const { owner, repo } = parseRepo(sync.repository);
@@ -308,13 +312,14 @@ export async function pullAgent(
         newMap[exportedAgent.refId] = existingLocalId;
       } 
       else {
-        // Create new agent
+        // Create new agent in same workspace as main agent
         const remappedNodes = remapNodeReferences(exportedAgent.nodes, { ...existingMap, ...newMap });
         const created = await deps.agentRepo.create({
           userId,
           name: exportedAgent.name,
           description: exportedAgent.description,
           nodes: remappedNodes,
+          workspaceId,
         });
         newMap[exportedAgent.refId] = created.id;
       }
