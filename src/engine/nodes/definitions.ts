@@ -247,6 +247,25 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           maxTokens: 1000,
         },
       },
+      {
+        name: 'With builtin tools',
+        description: 'LLM with memory search tool. Builtin tools receive parameters from LLM function calling.',
+        id: 'llm-2',
+        type: 'llm',
+        data: {
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          systemPrompt: 'You are a helpful assistant. Use the memory_search tool to find relevant information. The tool accepts: collection (string), filters (object, optional), limit (number, optional).',
+          userPrompt: '{{node:input-1.text}}',
+          tools: [
+            {
+              type: 'builtin',
+              name: 'memory_search',
+            },
+          ],
+          maxToolCalls: 5,
+        },
+      },
     ],
   },
   {
