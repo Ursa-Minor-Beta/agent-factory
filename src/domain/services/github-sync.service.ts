@@ -379,8 +379,6 @@ export async function importFromGitHub(
     // Import agent (creates new agents for main + all dependencies)
     const result = await importAgent(exportData, userId, deps.importDeps, { workspaceId });
 
-    console.log('remissingCollectionssult', result?.warnings?.missingCollections)
-
     // Create sync link
     const sync = await deps.gitHubSyncRepo.create({
       userId,
