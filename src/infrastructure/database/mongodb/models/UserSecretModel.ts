@@ -6,6 +6,7 @@ export interface UserSecretDocument extends Document {
   name: string;
   encryptedValue: string;
   description?: string;
+  workspaceId?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,14 +32,20 @@ const userSecretSchema = new Schema<UserSecretDocument>(
       type: String,
       trim: true,
     },
+    workspaceId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Workspace',
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Unique constraint: name per user
-userSecretSchema.index({ userId: 1, name: 1 }, { unique: true });
+// Unique constraint: name per user per workspace (null workspace = global)
+userSecretSchema.index({ userId: 1, workspaceId: 1, name: 1 }, { unique: true });
+userSecretSchema.index({ userId: 1, workspaceId: 1 });
 
 export const UserSecretModel = mongoose.model<UserSecretDocument>(
   'UserSecret',

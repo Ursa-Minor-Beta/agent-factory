@@ -23,6 +23,7 @@ const sessionSchema = {
     id: { type: 'string' },
     userId: { type: 'string' },
     agentId: { type: 'string' },
+    agentName: { type: 'string' },
     title: { type: 'string', nullable: true },
     status: { type: 'string', enum: ['active', 'archived'] },
     incognito: { type: 'boolean' },
@@ -234,6 +235,69 @@ export async function sessionRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
+    });
+  });
+
+  // Delete sessions by ID(s) or agentId(s)
+  app.post('/api/sessions/delete', {
+    schema: {
+      tags: ['sessions'],
+      summary: 'Delete sessions',
+      description: 'Delete sessions by ID(s) or agentId(s). Users can only delete their own sessions. Admins can delete any sessions. At least one parameter (id or agentId) must be provided.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      body: {
+        type: 'object',
+        properties: {
+          id: { description: 'Session ID(s) to delete' },
+          agentId: { description: 'Agent ID(s) - delete all sessions for these agents' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                deletedCount: { type: 'integer' },
+              },
+            },
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+        403: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId, role } = request.user as { userId: string; role: string };
+    const body = request.body as {
+      id?: string | string[];
+      agentId?: string | string[];
+    };
+
+    if (!body.id && !body.agentId) {
+      return reply.code(400).send({
+        success: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'At least one of id or agentId must be provided',
+        },
+      });
+    }
+
+    const deletedCount = await sessionService.deleteMany(userId, role, {
+      id: body.id,
+      agentId: body.agentId,
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        deletedCount,
+      },
     });
   });
 

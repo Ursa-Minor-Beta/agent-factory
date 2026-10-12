@@ -4,6 +4,8 @@ export interface Session {
   id: string;
   userId: string;
   agentId: string;
+  /** Agent name (populated via aggregation) */
+  agentName?: string;
   title: string | null;
   status: SessionStatus;
   incognito: boolean;

@@ -4,6 +4,13 @@ import type {
   UpdateMemorySchemaDTO,
 } from '../../entities/Memory.js';
 
+export interface MemorySchemaQueryOptions {
+  /** Filter by workspace: undefined = all, null = global only, "<id>" = workspace only */
+  workspaceId?: string | null;
+  limit?: number;
+  offset?: number;
+}
+
 export interface IMemorySchemaRepository {
   /**
    * Find a schema by its ID
@@ -11,16 +18,17 @@ export interface IMemorySchemaRepository {
   findById(id: string): Promise<MemorySchema | null>;
 
   /**
-   * Find a schema by user ID and name
+   * Find a schema by user ID and name within scope
+   * @param workspaceIds - Array of workspace IDs to search, null = global
    */
-  findByName(userId: string, name: string): Promise<MemorySchema | null>;
+  findByName(userId: string, name: string, workspaceIds?: (string | null)[]): Promise<MemorySchema | null>;
 
   /**
    * Find all schemas for a user
    */
   findByUserId(
     userId: string,
-    options?: { limit?: number; offset?: number }
+    options?: MemorySchemaQueryOptions
   ): Promise<MemorySchema[]>;
 
   /**
@@ -39,12 +47,24 @@ export interface IMemorySchemaRepository {
   delete(id: string): Promise<boolean>;
 
   /**
-   * Check if a schema name is already used by user
+   * Delete all schemas scoped to a workspace
+   * @returns Number of deleted schemas
    */
-  nameExists(userId: string, name: string, excludeId?: string): Promise<boolean>;
+  deleteByWorkspaceId(workspaceId: string): Promise<number>;
+
+  /**
+   * Check if a schema name is already used by user within workspace scope
+   */
+  nameExists(userId: string, name: string, workspaceId?: string | null, excludeId?: string): Promise<boolean>;
 
   /**
    * Count schemas for a user
    */
-  count(userId: string): Promise<number>;
+  count(userId: string, workspaceId?: string | null): Promise<number>;
+
+  /**
+   * Find all schemas available to an agent (global + workspace-scoped)
+   * Workspace-scoped schemas take precedence over global on name conflict
+   */
+  findAvailableForAgent(userId: string, workspaceId?: string): Promise<MemorySchema[]>;
 }

@@ -15,7 +15,7 @@ export interface AgentDocument extends Document {
   updatedAt: Date;
 }
 
-const nodeSchema = new Schema(
+export const nodeSchema = new Schema(
   {
     id: { type: String, required: true },
     type: {
@@ -28,40 +28,42 @@ const nodeSchema = new Schema(
   { _id: false }
 );
 
-const agentSchema = new Schema<AgentDocument>(
-  {
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    description: {
-      type: String,
-      default: '',
-    },
-    nodes: {
-      type: [nodeSchema],
-      default: [],
-    },
-    editorData: {
-      type: Schema.Types.Mixed,
-    },
-    workspaceId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Workspace',
-    },
-    systemName: {
-      type: String,
-    },
-    defaultName: {
-      type: String,
-    },
+export const agentSchemaDefinition = {
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
   },
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  description: {
+    type: String,
+    default: '',
+  },
+  nodes: {
+    type: [nodeSchema],
+    default: [],
+  },
+  editorData: {
+    type: Schema.Types.Mixed,
+  },
+  workspaceId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Workspace',
+  },
+  systemName: {
+    type: String,
+  },
+  defaultName: {
+    type: String,
+  },
+};
+
+const agentSchema = new Schema<AgentDocument>(
+  agentSchemaDefinition,
   {
     timestamps: true,
   }

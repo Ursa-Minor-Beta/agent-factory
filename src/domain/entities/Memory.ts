@@ -49,6 +49,10 @@ export interface MemorySchema {
   name: string;
   description: string | null;
   fields: MemorySchemaField[];
+  /** Workspace scope - null/undefined means global (available to all agents) */
+  workspaceId?: string;
+  /** Workspace name (populated via lookup) */
+  workspaceName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,6 +98,7 @@ export interface CreateMemorySchemaDTO {
   name: string;
   description?: string;
   fields: MemorySchemaField[];
+  workspaceId?: string;
 }
 
 /**
@@ -103,6 +108,7 @@ export interface UpdateMemorySchemaDTO {
   name?: string;
   description?: string;
   fields?: MemorySchemaField[];
+  workspaceId?: string | null;
 }
 
 /**

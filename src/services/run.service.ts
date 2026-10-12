@@ -36,11 +36,11 @@ export class RunService {
       throw new ForbiddenError('Access denied');
     }
 
-    // Build provider config from stored defaults
-    const providers = await this.providerConfigService.buildExecutionConfig(userId);
+    // Build provider config from stored defaults (workspace-scoped takes precedence)
+    const providers = await this.providerConfigService.buildExecutionConfig(userId, agent.workspaceId);
 
-    // Pre-resolve all user secrets for {{secret:KEY}} interpolation
-    const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId);
+    // Pre-resolve all user secrets for {{secret:KEY}} interpolation (workspace-scoped takes precedence)
+    const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId, agent.workspaceId);
 
     // Create run record
     let run = await this.runRepo.create({
@@ -150,5 +150,25 @@ export class RunService {
 
   async listParentsWithChildIdsSummary(options?: RunWithChildrenQueryOptions): Promise<RunSummaryQueryResult> {
     return this.runRepo.findParentsWithChildIdsSummary(options);
+  }
+
+  /**
+   * Delete runs by ID(s) or agentId(s).
+   * Users can only delete their own runs (userId included in query).
+   * Admins can delete any runs.
+   */
+  async delete(
+    userId: string,
+    role: string,
+    options: { id?: string | string[]; agentId?: string | string[] }
+  ): Promise<number> {
+    if (!options.id && !options.agentId) {
+      throw new Error('At least one of id or agentId must be provided');
+    }
+
+    // For non-admin users, include userId in query to ensure they can only delete their own runs
+    const deleteOptions = role === 'admin' ? options : { ...options, userId };
+
+    return this.runRepo.deleteBy(deleteOptions);
   }
 }

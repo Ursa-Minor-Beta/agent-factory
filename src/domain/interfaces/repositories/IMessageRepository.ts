@@ -11,6 +11,6 @@ export interface IMessageRepository {
   }): Promise<Message[]>;
   create(data: CreateMessageDTO): Promise<Message>;
   createMany(data: CreateMessageDTO[]): Promise<Message[]>;
-  deleteBySessionId(sessionId: string): Promise<number>;
+  deleteBy(options: { id?: string | string[]; sessionId?: string | string[] }): Promise<number>;
   count(sessionId: string): Promise<number>;
 }

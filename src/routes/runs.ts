@@ -48,6 +48,7 @@ const runSummarySchema: Record<string, unknown> = {
   properties: {
     id: { type: 'string' },
     agentId: { type: 'string' },
+    agentName: { type: 'string' },
     userId: { type: 'string' },
     status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'] },
     error: { type: 'string', nullable: true },
@@ -64,6 +65,7 @@ const runSchema: Record<string, unknown> = {
   properties: {
     id: { type: 'string' },
     agentId: { type: 'string' },
+    agentName: { type: 'string' },
     userId: { type: 'string' },
     input: { type: 'object', additionalProperties: true },
     output: { type: 'object', additionalProperties: true, nullable: true },
@@ -279,6 +281,69 @@ export async function runRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: result,
+    });
+  });
+
+  // Delete runs by ID(s) or agentId(s)
+  app.post('/api/runs/delete', {
+    schema: {
+      tags: ['runs'],
+      summary: 'Delete runs',
+      description: 'Delete runs by ID(s) or agentId(s). Users can only delete their own runs. Admins can delete any runs. At least one parameter (id or agentId) must be provided.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      body: {
+        type: 'object',
+        properties: {
+          id: { description: 'Run ID(s) to delete' },
+          agentId: { description: 'Agent ID(s) - delete all runs for these agents' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                deletedCount: { type: 'integer' },
+              },
+            },
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+        403: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId, role } = request.user as { userId: string; role: string };
+    const body = request.body as {
+      id?: string | string[];
+      agentId?: string | string[];
+    };
+
+    if (!body.id && !body.agentId) {
+      return reply.code(400).send({
+        success: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'At least one of id or agentId must be provided',
+        },
+      });
+    }
+
+    const deletedCount = await runService.delete(userId, role, {
+      id: body.id,
+      agentId: body.agentId,
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        deletedCount,
+      },
     });
   });
 }

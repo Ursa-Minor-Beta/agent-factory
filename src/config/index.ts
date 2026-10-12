@@ -38,6 +38,9 @@ export const config = {
       ? process.env['ALLOWED_ORIGINS'].split(',').map(o => o.trim()).filter(o => o.length > 0)
       : [],
   },
+  agentVersions: {
+    maxSnapshots: parseInt(process.env['AGENT_MAX_SNAPSHOTS'] ?? '10', 10),
+  },
 } as const;
 
 // Validate required config

@@ -1,4 +1,5 @@
-export type ProviderType = 'openai' | 'anthropic' | 'ollama';
+export const PROVIDER_TYPES = ['openai', 'anthropic', 'ollama'] as const;
+export type ProviderType = (typeof PROVIDER_TYPES)[number];
 
 export interface ProviderConfig {
   id: string;
@@ -10,6 +11,10 @@ export interface ProviderConfig {
     apiKey?: string;         // For OpenAI, Anthropic
     baseUrl?: string;        // For Ollama, custom endpoints
   };
+  /** Workspace scope - null/undefined means global (available to all agents) */
+  workspaceId?: string;
+  /** Workspace name (populated via lookup) */
+  workspaceName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +28,7 @@ export interface CreateProviderConfigDTO {
     apiKey?: string;
     baseUrl?: string;
   };
+  workspaceId?: string;
 }
 
 export interface UpdateProviderConfigDTO {
@@ -32,4 +38,5 @@ export interface UpdateProviderConfigDTO {
     apiKey?: string;
     baseUrl?: string;
   };
+  workspaceId?: string | null;
 }

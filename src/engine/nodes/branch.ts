@@ -1,7 +1,7 @@
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
-import { interpolateAll } from './interpolate.js';
+import { interpolateDeep } from './interpolate.js';
 
 /**
  * Branch node - Multi-way conditional branching with execution control
@@ -37,7 +37,7 @@ export class BranchNode extends BaseNode {
   async execute(
     node: WorkflowNode,
     context: ExecutionContext,
-    options: ExecutionOptions
+    _options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
     const branches = (node.data.branches as BranchDefinition[]) ?? [];
 
@@ -45,18 +45,8 @@ export class BranchNode extends BaseNode {
       throw new Error('Branch node requires at least one branch definition');
     }
 
-    // Get input from template or workflow input
-    let input: unknown;
-    if (node.data.input && typeof node.data.input === 'string') {
-      const interpolated = interpolateAll(node.data.input, { context });
-      try {
-        input = JSON.parse(interpolated);
-      } catch {
-        input = interpolated;
-      }
-    } else {
-      input = options.workflowInput;
-    }
+    // Resolve input via interpolation
+    const input = interpolateDeep(node.data.input, { context });
 
     // Evaluate branches in order and find the first matching one
     let activeBranch: BranchDefinition | null = null;

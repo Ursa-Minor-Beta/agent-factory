@@ -1,5 +1,17 @@
 import type { ExecutionContext } from '../context.js';
 
+
+/**
+ * Regex pattern to find node references: {{node:<id>.path}}
+ */
+export const NODE_PATTERN = /\{\{node:([^.}]+)\.([^}]+)\}\}/g;
+
+/**
+ * Regex pattern to find secret references: {{secret:KEY_NAME}}
+ */
+export const SECRET_PATTERN = /\{\{secret:(\w+)\}\}/g;
+
+
 /**
  * Get a nested value from an object using dot notation path
  * e.g., getByPath(obj, 'response.result.data') => obj.response.result.data
@@ -56,7 +68,7 @@ export function interpolate(template: string, options: InterpolateOptions = {}):
   let result = template;
 
   // 1. Handle {{node:nodeId.path}} pattern - reference other node outputs
-  result = result.replace(/\{\{node:([^.}]+)\.([^}]+)\}\}/g, (match, nodeId, path) => {
+  result = result.replace(NODE_PATTERN, (match, nodeId, path) => {
     if (!context) {
       return match;
     }
@@ -75,7 +87,7 @@ export function interpolate(template: string, options: InterpolateOptions = {}):
   });
 
   // 2. Handle {{secret:KEY}} pattern
-  result = result.replace(/\{\{secret:(\w+)\}\}/g, (match, key) => {
+  result = result.replace(SECRET_PATTERN, (match, key) => {
     const value = secrets[key];
     if (value === undefined) {
       return match;

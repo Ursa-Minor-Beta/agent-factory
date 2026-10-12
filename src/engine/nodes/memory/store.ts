@@ -57,7 +57,8 @@ export class MemoryStoreNode extends BaseNode {
       {
         memorySchemaRepo: options.memorySchemaRepo,
         memoryStoreRepo: options.memoryStoreRepo,
-      }
+      },
+      { workspaceId: options.workspaceId }
     );
 
     const outputs = {

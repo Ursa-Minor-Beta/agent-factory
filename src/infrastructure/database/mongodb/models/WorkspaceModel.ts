@@ -29,7 +29,6 @@ const workspaceSchema = new Schema<WorkspaceDocument>(
     defaultName: {
       type: String,
       trim: true,
-      sparse: true,
     },
   },
   {

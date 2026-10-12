@@ -1,13 +1,15 @@
+import mongoose from 'mongoose';
 import { SessionModel, SessionDocument } from '../models/SessionModel.js';
 import type { ISessionRepository } from '../../../../domain/interfaces/repositories/ISessionRepository.js';
 import type { Session, CreateSessionDTO, UpdateSessionDTO, SessionStatus } from '../../../../domain/entities/Session.js';
 
 export class MongoSessionRepository implements ISessionRepository {
-  private toEntity(doc: SessionDocument): Session {
+  private toEntity(doc: SessionDocument & { agentName?: string }): Session {
     return {
       id: doc._id.toString(),
       userId: doc.userId.toString(),
       agentId: doc.agentId.toString(),
+      agentName: doc.agentName,
       title: doc.title,
       status: doc.status,
       incognito: doc.incognito,
@@ -26,18 +28,30 @@ export class MongoSessionRepository implements ISessionRepository {
     userId: string,
     options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number }
   ): Promise<Session[]> {
-    const query: Record<string, unknown> = { userId };
+    const match: Record<string, unknown> = { userId: new mongoose.Types.ObjectId(userId) };
     if (options?.agentId) {
-      query.agentId = options.agentId;
+      match.agentId = new mongoose.Types.ObjectId(options.agentId);
     }
     if (options?.status) {
-      query.status = options.status;
+      match.status = options.status;
     }
 
-    const docs = await SessionModel.find(query)
-      .sort({ createdAt: -1 })
-      .skip(options?.offset ?? 0)
-      .limit(options?.limit ?? 50);
+    const docs = await SessionModel.aggregate([
+      { $match: match },
+      { $sort: { createdAt: -1 } },
+      { $skip: options?.offset ?? 0 },
+      { $limit: options?.limit ?? 50 },
+      {
+        $lookup: {
+          from: 'agents',
+          localField: 'agentId',
+          foreignField: '_id',
+          as: 'agent',
+        },
+      },
+      { $addFields: { agentName: { $arrayElemAt: ['$agent.name', 0] } } },
+      { $project: { agent: 0 } },
+    ]);
 
     return docs.map((doc) => this.toEntity(doc));
   }
@@ -78,14 +92,24 @@ export class MongoSessionRepository implements ISessionRepository {
     return doc ? this.toEntity(doc) : null;
   }
 
-  async delete(id: string): Promise<boolean> {
-    const result = await SessionModel.findByIdAndDelete(id);
-    return result !== null;
-  }
+  async deleteBy(options: { id?: string | string[]; agentId?: string | string[]; userId?: string }): Promise<number> {
+    const query: Record<string, unknown> = {};
 
-  async deleteByAgentId(agentId: string): Promise<number> {
-    const result = await SessionModel.deleteMany({ agentId });
-    return result.deletedCount;
+    if (options.id) {
+      query._id = Array.isArray(options.id)
+        ? { $in: options.id.map((idStr) => new mongoose.Types.ObjectId(idStr)) }
+        : new mongoose.Types.ObjectId(options.id);
+    }
+
+    if (options.agentId) {
+      query.agentId = Array.isArray(options.agentId) ? { $in: options.agentId } : options.agentId;
+    }
+
+    if (options.userId) {
+      query.userId = options.userId;
+    }
+
+    return (await SessionModel.deleteMany(query)).deletedCount ?? 0;
   }
 
   async archive(id: string): Promise<Session | null> {

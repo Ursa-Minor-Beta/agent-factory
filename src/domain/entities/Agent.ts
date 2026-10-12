@@ -72,7 +72,23 @@ export interface AgentQueryOptions {
   limit?: number;
 }
 
+/** Agent list item - excludes nodes for performance, includes workspace name */
+export type AgentListItem = Omit<Agent, 'nodes'> & {
+  workspaceName?: string;
+};
+
 export interface AgentListResult {
-  agents: Agent[];
+  agents: AgentListItem[];
+  total: number;
+}
+
+export interface AgentVersion extends Omit<Agent, 'id'> {
+  id: string;
+  /** Reference to the current agent */
+  agentIdRef: string;
+}
+
+export interface AgentVersionListResult {
+  versions: AgentVersion[];
   total: number;
 }

@@ -126,16 +126,16 @@ export async function fileRoutes(app: FastifyInstance) {
     return { success: true, data: file };
   });
 
-  // Delete file by ID
-  app.delete('/api/files/:id', {
+  // Delete files by ID(s)
+  app.post('/api/files/delete', {
     schema: {
       tags: ['files'],
-      summary: 'Delete file by ID',
+      summary: 'Delete files by ID(s)',
       security: [{ bearerAuth: [] }, { apiKey: [] }],
-      params: {
+      body: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
+          id: { description: 'Single file ID or array of IDs' },
         },
         required: ['id'],
       },
@@ -144,33 +144,33 @@ export async function fileRoutes(app: FastifyInstance) {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
+            deletedCount: { type: 'integer' },
           },
         },
-        404: errorSchema,
         403: errorSchema,
       },
     },
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { id } = request.params as { id: string };
+    const { id } = request.body as { id: string | string[] };
 
-    const file = await fileRepo.findById(id);
-    if (!file) {
-      return reply.status(404).send({
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'File not found' },
-      });
-    }
+    const ids = Array.isArray(id) ? id : [id];
 
-    if (file.userId !== userId) {
+    // Verify ownership of all files
+    const files = await fileRepo.findByIds(ids);
+    const unauthorized = files.filter((f) => f.userId !== userId);
+    if (unauthorized.length > 0) {
       return reply.status(403).send({
         success: false,
-        error: { code: 'FORBIDDEN', message: 'Access denied' },
+        error: { code: 'FORBIDDEN', message: 'Access denied to one or more files' },
       });
     }
 
-    await fileRepo.delete(id);
-    return { success: true };
+    // Only delete files that exist and belong to the user
+    const ownedIds = files.map((f) => f.id);
+    const deletedCount = ownedIds.length > 0 ? await fileRepo.deleteBy({ id: ownedIds }) : 0;
+
+    return { success: true, deletedCount };
   });
 }

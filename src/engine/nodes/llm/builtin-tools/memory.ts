@@ -27,7 +27,8 @@ export const handleMemoryStore: ToolHandler = async (args, options) => {
       {
         memorySchemaRepo: options.memorySchemaRepo,
         memoryStoreRepo: options.memoryStoreRepo,
-      }
+      },
+      { workspaceId: options.workspaceId }
     );
 
     return {
@@ -66,7 +67,8 @@ export const handleMemorySearch: ToolHandler = async (args, options) => {
       {
         memorySchemaRepo: options.memorySchemaRepo,
         memoryStoreRepo: options.memoryStoreRepo,
-      }
+      },
+      { workspaceId: options.workspaceId }
     );
 
     return {
@@ -113,7 +115,8 @@ export const handleMemoryUpdate: ToolHandler = async (args, options) => {
       {
         memorySchemaRepo: options.memorySchemaRepo,
         memoryStoreRepo: options.memoryStoreRepo,
-      }
+      },
+      { workspaceId: options.workspaceId }
     );
 
     return {
@@ -151,7 +154,8 @@ export const handleMemoryDelete: ToolHandler = async (args, options) => {
       {
         memorySchemaRepo: options.memorySchemaRepo,
         memoryStoreRepo: options.memoryStoreRepo,
-      }
+      },
+      { workspaceId: options.workspaceId }
     );
 
     return {

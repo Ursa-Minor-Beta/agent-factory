@@ -31,6 +31,8 @@ const secretSchema = {
     name: { type: 'string' },
     maskedValue: { type: 'string' },
     description: { type: 'string' },
+    workspaceId: { type: 'string', nullable: true },
+    workspaceName: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -45,6 +47,15 @@ export async function secretRoutes(app: FastifyInstance) {
       tags: ['secrets'],
       summary: 'List all user secrets',
       security: [{ bearerAuth: [] }, { apiKey: [] }],
+      querystring: {
+        type: 'object',
+        properties: {
+          workspaceId: {
+            type: 'string',
+            description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
+          },
+        },
+      },
       response: {
         200: {
           type: 'object',
@@ -59,13 +70,24 @@ export async function secretRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const secrets = await userSecretService.getAll(userId);
+    const query = request.query as { workspaceId?: string };
+
+    const options: { workspaceId?: string | null } = {};
+    if (query.workspaceId === 'null') {
+      options.workspaceId = null;
+    } else if (query.workspaceId) {
+      options.workspaceId = query.workspaceId;
+    }
+
+    const secrets = await userSecretService.getAll(userId, options);
 
     const maskedSecrets = secrets.map((s) => ({
       id: s.id,
       name: s.name,
       maskedValue: maskValue(s.value),
       description: s.description,
+      workspaceId: s.workspaceId ?? null,
+      workspaceName: s.workspaceName ?? null,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
     }));
@@ -110,6 +132,8 @@ export async function secretRoutes(app: FastifyInstance) {
         name: secret.name,
         maskedValue: maskValue(secret.value),
         description: secret.description,
+        workspaceId: secret.workspaceId ?? null,
+        workspaceName: secret.workspaceName ?? null,
         createdAt: secret.createdAt,
         updatedAt: secret.updatedAt,
       },
@@ -141,6 +165,10 @@ export async function secretRoutes(app: FastifyInstance) {
             type: 'string',
             description: 'Optional description',
           },
+          workspaceId: {
+            type: 'string',
+            description: 'Workspace ID to scope the secret to. Omit for global scope.',
+          },
         },
       },
       response: {
@@ -159,7 +187,12 @@ export async function secretRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const body = request.body as { name: string; value: string; description?: string };
+    const body = request.body as {
+      name: string;
+      value: string;
+      description?: string;
+      workspaceId?: string;
+    };
 
     const secret = await userSecretService.create(userId, body);
 
@@ -170,6 +203,8 @@ export async function secretRoutes(app: FastifyInstance) {
         name: secret.name,
         maskedValue: maskValue(secret.value),
         description: secret.description,
+        workspaceId: secret.workspaceId ?? null,
+        workspaceName: secret.workspaceName ?? null,
         createdAt: secret.createdAt,
         updatedAt: secret.updatedAt,
       },
@@ -200,6 +235,11 @@ export async function secretRoutes(app: FastifyInstance) {
           description: {
             type: 'string',
           },
+          workspaceId: {
+            type: 'string',
+            nullable: true,
+            description: 'Workspace ID to scope the secret to. Set to null for global scope.',
+          },
         },
       },
       response: {
@@ -221,7 +261,12 @@ export async function secretRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id } = request.params as { id: string };
-    const body = request.body as { name?: string; value?: string; description?: string };
+    const body = request.body as {
+      name?: string;
+      value?: string;
+      description?: string;
+      workspaceId?: string | null;
+    };
 
     const secret = await userSecretService.update(userId, id, body);
 
@@ -232,6 +277,8 @@ export async function secretRoutes(app: FastifyInstance) {
         name: secret.name,
         maskedValue: maskValue(secret.value),
         description: secret.description,
+        workspaceId: secret.workspaceId ?? null,
+        workspaceName: secret.workspaceName ?? null,
         createdAt: secret.createdAt,
         updatedAt: secret.updatedAt,
       },

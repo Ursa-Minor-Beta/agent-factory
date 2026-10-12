@@ -10,8 +10,19 @@ import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js'
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
-import { DEFAULT_AGENT } from '../engine/agents/default.js';
+import {
+  CHAT_AGENT,
+  AGENT_CREATOR,
+  BROWSER_SCREENSHOT,
+  BROWSER_EXECUTE,
+  TEST_STEP_EXECUTOR,
+  TEST_ORCHESTRATOR,
+} from '../engine/agents/index.js';
 import { isOriginAllowed } from '../utils/cors.js';
+import * as agentExportService from '../domain/services/agent-export.service.js';
+import * as agentImportService from '../domain/services/agent-import.service.js';
+import { AGENT_EXPORT_VERSION } from '../domain/entities/AgentExport.js';
+import { PROVIDER_TYPES } from '../domain/entities/ProviderConfig.js';
 
 // Schemas
 const errorSchema = {
@@ -69,6 +80,23 @@ const editorDataSchema = {
   additionalProperties: true,
 };
 
+const agentListItemSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    userId: { type: 'string' },
+    name: { type: 'string' },
+    description: { type: 'string' },
+    editorData: editorDataSchema,
+    workspaceId: { type: 'string', nullable: true },
+    workspaceName: { type: 'string', nullable: true },
+    systemName: { type: 'string', nullable: true },
+    defaultName: { type: 'string', nullable: true },
+    createdAt: { type: 'string', format: 'date-time' },
+    updatedAt: { type: 'string', format: 'date-time' },
+  },
+};
+
 const agentSchema = {
   type: 'object',
   properties: {
@@ -79,6 +107,7 @@ const agentSchema = {
     nodes: { type: 'array', items: nodeSchema },
     editorData: editorDataSchema,
     workspaceId: { type: 'string', nullable: true },
+    workspaceName: { type: 'string', nullable: true },
     systemName: { type: 'string', nullable: true },
     defaultName: { type: 'string', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
@@ -89,6 +118,7 @@ const agentSchema = {
 export async function agentRoutes(app: FastifyInstance) {
   const agentService = new AgentService(
     container.agentRepository,
+    container.agentVersionRepository,
     container.sessionRepository,
     container.messageRepository
   );
@@ -139,7 +169,7 @@ export async function agentRoutes(app: FastifyInstance) {
             data: {
               type: 'object',
               properties: {
-                agents: { type: 'array', items: agentSchema },
+                agents: { type: 'array', items: agentListItemSchema },
                 total: { type: 'integer' },
               },
             },
@@ -265,7 +295,14 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (_request, reply) => {
     return reply.send({
       success: true,
-      data: [DEFAULT_AGENT],
+      data: [
+        CHAT_AGENT,
+        AGENT_CREATOR,
+        BROWSER_SCREENSHOT,
+        BROWSER_EXECUTE,
+        TEST_STEP_EXECUTOR,
+        TEST_ORCHESTRATOR,
+      ],
     });
   });
 
@@ -304,6 +341,216 @@ export async function agentRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: agent,
+    });
+  });
+
+  // Export agent with dependencies
+  app.get('/api/agents/:id/export', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Export agent with dependencies',
+      description: 'Export an agent with all its dependencies (nested agents, collections, required secrets/providers) as a JSON package.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                version: { type: 'string' },
+                exportedAt: { type: 'string', format: 'date-time' },
+                workspace: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                  },
+                },
+                agent: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                    nodes: { type: 'array', items: nodeSchema },
+                    originalId: { type: 'string' },
+                  },
+                },
+                dependencies: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      description: { type: 'string' },
+                      nodes: { type: 'array', items: nodeSchema },
+                      originalId: { type: 'string' },
+                    },
+                  },
+                },
+                collections: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      schema: {
+                        type: 'object',
+                        nullable: true,
+                        properties: {
+                          description: { type: 'string', nullable: true },
+                          fields: { type: 'array' },
+                        },
+                      },
+                    },
+                  },
+                },
+                secrets: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      description: { type: 'string' },
+                    },
+                  },
+                },
+                providers: {
+                  type: 'array',
+                  items: { type: 'string', enum: PROVIDER_TYPES as unknown as string[] },
+                },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id } = request.params as { id: string };
+
+    const exportData = await agentExportService.exportAgent(id, userId, {
+      agentRepo: container.agentRepository,
+      workspaceRepo: container.workspaceRepository,
+      memorySchemaRepo: container.memorySchemaRepository,
+    });
+
+    return reply.send({
+      success: true,
+      data: exportData,
+    });
+  });
+
+  // Import agent with dependencies
+  app.post('/api/agents/import', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Import agent with dependencies',
+      description: 'Import an agent from an export package. Creates new workspace or imports into existing one.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      body: {
+        type: 'object',
+        required: ['package'],
+        properties: {
+          package: {
+            type: 'object',
+            description: 'The agent export package (from /export endpoint)',
+          },
+          workspaceId: {
+            type: 'string',
+            description: 'Import into existing workspace (if not provided, creates new workspace)',
+          },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                workspaceId: { type: 'string' },
+                workspaceName: { type: 'string' },
+                agentId: { type: 'string' },
+                agentIdMap: {
+                  type: 'object',
+                  additionalProperties: { type: 'string' },
+                  description: 'Map of original agent IDs to new IDs',
+                },
+                warnings: {
+                  type: 'object',
+                  properties: {
+                    missingSecrets: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: 'Secret names that need to be configured',
+                    },
+                    missingProviders: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: 'Provider types that need to be configured',
+                    },
+                    missingCollections: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          name: { type: 'string' },
+                          schema: {
+                            type: 'object',
+                            nullable: true,
+                            properties: {
+                              description: { type: 'string', nullable: true },
+                              fields: { type: 'array' },
+                            },
+                          },
+                        },
+                      },
+                      description: 'Collections that need to be created (with schema)',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const body = request.body as {
+      package: unknown;
+      workspaceId?: string;
+    };
+
+    const result = await agentImportService.importAgent(
+      body.package,
+      userId,
+      {
+        agentRepo: container.agentRepository,
+        workspaceRepo: container.workspaceRepository,
+      },
+      { workspaceId: body.workspaceId }
+    );
+
+    return reply.send({
+      success: true,
+      data: result,
     });
   });
 
@@ -356,6 +603,154 @@ export async function agentRoutes(app: FastifyInstance) {
     };
 
     const agent = await agentService.update(userId, id, body);
+
+    return reply.send({
+      success: true,
+      data: agent,
+    });
+  });
+
+  // List agent versions
+  app.get('/api/agents/:id/versions', {
+    schema: {
+      tags: ['agents'],
+      summary: 'List agent versions',
+      description: 'Get historical snapshots of an agent.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+        },
+      },
+      querystring: {
+        type: 'object',
+        properties: {
+          skip: { type: 'integer', minimum: 0, default: 0 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                versions: {
+                  type: 'array',
+                  items: {
+                    ...agentSchema,
+                    properties: {
+                      ...agentSchema.properties,
+                      agentIdRef: { type: 'string' },
+                    },
+                  },
+                },
+                total: { type: 'integer' },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id } = request.params as { id: string };
+    const { skip, limit } = request.query as { skip?: number; limit?: number };
+
+    const result = await agentService.listVersions(userId, id, { skip, limit });
+
+    return reply.send({
+      success: true,
+      data: result,
+    });
+  });
+
+  // Get specific agent version
+  app.get('/api/agents/:id/versions/:versionId', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Get agent version',
+      description: 'Get a specific historical snapshot of an agent.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          versionId: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              ...agentSchema,
+              properties: {
+                ...agentSchema.properties,
+                agentIdRef: { type: 'string' },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { versionId } = request.params as { id: string; versionId: string };
+
+    const version = await agentService.getVersionById(userId, versionId);
+
+    return reply.send({
+      success: true,
+      data: version,
+    });
+  });
+
+  // Restore agent version
+  app.post('/api/agents/:id/versions/:versionId/restore', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Restore agent version',
+      description: 'Restore an agent to a previous version. Creates a snapshot of the current state before restoring.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          versionId: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: agentSchema,
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { versionId } = request.params as { id: string; versionId: string };
+
+    const agent = await agentService.restoreVersion(userId, versionId);
 
     return reply.send({
       success: true,

@@ -1,5 +1,9 @@
 import type { IWorkspaceRepository } from '../domain/interfaces/repositories/IWorkspaceRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
+import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
+import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
+import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import type {
   Workspace,
   CreateWorkspaceDTO,
@@ -7,15 +11,33 @@ import type {
   WorkspaceQueryOptions,
   WorkspaceListResult,
 } from '../domain/entities/Workspace.js';
-import { NotFoundError, ForbiddenError, ValidationError } from '../utils/errors.js';
+import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
-export type WorkspaceDeletionMode = 'move-agents' | 'delete-agents';
+export interface WorkspaceServiceDependencies {
+  workspaceRepo: IWorkspaceRepository;
+  agentRepo: IAgentRepository;
+  userSecretRepo: IUserSecretRepository;
+  providerConfigRepo: IProviderConfigRepository;
+  memorySchemaRepo: IMemorySchemaRepository;
+  memoryStoreRepo: IMemoryStoreRepository;
+}
 
 export class WorkspaceService {
-  constructor(
-    private workspaceRepo: IWorkspaceRepository,
-    private agentRepo?: IAgentRepository
-  ) {}
+  private workspaceRepo: IWorkspaceRepository;
+  private agentRepo: IAgentRepository;
+  private userSecretRepo: IUserSecretRepository;
+  private providerConfigRepo: IProviderConfigRepository;
+  private memorySchemaRepo: IMemorySchemaRepository;
+  private memoryStoreRepo: IMemoryStoreRepository;
+
+  constructor(deps: WorkspaceServiceDependencies) {
+    this.workspaceRepo = deps.workspaceRepo;
+    this.agentRepo = deps.agentRepo;
+    this.userSecretRepo = deps.userSecretRepo;
+    this.providerConfigRepo = deps.providerConfigRepo;
+    this.memorySchemaRepo = deps.memorySchemaRepo;
+    this.memoryStoreRepo = deps.memoryStoreRepo;
+  }
 
   async create(userId: string, data: Omit<CreateWorkspaceDTO, 'userId'>): Promise<Workspace> {
     return this.workspaceRepo.create({ ...data, userId });
@@ -52,11 +74,7 @@ export class WorkspaceService {
     return updated;
   }
 
-  async delete(
-    userId: string,
-    workspaceId: string,
-    mode: WorkspaceDeletionMode = 'move-agents'
-  ): Promise<void> {
+  async delete(userId: string, workspaceId: string): Promise<void> {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
       throw new NotFoundError('Workspace');
@@ -65,25 +83,17 @@ export class WorkspaceService {
       throw new ForbiddenError('Access denied');
     }
 
-    if (!this.agentRepo) {
-      throw new ValidationError('Agent repository not configured');
-    }
+    // Get schemas in this workspace (for memory record cleanup)
+    const schemas = await this.memorySchemaRepo.findByUserId(userId, { workspaceId });
 
-    // Get agents in this workspace
-    const agentsResult = await this.agentRepo.findByUserId(userId, { workspaceId });
-    const agents = agentsResult.agents;
-
-    if (mode === 'delete-agents') {
-      // Delete all agents in the workspace
-      for (const agent of agents) {
-        await this.agentRepo.delete(agent.id);
-      }
-    } else {
-      // Move agents to root (remove workspaceId)
-      for (const agent of agents) {
-        await this.agentRepo.update(agent.id, { workspaceId: null });
-      }
-    }
+    // Delete all resources in parallel
+    await Promise.all([
+      this.agentRepo.deleteByWorkspaceId(workspaceId),
+      ...schemas.map((schema) => this.memoryStoreRepo.deleteBySchemaId(schema.id)),
+      this.userSecretRepo.deleteByWorkspaceId(workspaceId),
+      this.providerConfigRepo.deleteByWorkspaceId(workspaceId),
+      this.memorySchemaRepo.deleteByWorkspaceId(workspaceId),
+    ]);
 
     // Delete the workspace
     await this.workspaceRepo.delete(workspaceId);
@@ -99,5 +109,33 @@ export class WorkspaceService {
     }
 
     return this.workspaceRepo.countAgentsInWorkspace(workspaceId);
+  }
+
+  async getByIdWithCounts(
+    userId: string,
+    workspaceId: string
+  ): Promise<Workspace & { agentCount: number; secretCount: number; providerCount: number; collectionCount: number }> {
+    const workspace = await this.workspaceRepo.findById(workspaceId);
+    if (!workspace) {
+      throw new NotFoundError('Workspace');
+    }
+    if (workspace.userId !== userId) {
+      throw new ForbiddenError('Access denied');
+    }
+
+    const [agentCount, secretCount, providerCount, collectionCount] = await Promise.all([
+      this.workspaceRepo.countAgentsInWorkspace(workspaceId),
+      this.userSecretRepo.count(userId, workspaceId),
+      this.providerConfigRepo.count(userId, workspaceId),
+      this.memorySchemaRepo.count(userId, workspaceId),
+    ]);
+
+    return {
+      ...workspace,
+      agentCount,
+      secretCount,
+      providerCount,
+      collectionCount,
+    };
   }
 }

@@ -1,4 +1,7 @@
-import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
+import type {
+  IProviderConfigRepository,
+  ProviderConfigQueryOptions,
+} from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type {
   ProviderConfig,
   ProviderType,
@@ -11,8 +14,8 @@ import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 export class ProviderConfigService {
   constructor(private providerConfigRepo: IProviderConfigRepository) {}
 
-  async getAll(userId: string): Promise<ProviderConfig[]> {
-    return this.providerConfigRepo.findByUserId(userId);
+  async getAll(userId: string, options?: ProviderConfigQueryOptions): Promise<ProviderConfig[]> {
+    return this.providerConfigRepo.findByUserId(userId, options);
   }
 
   async getById(userId: string, id: string): Promise<ProviderConfig> {
@@ -26,8 +29,14 @@ export class ProviderConfigService {
     return config;
   }
 
-  async getDefault(userId: string, provider: ProviderType): Promise<ProviderConfig | null> {
-    return this.providerConfigRepo.findDefault(userId, provider);
+  async getDefault(
+    userId: string,
+    provider: ProviderType,
+    workspaceId?: string
+  ): Promise<ProviderConfig | null> {
+    // Search in workspace first, then global
+    const workspaceIds: (string | null)[] = workspaceId ? [workspaceId, null] : [null];
+    return this.providerConfigRepo.findDefault(userId, provider, workspaceIds);
   }
 
   async create(
@@ -81,13 +90,14 @@ export class ProviderConfigService {
 
   /**
    * Build execution provider config from stored defaults
+   * @param workspaceId - If provided, includes workspace-scoped configs (which take precedence)
    */
-  async buildExecutionConfig(userId: string): Promise<ExecutionProviderConfig> {
-    const allConfigs = await this.providerConfigRepo.findByUserId(userId);
+  async buildExecutionConfig(userId: string, workspaceId?: string): Promise<ExecutionProviderConfig> {
+    const allConfigs = await this.providerConfigRepo.findAvailableForAgent(userId, workspaceId);
 
     const config: ExecutionProviderConfig = {};
 
-    // Get default configs for each provider type
+    // Get default configs for each provider type (workspace-scoped already takes precedence)
     for (const providerConfig of allConfigs) {
       if (!providerConfig.isDefault) continue;
 
