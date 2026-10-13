@@ -91,7 +91,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Text input',
         description: 'Simple text input field',
-        id: 'input-1',
+        id: 'input',
         type: 'input',
         data: {
           schema: {
@@ -131,7 +131,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Single output field',
         description: 'Output a single field from an LLM node',
-        id: 'output-1',
+        id: 'output',
         type: 'output',
         data: {
           response: '{{node:llm-1.response}}',
@@ -140,7 +140,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Multiple output fields',
         description: 'Output multiple fields from different nodes',
-        id: 'output-2',
+        id: 'output',
         type: 'output',
         data: {
           summary: '{{node:llm-1.response}}',
@@ -151,7 +151,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'Nested path access',
         description: 'Access nested fields from node outputs',
-        id: 'output-3',
+        id: 'output',
         type: 'output',
         data: {
           screenshot: '{{node:http-1.response.screenshots.screenshot}}',
@@ -161,7 +161,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
       {
         name: 'File handling',
         description: 'Base64 images/files are auto-extracted and saved. Output contains {{inner:fileId}} refs.',
-        id: 'output-4',
+        id: 'output',
         type: 'output',
         data: {
           result: '{{node:llm-1.response}}',
@@ -242,7 +242,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           provider: 'openai',
           model: 'gpt-4o-mini',
           systemPrompt: 'You are a helpful assistant.',
-          userPrompt: '{{node:input-1.text}}',
+          userPrompt: '{{node:input.text}}',
           temperature: 0.7,
           maxTokens: 1000,
         },
@@ -256,7 +256,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           provider: 'openai',
           model: 'gpt-4o-mini',
           systemPrompt: 'You are a helpful assistant. Use the memory_search tool to find relevant information. The tool accepts: collection (string), filters (object, optional), limit (number, optional).',
-          userPrompt: '{{node:input-1.text}}',
+          userPrompt: '{{node:input.text}}',
           tools: [
             {
               type: 'builtin',
@@ -264,6 +264,34 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
             },
           ],
           maxToolCalls: 5,
+        },
+      },
+      {
+        name: 'With agent tool',
+        description: 'LLM that can call another agent as a tool. The agent runs and returns its output.',
+        id: 'llm-3',
+        type: 'llm',
+        data: {
+          provider: 'openai',
+          model: 'gpt-4o',
+          systemPrompt: 'You are an assistant that can delegate tasks to specialized agents.',
+          userPrompt: '{{node:input.text}}',
+          tools: [
+            {
+              type: 'agent',
+              agentId: '<agent-id>',
+              name: 'text_summarizer',
+              description: 'Summarizes long text into key points',
+              parameters: {
+                type: 'object',
+                properties: {
+                  text: { type: 'string', description: 'The text to summarize' },
+                },
+                required: ['text'],
+              },
+            },
+          ],
+          maxToolCalls: 3,
         },
       },
     ],
@@ -325,7 +353,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         type: 'http',
         data: {
           method: 'GET',
-          url: 'https://api.example.com/data/{{node:input-1.id}}',
+          url: 'https://api.example.com/data/{{node:input.id}}',
         },
       },
       {
@@ -337,7 +365,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
           method: 'POST',
           url: 'https://api.example.com/items',
           headers: { 'Content-Type': 'application/json' },
-          body: { name: '{{node:input-1.name}}', value: '{{node:input-1.value}}' },
+          body: { name: '{{node:input.name}}', value: '{{node:input.value}}' },
         },
       }
     ],
@@ -390,7 +418,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         id: 'js-1',
         type: 'js',
         data: {
-          input: '{{node:input-1.text}}',
+          input: '{{node:input.text}}',
           code: 'output = { result: input.toUpperCase() };',
         },
       },
@@ -475,7 +503,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         id: 'branch-1',
         type: 'branch',
         data: {
-          input: '{{node:input-1.score}}',
+          input: '{{node:input.score}}',
           branches: [
             {
               name: 'high',
@@ -546,7 +574,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         data: {
           collection: 'learned_steps',
           data: {
-            page: '{{node:input-1.url}}',
+            page: '{{node:input.url}}',
             action: 'click',
             selector: '#play-btn',
             success: true,
@@ -598,7 +626,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         type: 'memory-search',
         data: {
           collection: 'learned_steps',
-          filters: { page: '{{node:input-1.url}}' },
+          filters: { page: '{{node:input.url}}' },
           limit: 5,
         },
       },
@@ -669,7 +697,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         type: 'memory-delete',
         data: {
           collection: 'learned_steps',
-          id: '{{node:input-1.recordId}}',
+          id: '{{node:input.recordId}}',
         },
       },
     ],

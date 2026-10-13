@@ -72,9 +72,30 @@ export interface AgentQueryOptions {
   limit?: number;
 }
 
-/** Agent list item - excludes nodes for performance, includes workspace name */
+/** GitHub sync info for agent list items */
+export interface AgentGitHubInfo {
+  /** GitHub repository (e.g., "owner/repo") */
+  repository: string;
+  /** GitHub file path */
+  path: string;
+  /** ID of the root agent if this is a subagent (found via agentIdMap), undefined if this is the root */
+  rootId?: string;
+}
+
+/** Agent list item - excludes nodes for performance, includes workspace name and GitHub info */
 export type AgentListItem = Omit<Agent, 'nodes'> & {
   workspaceName?: string;
+  /** GitHub sync info if linked */
+  github?: AgentGitHubInfo;
+  /** Number of nodes in the agent workflow */
+  nodesCount?: number;
+};
+
+/** Agent with full details including GitHub info */
+export type AgentWithDetails = Agent & {
+  workspaceName?: string;
+  /** GitHub sync info if linked */
+  github?: AgentGitHubInfo;
 };
 
 export interface AgentListResult {

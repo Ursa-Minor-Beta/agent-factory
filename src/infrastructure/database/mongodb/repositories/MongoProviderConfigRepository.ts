@@ -75,6 +75,10 @@ export class MongoProviderConfigRepository implements IProviderConfigRepository 
   async findByUserId(userId: string, options?: ProviderConfigQueryOptions): Promise<ProviderConfig[]> {
     const matchStage: Record<string, unknown> = { userId: new Types.ObjectId(userId) };
 
+    if (options?.provider) {
+      matchStage.provider = options.provider;
+    }
+
     if (options?.workspaceId !== undefined) {
       // Filter by specific workspace (null = global only, "<id>" = workspace only)
       matchStage.workspaceId = options.workspaceId === null

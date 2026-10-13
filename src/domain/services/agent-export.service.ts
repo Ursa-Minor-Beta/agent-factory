@@ -47,6 +47,61 @@ function extractAgentIdsFromNodes(nodes: WorkflowNode[]): string[] {
 }
 
 /**
+ * Generate unique refId from agent name
+ */
+function generateUniqueRefId(name: string, usedRefIds: Set<string>): string {
+  const formattedame = name.toLowerCase().replaceAll(' ', '-');
+  let refId = formattedame;
+  let n = 0;
+  while (usedRefIds.has(refId)) {
+    n++;
+    refId = `${formattedame}-${n}`;
+  }
+  usedRefIds.add(refId);
+  return refId;
+}
+
+/**
+ * Replace agent ID references in nodes with refIds
+ */
+function replaceAgentIdsInNodes(nodes: WorkflowNode[], idToRefId: Map<string, string>): WorkflowNode[] {
+  return nodes.map((node): WorkflowNode => {
+    // Agent node - replace agentId reference
+    if (node.type === 'agent' && node.data.agentId) {
+      const refId = idToRefId.get(node.data.agentId as string);
+      if (refId) {
+        return {
+          id: node.id,
+          type: node.type,
+          data: { ...node.data, agentId: refId },
+        };
+      }
+    }
+
+    // LLM node - replace agentId in tools
+    if (node.type === 'llm' && Array.isArray(node.data.tools)) {
+      const tools = (node.data.tools as Array<{ type?: string; agentId?: string }>).map((tool) => {
+        if (tool.type === 'agent' && tool.agentId) {
+          const refId = idToRefId.get(tool.agentId);
+          if (refId) {
+            return { ...tool, agentId: refId };
+          }
+        }
+        return tool;
+      });
+      return {
+        id: node.id,
+        type: node.type,
+        data: { ...node.data, tools },
+      };
+    }
+
+    // No changes needed - return as is
+    return node;
+  });
+}
+
+/**
  * Recursively collect all agent IDs needed for export
  */
 async function collectDependencyAgentIds(
@@ -144,14 +199,14 @@ function analyzeAgents(agents: Map<string, Agent>, analysis: ExportAnalysis): vo
 
 
 /**
- * Convert Agent to ExportedAgent (strip user-specific data)
+ * Convert Agent to ExportedAgent (strip user-specific data, replace IDs with refIds)
  */
-function toExportedAgent(agent: Agent): ExportedAgent {
+function toExportedAgent(agent: Agent, refId: string, idToRefId: Map<string, string>): ExportedAgent {
   return {
+    refId,
     name: agent.name,
     description: agent.description,
-    nodes: agent.nodes,
-    originalId: agent.id,
+    nodes: replaceAgentIdsInNodes(agent.nodes, idToRefId),
   };
 }
 
@@ -193,7 +248,19 @@ export async function exportAgent(
   // 3. Collect only needed agents (main + dependencies)
   const agentsMap = await collectDependencyAgentIds(mainAgent, deps.agentRepo);
 
-  // 4. Analyze dependencies
+  // 4. Build ID to refId mapping
+  const usedRefIds = new Set<string>();
+  const idToRefId = new Map<string, string>();
+  // Process main agent first to ensure it gets the base name
+  idToRefId.set(mainAgent.id, generateUniqueRefId(mainAgent.name, usedRefIds));
+  // Then process dependencies
+  for (const [id, agent] of agentsMap) {
+    if (!idToRefId.has(id)) {
+      idToRefId.set(id, generateUniqueRefId(agent.name, usedRefIds));
+    }
+  }
+
+  // 5. Analyze dependencies
   const analysis: ExportAnalysis = {
     collectionNames: new Set<string>(),
     secretNames: new Set<string>(),
@@ -202,34 +269,30 @@ export async function exportAgent(
 
   analyzeAgents(agentsMap, analysis);
 
-  // 5. Load collections (include not-found with just name)
+  // 6. Load collections (include not-found with just name)
   const workspaceIds: (string | null)[] = mainAgent.workspaceId
     ? [mainAgent.workspaceId, null]
     : [null];
 
   const collectionNames = Array.from(analysis.collectionNames);
-  console.log('[export] Looking for collections:', collectionNames, 'in workspaces:', workspaceIds, 'for user:', userId);
   const schemas = await Promise.all(
     collectionNames.map((name) => deps.memorySchemaRepo.findByName(userId, name, workspaceIds))
   );
-  console.log('[export] Found schemas:', schemas.map(s => s ? { name: s.name, id: s.id } : null));
 
   const collections = collectionNames.map((name, i) => toExportedCollection(name, schemas[i] ?? null));
 
-  // 6. Build dependency list (topologically sorted, excluding main agent)
+  // 7. Build dependency list (topologically sorted, excluding main agent)
   const sortedAgents = topologicalSortAgents(agentsMap, mainAgent.id);
   const dependencies = sortedAgents
       .filter((a) => a.id !== mainAgent.id)
-      .map(toExportedAgent);
+      .map((a) => toExportedAgent(a, idToRefId.get(a.id)!, idToRefId));
 
-  // 7. Build secrets list
+  // 8. Build secrets list
   const secrets: RequiredSecret[] = Array.from(analysis.secretNames).map(
     (name) => ({ name })
   );
 
-  console.log('[export] Found schemas:', schemas.map(s => s ? { name: s.name, id: s.id } : null));
-
-  // 8. Build export package
+  // 9. Build export package
   return {
     version: AGENT_EXPORT_VERSION,
     exportedAt: new Date(),
@@ -237,7 +300,7 @@ export async function exportAgent(
       name: workspace?.name ?? mainAgent.name,
       description: workspace?.description,
     },
-    agent: toExportedAgent(mainAgent),
+    agent: toExportedAgent(mainAgent, idToRefId.get(mainAgent.id)!, idToRefId),
     dependencies,
     collections,
     secrets,

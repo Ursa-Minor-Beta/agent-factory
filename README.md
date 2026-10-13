@@ -9,7 +9,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 ## Features
 
 - **Node Graph Workflows** - Define agents as connected nodes
-- **Composable Agents** - Agents can call other agents as sub-workflows
+- **Composable Agents** - Agents can call other agents as sub-workflows or llm-tools
 - **Multi-Provider LLM** - OpenAI, Anthropic, Ollama
 - **Agent Creator** - System agent that builds custom agents through conversation
 - **Memory System** - Persistent storage with collections, schemas, and CRUD operations
@@ -23,6 +23,9 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Streaming Chat** - Real-time streaming status
 - **Encrypted Secrets** - Provider API keys encrypted at rest (AES-256-GCM)
 - **File Storage** - Built-in file storage for agent artifacts
+- **Export/Import** - Export agents to JSON, import from file
+- **GitHub Sync** - Link agents to GitHub repos with push/pull support
+- **Agent Snapshots** - Version history with restore capability
 - **Swagger Docs** - Full API documentation at `/docs`
 
 ## UI Client
