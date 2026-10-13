@@ -280,7 +280,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
             {
               type: 'agent',
               agentId: '<agent-id>',
-              name: 'summarizer',
+              name: 'text_summarizer',
               description: 'Summarizes long text into key points',
               parameters: {
                 type: 'object',
