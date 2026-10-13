@@ -10,6 +10,7 @@ import {
   DEFAULT_ANTHROPIC_MODEL,
   DEFAULT_MAX_TOKENS,
   DEFAULT_MAX_TOOL_CALLS,
+  DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
 import { buildToolErrorSummary, resolveTools } from './utils.js';
 import { config } from '../../../config/index.js';
@@ -229,22 +230,38 @@ export async function callAnthropic(
       };
     }
 
-    // Execute tools in parallel and continue loop
+    // Execute tools and continue loop
     messages.push({ role: 'assistant', content: response.content });
-    const callResults = await Promise.all(
-      toolUses.map((toolUse) => executeSingleToolCall(toolUse, toolMap, options, nodeId))
-    );
-
+    const executionMode = data.toolExecutionMode ?? DEFAULT_TOOL_EXECUTION_MODE;
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
-    for (let i = 0; i < toolUses.length; i++) {
-      const toolUse = toolUses[i]!;
-      const callResult = callResults[i]!;
-      executedToolCalls.push({ name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
-      toolResults.push({
-        type: 'tool_result',
-        tool_use_id: callResult.toolUseId,
-        content: JSON.stringify(callResult.result),
-      });
+
+    if (executionMode === 'sequential') {
+      // Execute tools one by one
+      for (const toolUse of toolUses) {
+        const callResult = await executeSingleToolCall(toolUse, toolMap, options, nodeId);
+        executedToolCalls.push({ name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: callResult.toolUseId,
+          content: JSON.stringify(callResult.result),
+        });
+      }
+    } else {
+      // Execute tools in parallel
+      const callResults = await Promise.all(
+        toolUses.map((toolUse) => executeSingleToolCall(toolUse, toolMap, options, nodeId))
+      );
+
+      for (let i = 0; i < toolUses.length; i++) {
+        const toolUse = toolUses[i]!;
+        const callResult = callResults[i]!;
+        executedToolCalls.push({ name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: callResult.toolUseId,
+          content: JSON.stringify(callResult.result),
+        });
+      }
     }
     messages.push({ role: 'user', content: toolResults });
   }

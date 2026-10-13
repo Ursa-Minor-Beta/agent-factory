@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../../tools/index.js';
+import type { ToolExecutionMode } from './constants.js';
 
 /**
  * LLM node configuration data
@@ -13,6 +14,8 @@ export interface LLMNodeData {
   maxMessages?: number;
   tools?: ToolDefinition[];
   maxToolCalls?: number;
+  /** Tool execution mode: 'parallel' runs all tools simultaneously, 'sequential' runs one at a time */
+  toolExecutionMode?: ToolExecutionMode;
 }
 
 /**
