@@ -944,7 +944,8 @@ export async function agentRoutes(app: FastifyInstance) {
         success: true,
         data: result,
       });
-    } catch (error) {
+    }
+    catch (error) {
       if (error instanceof AgentExecutionError) {
         return reply.status(500).send({
           success: false,
@@ -1002,7 +1003,8 @@ export async function agentRoutes(app: FastifyInstance) {
       // If allowedOrigins is empty, allow all origins
       if (allowedOrigins.length === 0) {
         allowOrigin = requestOrigin;
-      } else if (isOriginAllowed(requestOrigin, allowedOrigins)) {
+      }
+      else if (isOriginAllowed(requestOrigin, allowedOrigins)) {
         allowOrigin = requestOrigin;
       }
       // If origin not allowed, don't set CORS headers (will fail in browser)
@@ -1144,7 +1146,8 @@ export async function agentRoutes(app: FastifyInstance) {
         { event: 'run-cancelled', handler: onCancel }
       );
 
-    } catch (error) {
+    }
+    catch (error) {
       cleanupAll();
       const err = error as Error & { code?: string; runId?: string };
       sendEvent('error', {
@@ -1209,7 +1212,8 @@ export async function agentRoutes(app: FastifyInstance) {
         cancelled,
         message,
       });
-    } catch (error) {
+    }
+    catch (error) {
       if (error instanceof Error && error.message.includes('Cannot cancel')) {
         return reply.status(400).send({
           success: false,

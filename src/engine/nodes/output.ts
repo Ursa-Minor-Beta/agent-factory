@@ -41,10 +41,12 @@ export class OutputNode extends BaseNode {
         // Try to parse as JSON if it looks like JSON
         try {
           value = JSON.parse(interpolated);
-        } catch {
+        }
+        catch {
           value = interpolated;
         }
-      } else {
+      }
+      else {
         // Non-string values pass through as-is
         value = template;
       }
@@ -128,7 +130,8 @@ export class OutputNode extends BaseNode {
         });
         return replaceFileRefsInObject(cleanedOutput, fileIdMap);
       }
-    } else if (typeof value === 'string') {
+    }
+    else if (typeof value === 'string') {
       const { cleanedText, files } = extractBase64FromText(value, fieldName);
 
       if (files.length > 0) {

@@ -75,7 +75,8 @@ export async function secretRoutes(app: FastifyInstance) {
     const options: { workspaceId?: string | null } = {};
     if (query.workspaceId === 'null') {
       options.workspaceId = null;
-    } else if (query.workspaceId) {
+    }
+    else if (query.workspaceId) {
       options.workspaceId = query.workspaceId;
     }
 

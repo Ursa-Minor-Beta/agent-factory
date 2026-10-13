@@ -82,7 +82,8 @@ export async function getFile(
       content: Buffer.from(data.content, 'base64').toString('utf-8'),
       sha: data.sha,
     };
-  } catch (error: unknown) {
+  }
+  catch (error: unknown) {
     if (error instanceof Error && 'status' in error && error.status === 404) {
       return null;
     }
@@ -145,7 +146,8 @@ export async function validateToken(client: Octokit): Promise<{ valid: boolean; 
   try {
     const response = await client.rest.users.getAuthenticated();
     return { valid: true, username: response.data.login };
-  } catch {
+  }
+  catch {
     return { valid: false };
   }
 }

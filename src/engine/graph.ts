@@ -34,13 +34,15 @@ function extractFieldPathsForNode(
         paths.add(match[1]);
       }
     }
-  } else if (Array.isArray(value)) {
+  }
+  else if (Array.isArray(value)) {
     for (const item of value) {
       for (const path of extractFieldPathsForNode(item, targetNodeId)) {
         paths.add(path);
       }
     }
-  } else if (value && typeof value === 'object') {
+  }
+  else if (value && typeof value === 'object') {
     for (const [k, v] of Object.entries(value)) {
       for (const path of extractFieldPathsForNode(v, targetNodeId, k)) {
         paths.add(path);
@@ -70,13 +72,15 @@ function extractNodeRefs(value: unknown, key?: string): Set<string> {
         refs.add(match[1]);
       }
     }
-  } else if (Array.isArray(value)) {
+  }
+  else if (Array.isArray(value)) {
     for (const item of value) {
       for (const ref of extractNodeRefs(item)) {
         refs.add(ref);
       }
     }
-  } else if (value && typeof value === 'object') {
+  }
+  else if (value && typeof value === 'object') {
     for (const [k, v] of Object.entries(value)) {
       for (const ref of extractNodeRefs(v, k)) {
         refs.add(ref);
@@ -186,7 +190,8 @@ export function topologicalSort(nodes: WorkflowNode[]): string[] {
     // Collect output nodes separately to place at end
     if (outputNodeIds.has(nodeId)) {
       outputNodes.push(nodeId);
-    } else {
+    }
+    else {
       result.push(nodeId);
     }
 
@@ -242,7 +247,8 @@ export function validateWorkflow(nodes: WorkflowNode[]): { valid: boolean; error
   // Check for cycles
   try {
     topologicalSort(nodes);
-  } catch (e) {
+  }
+  catch (e) {
     if (e instanceof CycleError) {
       errors.push('Workflow contains a cycle');
     }

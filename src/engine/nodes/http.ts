@@ -97,7 +97,8 @@ export class HttpNode extends BaseNode {
         state,
         files: fileRefs.length > 0 ? fileRefs : undefined,
       };
-    } catch (error) {
+    }
+    catch (error) {
       clearTimeout(timeoutId);
 
       if (error instanceof Error && error.name === 'AbortError') {
@@ -180,20 +181,20 @@ export class HttpNode extends BaseNode {
     const state: Record<string, unknown> = {};
     for (const field of data.persistedFields) {
       switch (field) {
-        case 'url':
-          state.url = url;
-          break;
-        case 'method':
-          state.method = method;
-          break;
-        case 'headers':
-          state.headers = headers;
-          break;
-        case 'body':
-          if (body !== undefined) {
-            state.body = body;
-          }
-          break;
+      case 'url':
+        state.url = url;
+        break;
+      case 'method':
+        state.method = method;
+        break;
+      case 'headers':
+        state.headers = headers;
+        break;
+      case 'body':
+        if (body !== undefined) {
+          state.body = body;
+        }
+        break;
       }
     }
     return state;
@@ -210,17 +211,17 @@ export class HttpNode extends BaseNode {
 
     for (const field of data.persistedFields) {
       switch (field) {
-        case 'status':
-          state.status = status;
-          break;
-        case 'responseHeaders':
-          state.responseHeaders = Object.fromEntries(headers.entries());
-          break;
-        case 'sseEvents':
-          if (sseEvents) {
-            state.sseEvents = sseEvents;
-          }
-          break;
+      case 'status':
+        state.status = status;
+        break;
+      case 'responseHeaders':
+        state.responseHeaders = Object.fromEntries(headers.entries());
+        break;
+      case 'sseEvents':
+        if (sseEvents) {
+          state.sseEvents = sseEvents;
+        }
+        break;
       }
     }
   }
@@ -277,7 +278,8 @@ export class HttpNode extends BaseNode {
           const result = await reader.read();
           done = result.done;
           value = result.value;
-        } catch (readError) {
+        }
+        catch (readError) {
           // reader.read() throws AbortError when signal is aborted
           if (readError instanceof Error && readError.name === 'AbortError') {
             (readError as unknown as { partialData: SSEResult }).partialData = { accumulated, events: collectedEvents };
@@ -333,12 +335,14 @@ export class HttpNode extends BaseNode {
             collectedEvents.push({ data });
             this.processEventData(data, accumulated);
           }
-        } else if (remaining.startsWith('{')) {
+        }
+        else if (remaining.startsWith('{')) {
           collectedEvents.push({ data: remaining });
           this.processEventData(remaining, accumulated);
         }
       }
-    } finally {
+    }
+    finally {
       reader.releaseLock();
     }
 
@@ -353,7 +357,8 @@ export class HttpNode extends BaseNode {
     try {
       const parsed = JSON.parse(data);
       this.deepMerge(accumulated, parsed);
-    } catch {
+    }
+    catch {
       accumulated['_raw'] = accumulated['_raw']
         ? `${accumulated['_raw']}${data}`
         : data;
@@ -371,12 +376,15 @@ export class HttpNode extends BaseNode {
           events.push(current);
         }
         current = {};
-      } else if (line.startsWith('data:')) {
+      }
+      else if (line.startsWith('data:')) {
         const data = line.slice(5).trim();
         current.data = current.data ? current.data + '\n' + data : data;
-      } else if (line.startsWith('event:')) {
+      }
+      else if (line.startsWith('event:')) {
         current.event = line.slice(6).trim();
-      } else if (line.startsWith('id:')) {
+      }
+      else if (line.startsWith('id:')) {
         current.id = line.slice(3).trim();
       }
     }
@@ -392,7 +400,8 @@ export class HttpNode extends BaseNode {
           target[key] = {};
         }
         this.deepMerge(target[key] as Record<string, unknown>, value);
-      } else {
+      }
+      else {
         target[key] = value;
       }
     }

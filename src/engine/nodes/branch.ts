@@ -58,7 +58,8 @@ export class BranchNode extends BaseNode {
           activeBranch = branch;
           break;
         }
-      } catch (error) {
+      }
+      catch (error) {
         throw new Error(
           `Branch condition evaluation failed for branch "${branch.name}": ${
             error instanceof Error ? error.message : String(error)

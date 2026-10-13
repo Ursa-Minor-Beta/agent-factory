@@ -154,9 +154,9 @@ export class JsNode extends BaseNode {
     const state: Record<string, unknown> = {};
     for (const field of data.persistedFields) {
       switch (field) {
-        case 'input':
-          state.input = input;
-          break;
+      case 'input':
+        state.input = input;
+        break;
       }
     }
     return state;
@@ -189,7 +189,8 @@ export class JsNode extends BaseNode {
         worker.terminate();
         if (msg.success) {
           resolve(msg.result);
-        } else {
+        }
+        else {
           reject(new Error(`JS node execution failed: ${msg.error}`));
         }
       });
@@ -200,7 +201,8 @@ export class JsNode extends BaseNode {
         // Check for memory limit exceeded
         if (err.message.includes('out of memory') || err.message.includes('heap')) {
           reject(new Error(`JS node exceeded memory limit (${memoryMb}MB)`));
-        } else {
+        }
+        else {
           reject(new Error(`JS node execution failed: ${err.message}`));
         }
       });

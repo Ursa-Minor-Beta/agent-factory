@@ -284,8 +284,8 @@ export async function exportAgent(
   // 7. Build dependency list (topologically sorted, excluding main agent)
   const sortedAgents = topologicalSortAgents(agentsMap, mainAgent.id);
   const dependencies = sortedAgents
-      .filter((a) => a.id !== mainAgent.id)
-      .map((a) => toExportedAgent(a, idToRefId.get(a.id)!, idToRefId));
+    .filter((a) => a.id !== mainAgent.id)
+    .map((a) => toExportedAgent(a, idToRefId.get(a.id)!, idToRefId));
 
   // 8. Build secrets list
   const secrets: RequiredSecret[] = Array.from(analysis.secretNames).map(

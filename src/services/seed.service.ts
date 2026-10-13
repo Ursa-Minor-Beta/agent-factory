@@ -123,7 +123,8 @@ export class SeedService {
       if (existing) {
         await this.agentRepo.update(existing.id, { name, description: desc, nodes, workspaceId: startId });
         updated.push(name);
-      } else {
+      }
+      else {
         await this.agentRepo.createSystemAgent({ userId: admin.id, name, description: desc, nodes, systemName, workspaceId: startId });
         created.push(name);
       }

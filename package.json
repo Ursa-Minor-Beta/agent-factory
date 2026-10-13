@@ -8,7 +8,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "prepare": "husky"
   },
   "keywords": [
     "ai",
@@ -39,10 +41,17 @@
     "@typescript-eslint/eslint-plugin": "^8.15.0",
     "@typescript-eslint/parser": "^8.15.0",
     "eslint": "^9.15.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "tsx": "^4.19.2",
     "typescript": "^5.8.2"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --fix"
+    ]
   }
 }

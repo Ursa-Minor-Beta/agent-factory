@@ -109,12 +109,14 @@ export class WorkflowExecutor {
 
       if (result.status === 'completed') {
         run = (await this.runRepo.complete(run.id, result.output, result.files))!;
-      } else {
+      }
+      else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
 
       return run;
-    } catch (error) {
+    }
+    catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       run = (await this.runRepo.fail(run.id, errorMessage))!;
       return run;
@@ -153,12 +155,14 @@ export class WorkflowExecutor {
 
       if (result.status === 'completed') {
         run = (await this.runRepo.complete(run.id, result.output, result.files))!;
-      } else {
+      }
+      else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
 
       return run;
-    } catch (error) {
+    }
+    catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       run = (await this.runRepo.fail(run.id, errorMessage))!;
       return run;
@@ -260,7 +264,8 @@ export class WorkflowExecutor {
             files: result.files,
             completedAt: new Date(),
           });
-        } catch (error) {
+        }
+        catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
 
           // Build error details for debugging
@@ -273,7 +278,8 @@ export class WorkflowExecutor {
               response: error.context.response,
               cause: error.originalError?.message,
             };
-          } else if (error instanceof Error) {
+          }
+          else if (error instanceof Error) {
             errorDetails = {
               message: error.message,
               stack: error.stack,
@@ -319,7 +325,8 @@ export class WorkflowExecutor {
       }
 
       return { output, status: 'completed', files: allFiles.length > 0 ? allFiles : undefined };
-    } catch (error) {
+    }
+    catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { output: {}, status: 'failed', error: errorMessage };
     }

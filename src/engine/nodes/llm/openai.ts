@@ -47,7 +47,8 @@ async function executeSingleToolCall(
   let toolArgs: Record<string, unknown>;
   try {
     toolArgs = JSON.parse(toolCall.function.arguments);
-  } catch {
+  }
+  catch {
     return {
       toolCallId: toolCall.id,
       name: toolName,
@@ -62,7 +63,8 @@ async function executeSingleToolCall(
       : await executeSubAgent(toolDef.agentId!, toolArgs, options, nodeId, toolName);
 
     return { toolCallId: toolCall.id, name: toolName, result, isError: false };
-  } catch (error) {
+  }
+  catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       toolCallId: toolCall.id,
@@ -101,7 +103,8 @@ function buildInitialMessages(
       content.push({ type: 'text', text: cleanedPrompt });
     }
     messages.push({ role: 'user', content });
-  } else {
+  }
+  else {
     messages.push({ role: 'user', content: userPrompt });
   }
 
@@ -132,7 +135,8 @@ async function makeApiCall(params: ApiCallParams): Promise<OpenAI.Chat.Completio
       ...(usesLegacyMaxTokens ? { max_tokens: maxTokens } : { max_completion_tokens: maxTokens }),
       tools,
     });
-  } catch (error) {
+  }
+  catch (error) {
     if (error instanceof OpenAI.APIError) {
       throw new NodeExecutionError(
         `OpenAI API error: ${error.status} ${error.message}`,

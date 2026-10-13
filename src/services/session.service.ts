@@ -163,11 +163,11 @@ export class SessionService {
     // Build session context for worker
     const sessionContext = effectiveSessionId
       ? {
-          sessionId: effectiveSessionId,
-          messages: messagesHistory,
-          notes: sessionNotes ?? undefined,
-          maxNotesLength: options.maxNotesLength,
-        }
+        sessionId: effectiveSessionId,
+        messages: messagesHistory,
+        notes: sessionNotes ?? undefined,
+        maxNotesLength: options.maxNotesLength,
+      }
       : undefined;
 
     // Execute in worker and wait for completion
@@ -665,12 +665,14 @@ export class SessionService {
 
       if (providers.openai?.apiKey) {
         title = await this.generateTitleWithOpenAI(prompt, systemPrompt, providers);
-      } else if (providers.anthropic?.apiKey) {
+      }
+      else if (providers.anthropic?.apiKey) {
         title = await this.generateTitleWithAnthropic(prompt, systemPrompt, providers);
       }
 
       return title;
-    } catch (error) {
+    }
+    catch (error) {
       // Log error but don't throw - title generation is not critical
       console.error('Failed to generate session title:', error instanceof Error ? error.message : error);
       return;

@@ -162,7 +162,8 @@ export async function authRoutes(app: FastifyInstance) {
     let decoded: { userId: string; type?: string };
     try {
       decoded = app.jwt.verify<{ userId: string; type?: string }>(refreshToken);
-    } catch {
+    }
+    catch {
       throw new UnauthorizedError('Invalid or expired refresh token');
     }
 

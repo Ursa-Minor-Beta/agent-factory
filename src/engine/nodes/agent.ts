@@ -68,10 +68,12 @@ export class AgentNode extends BaseNode {
       const interpolated = interpolateAll(data.input, { context });
       try {
         subInput = JSON.parse(interpolated);
-      } catch {
+      }
+      catch {
         subInput = { value: interpolated };
       }
-    } else {
+    }
+    else {
       subInput = options.workflowInput;
     }
 

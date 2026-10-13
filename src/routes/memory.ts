@@ -114,7 +114,8 @@ export async function memoryRoutes(app: FastifyInstance) {
     };
     if (workspaceId === 'null') {
       options.workspaceId = null;
-    } else if (workspaceId) {
+    }
+    else if (workspaceId) {
       options.workspaceId = workspaceId;
     }
 
@@ -591,7 +592,8 @@ export async function memoryRoutes(app: FastifyInstance) {
         success: true,
         data: record,
       });
-    } catch (error) {
+    }
+    catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('reserved') || error.message.includes('Required field')) {
           return reply.status(400).send({
@@ -715,7 +717,8 @@ export async function memoryRoutes(app: FastifyInstance) {
         success: true,
         data: updated,
       });
-    } catch (error) {
+    }
+    catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('reserved') || error.message.includes('Required field')) {
           return reply.status(400).send({

@@ -11,6 +11,7 @@ export interface IFileRepository {
   findByIds(ids: string[]): Promise<File[]>;
   findByUserId(userId: string, options?: FileQueryOptions): Promise<File[]>;
   listByUserId(userId: string, options?: { limit?: number; offset?: number }): Promise<FileListItem[]>;
+  countByUserId(userId: string): Promise<number>;
   create(data: CreateFileDTO): Promise<File>;
   createMany(data: CreateFileDTO[]): Promise<File[]>;
   deleteBy(options: { id?: string | string[]; userId?: string }): Promise<number>;

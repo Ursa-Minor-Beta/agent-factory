@@ -62,7 +62,8 @@ runManager.on('log', ({ runId, level, message }) => {
   const prefix = `[Worker:${runId.slice(-6)}]`;
   if (level === 'error') {
     console.error(prefix, message.trim());
-  } else {
+  }
+  else {
     console.log(prefix, message.trim());
   }
 });

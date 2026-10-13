@@ -99,12 +99,15 @@ export function extractFilesFromObject(
       if (extracted) {
         files.push(extracted);
         result[key] = `[file:${files.length - 1}:${extracted.mimeType}]`;
-      } else {
+      }
+      else {
         result[key] = value;
       }
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+    }
+    else if (value && typeof value === 'object' && !Array.isArray(value)) {
       result[key] = extractFilesFromObject(value as Record<string, unknown>, files, fieldName, seen);
-    } else if (Array.isArray(value)) {
+    }
+    else if (Array.isArray(value)) {
       result[key] = value.map((item, idx) => {
         if (typeof item === 'string') {
           const extracted = extractBase64FromString(item, `${fieldName}[${idx}]`);
@@ -113,7 +116,8 @@ export function extractFilesFromObject(
             return `[file:${files.length - 1}:${extracted.mimeType}]`;
           }
           return item;
-        } else if (item && typeof item === 'object') {
+        }
+        else if (item && typeof item === 'object') {
           if (seen.has(item)) {
             return '[Circular]';
           }
@@ -121,7 +125,8 @@ export function extractFilesFromObject(
         }
         return item;
       });
-    } else {
+    }
+    else {
       result[key] = value;
     }
   }
@@ -230,7 +235,8 @@ export function detectMimeTypeFromBase64(base64: string): string | null {
     if (hex.startsWith('504B0304')) return 'application/zip';
 
     return null;
-  } catch {
+  }
+  catch {
     return null;
   }
 }
@@ -272,12 +278,15 @@ export function stripBase64ForStorage(
         // Replace with placeholder showing size and type
         const sizeKb = Math.round(base64Info.data.length * 0.75 / 1024);
         result[key] = `[base64:${sizeKb}kb:${base64Info.mimeType}]`;
-      } else {
+      }
+      else {
         result[key] = value;
       }
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+    }
+    else if (value && typeof value === 'object' && !Array.isArray(value)) {
       result[key] = stripBase64ForStorage(value as Record<string, unknown>, seen);
-    } else if (Array.isArray(value)) {
+    }
+    else if (Array.isArray(value)) {
       result[key] = value.map((item) => {
         if (typeof item === 'string') {
           const base64Info = extractBase64FromString(item, key);
@@ -286,7 +295,8 @@ export function stripBase64ForStorage(
             return `[base64:${sizeKb}kb:${base64Info.mimeType}]`;
           }
           return item;
-        } else if (item && typeof item === 'object') {
+        }
+        else if (item && typeof item === 'object') {
           if (seen.has(item)) {
             return '[Circular]';
           }
@@ -294,7 +304,8 @@ export function stripBase64ForStorage(
         }
         return item;
       });
-    } else {
+    }
+    else {
       result[key] = value;
     }
   }
@@ -416,15 +427,19 @@ export function replaceFileRefsInObject(
         const fileInfo = fileIdMap.get(idx);
         if (fileInfo) {
           result[key] = `{{inner:${fileInfo.id}}}`;
-        } else {
+        }
+        else {
           result[key] = value;
         }
-      } else {
+      }
+      else {
         result[key] = value;
       }
-    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+    }
+    else if (value && typeof value === 'object' && !Array.isArray(value)) {
       result[key] = replaceFileRefsInObject(value as Record<string, unknown>, fileIdMap, seen);
-    } else if (Array.isArray(value)) {
+    }
+    else if (Array.isArray(value)) {
       result[key] = value.map((item) => {
         if (typeof item === 'string') {
           const match = item.match(/^\[file:(\d+):([^\]]+)\]$/);
@@ -436,7 +451,8 @@ export function replaceFileRefsInObject(
             }
           }
           return item;
-        } else if (item && typeof item === 'object') {
+        }
+        else if (item && typeof item === 'object') {
           if (seen.has(item)) {
             return '[Circular]';
           }
@@ -444,7 +460,8 @@ export function replaceFileRefsInObject(
         }
         return item;
       });
-    } else {
+    }
+    else {
       result[key] = value;
     }
   }

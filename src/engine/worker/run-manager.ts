@@ -288,40 +288,40 @@ export class RunManager extends EventEmitter {
     this.emit('message', { runId, message: msg });
 
     switch (msg.type) {
-      case 'started':
-        this.emit('run-started', { runId });
-        break;
+    case 'started':
+      this.emit('run-started', { runId });
+      break;
 
-      case 'node-started':
-        this.emit('node-started', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType });
-        break;
+    case 'node-started':
+      this.emit('node-started', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType });
+      break;
 
-      case 'node-completed':
-        this.emit('node-completed', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType, state: msg.state });
-        break;
+    case 'node-completed':
+      this.emit('node-completed', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType, state: msg.state });
+      break;
 
-      case 'node-failed':
-        this.emit('node-failed', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType, error: msg.error });
-        break;
+    case 'node-failed':
+      this.emit('node-failed', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType, error: msg.error });
+      break;
 
-      case 'node-skipped':
-        this.emit('node-skipped', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType });
-        break;
+    case 'node-skipped':
+      this.emit('node-skipped', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType });
+      break;
 
-      case 'completed':
-        this.emit('run-completed', { runId, output: msg.output, files: msg.files });
-        this.cleanup(runId);
-        break;
+    case 'completed':
+      this.emit('run-completed', { runId, output: msg.output, files: msg.files });
+      this.cleanup(runId);
+      break;
 
-      case 'failed':
-        this.emit('run-failed', { runId, error: msg.error });
-        this.cleanup(runId);
-        break;
+    case 'failed':
+      this.emit('run-failed', { runId, error: msg.error });
+      this.cleanup(runId);
+      break;
 
-      case 'cancelled':
-        this.emit('run-cancelled', { runId });
-        this.cleanup(runId);
-        break;
+    case 'cancelled':
+      this.emit('run-cancelled', { runId });
+      this.cleanup(runId);
+      break;
     }
   }
 
@@ -344,7 +344,8 @@ export class RunManager extends EventEmitter {
           : `Worker exited with code ${code}`;
         await this.runRepo.fail(runId, errorMsg);
         this.emit('run-failed', { runId, error: errorMsg });
-      } else if (run && run.status === 'cancelling') {
+      }
+      else if (run && run.status === 'cancelling') {
         // Expected exit due to cancellation
         await this.runRepo.updateStatus(runId, 'cancelled');
         this.emit('run-cancelled', { runId });

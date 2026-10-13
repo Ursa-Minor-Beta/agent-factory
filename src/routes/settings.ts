@@ -95,7 +95,8 @@ export async function settingsRoutes(app: FastifyInstance) {
     }
     if (query.workspaceId === 'null') {
       options.workspaceId = null;
-    } else if (query.workspaceId) {
+    }
+    else if (query.workspaceId) {
       options.workspaceId = query.workspaceId;
     }
 

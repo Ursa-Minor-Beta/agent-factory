@@ -93,15 +93,15 @@ export class MongoMessageRepository implements IMessageRepository {
     const query: Record<string, unknown> = {};
 
     if (options.id) {
-        query._id = Array.isArray(options.id)
-          ? { $in: options.id.map((idStr) => new mongoose.Types.ObjectId(idStr)) }
-          : new mongoose.Types.ObjectId(options.id);
+      query._id = Array.isArray(options.id)
+        ? { $in: options.id.map((idStr) => new mongoose.Types.ObjectId(idStr)) }
+        : new mongoose.Types.ObjectId(options.id);
     }
 
     if (options.sessionId) {
-        query.sessionId = Array.isArray(options.sessionId)
-          ? { $in: options.sessionId }
-          : options.sessionId;
+      query.sessionId = Array.isArray(options.sessionId)
+        ? { $in: options.sessionId }
+        : options.sessionId;
     }
 
     return (await MessageModel.deleteMany(query)).deletedCount ?? 0;

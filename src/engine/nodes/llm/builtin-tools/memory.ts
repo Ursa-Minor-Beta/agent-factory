@@ -36,7 +36,8 @@ export const handleMemoryStore: ToolHandler = async (args, options) => {
       recordId: record.id,
       message: `Record stored in "${collection}"`,
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to store record',
@@ -83,7 +84,8 @@ export const handleMemorySearch: ToolHandler = async (args, options) => {
       }),
       count: records.length,
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to search records',
@@ -124,7 +126,8 @@ export const handleMemoryUpdate: ToolHandler = async (args, options) => {
       recordId: updated.id,
       message: `Record updated in "${collection}"`,
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to update record',
@@ -162,7 +165,8 @@ export const handleMemoryDelete: ToolHandler = async (args, options) => {
       success: true,
       message: `Record deleted from "${collection}"`,
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to delete record',
