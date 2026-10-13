@@ -112,7 +112,13 @@ export async function runRoutes(app: FastifyInstance) {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            data: { type: 'array', items: runSummarySchema },
+            data: {
+              type: 'object',
+              properties: {
+                runs: { type: 'array', items: runSummarySchema },
+                total: { type: 'integer' },
+              },
+            },
           },
         },
         401: errorSchema,
@@ -135,7 +141,7 @@ export async function runRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
-      data: result.runs,
+      data: result,
     });
   });
 

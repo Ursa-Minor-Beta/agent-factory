@@ -62,7 +62,13 @@ export async function fileRoutes(app: FastifyInstance) {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            data: { type: 'array', items: fileListItemSchema },
+            data: {
+              type: 'object',
+              properties: {
+                files: { type: 'array', items: fileListItemSchema },
+                total: { type: 'integer' },
+              },
+            },
           },
         },
         401: errorSchema,
@@ -73,9 +79,12 @@ export async function fileRoutes(app: FastifyInstance) {
     const { userId } = request.user as { userId: string };
     const { limit = 50, offset = 0 } = request.query as { limit?: number; offset?: number };
 
-    const files = await fileRepo.listByUserId(userId, { limit, offset });
+    const [files, total] = await Promise.all([
+      fileRepo.listByUserId(userId, { limit, offset }),
+      fileRepo.countByUserId(userId),
+    ]);
 
-    return { success: true, data: files };
+    return { success: true, data: { files, total } };
   });
 
   // Get file by ID

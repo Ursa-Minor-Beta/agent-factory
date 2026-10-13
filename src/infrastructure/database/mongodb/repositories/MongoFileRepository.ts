@@ -61,6 +61,10 @@ export class MongoFileRepository implements IFileRepository {
     }));
   }
 
+  async countByUserId(userId: string): Promise<number> {
+    return FileModel.countDocuments({ userId });
+  }
+
   async create(data: CreateFileDTO): Promise<File> {
     const doc = await FileModel.create({
       userId: data.userId,
