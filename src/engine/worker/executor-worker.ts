@@ -73,19 +73,19 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
     // Build session context if provided
     const sessionContext = config.sessionContext
       ? {
-          sessionId: config.sessionContext.sessionId,
-          messages: config.sessionContext.messages,
-          notes: config.sessionContext.notes,
-          maxNotesLength: config.sessionContext.maxNotesLength,
-          onNotesUpdate: async (notes: string) => {
-            // Update local cache for append operations
-            currentNotes = notes;
-            // Persist to database (skip for incognito sessions)
-            if (!config.sessionContext!.sessionId.startsWith('incognito_')) {
-              await sessionRepo.update(config.sessionContext!.sessionId, { notes });
-            }
-          },
-        }
+        sessionId: config.sessionContext.sessionId,
+        messages: config.sessionContext.messages,
+        notes: config.sessionContext.notes,
+        maxNotesLength: config.sessionContext.maxNotesLength,
+        onNotesUpdate: async (notes: string) => {
+          // Update local cache for append operations
+          currentNotes = notes;
+          // Persist to database (skip for incognito sessions)
+          if (!config.sessionContext!.sessionId.startsWith('incognito_')) {
+            await sessionRepo.update(config.sessionContext!.sessionId, { notes });
+          }
+        },
+      }
       : undefined;
 
     // Execute workflow
@@ -103,15 +103,19 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
 
     if (shouldStop || result.status === 'cancelled') {
       sendMessage({ type: 'cancelled' });
-    } else if (result.status === 'completed') {
+    }
+    else if (result.status === 'completed') {
       sendMessage({ type: 'completed', output: result.output, files: result.files });
-    } else {
+    }
+    else {
       sendMessage({ type: 'failed', error: result.error ?? 'Unknown error' });
     }
-  } catch (error) {
+  }
+  catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     sendMessage({ type: 'failed', error: errorMessage });
-  } finally {
+  }
+  finally {
     await disconnectDatabase();
     process.exit(0);
   }
@@ -122,16 +126,16 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
  */
 process.on('message', (msg: ParentMessage) => {
   switch (msg.type) {
-    case 'start':
-      executeRun(msg.config);
-      break;
+  case 'start':
+    executeRun(msg.config);
+    break;
 
-    case 'cancel':
-      shouldStop = true;
-      if (currentExecutor) {
-        currentExecutor.requestStop();
-      }
-      break;
+  case 'cancel':
+    shouldStop = true;
+    if (currentExecutor) {
+      currentExecutor.requestStop();
+    }
+    break;
   }
 });
 

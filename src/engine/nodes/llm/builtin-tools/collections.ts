@@ -37,7 +37,8 @@ export const handleCreateCollection: ToolHandler = async (args, options) => {
       name: schema.name,
       message: `Collection "${name}" created successfully with ${schema.fields.length} fields`,
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to create collection',
@@ -77,7 +78,8 @@ export const handleGetCollection: ToolHandler = async (args, options) => {
         updatedAt: schema.updatedAt,
       },
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to get collection',
@@ -124,7 +126,8 @@ export const handleUpdateCollection: ToolHandler = async (args, options) => {
       name: updatedSchema.name,
       message: `Collection "${updatedSchema.name}" updated successfully`,
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to update collection',
@@ -160,7 +163,8 @@ export const handleListCollections: ToolHandler = async (args, options) => {
       collections,
       count: collections.length,
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to list collections',
@@ -193,7 +197,8 @@ export const handleDeleteCollection: ToolHandler = async (args, options) => {
       success: true,
       message: `Collection "${name}" and all its records have been deleted`,
     };
-  } catch (error) {
+  }
+  catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to delete collection',

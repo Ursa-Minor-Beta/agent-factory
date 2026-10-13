@@ -12,7 +12,8 @@ export function getByPath(obj: unknown, path: string): unknown {
     }
     if (typeof current === 'object') {
       current = (current as Record<string, unknown>)[part];
-    } else {
+    }
+    else {
       return undefined;
     }
   }

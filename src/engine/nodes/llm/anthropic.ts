@@ -45,7 +45,8 @@ async function executeSingleToolCall(
       : await executeSubAgent(toolDef.agentId!, toolUse.input as Record<string, unknown>, options, nodeId, toolUse.name);
 
     return { toolUseId: toolUse.id, name: toolUse.name, result };
-  } catch (error) {
+  }
+  catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return { toolUseId: toolUse.id, name: toolUse.name, result: { error: errorMessage } };
   }
@@ -78,7 +79,8 @@ function buildInitialMessages(
       content.push({ type: 'text', text: cleanedPrompt });
     }
     messages.push({ role: 'user', content });
-  } else {
+  }
+  else {
     messages.push({ role: 'user', content: userPrompt });
   }
 
@@ -104,7 +106,8 @@ async function makeApiCall(
       messages,
       tools,
     });
-  } catch (error) {
+  }
+  catch (error) {
     if (error instanceof Anthropic.APIError) {
       throw new NodeExecutionError(
         `Anthropic API error: ${error.status} ${error.message}`,

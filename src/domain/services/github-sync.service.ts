@@ -95,7 +95,8 @@ async function getGitHubClient(
     if (!provider) {
       throw new Error('No default GitHub provider configured');
     }
-  } else {
+  }
+  else {
     // Find provider by name
     const providers = await deps.providerConfigRepo.findByUserId(userId);
     provider = providers.find(p => p.provider === 'github' && p.name === providerName);
@@ -230,7 +231,8 @@ export async function pushAgent(
     });
 
     return { success: true, commitSha: commit.sha, message: 'Agent pushed to GitHub' };
-  } catch (error) {
+  }
+  catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     return { success: false, error: `[pushAgent] ${msg}` };
   }
@@ -342,7 +344,8 @@ export async function pullAgent(
     });
 
     return { success: true, agentId, message: 'Agent pulled from GitHub' };
-  } catch (error) {
+  }
+  catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     return { success: false, error: `[pullAgent] ${msg}` };
   }
@@ -405,7 +408,8 @@ export async function importFromGitHub(
     });
 
     return { success: true, ...result, message: 'Agent imported from GitHub' };
-  } catch (error) {
+  }
+  catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     return { success: false, error: `[importFromGitHub] ${msg}` };
   }

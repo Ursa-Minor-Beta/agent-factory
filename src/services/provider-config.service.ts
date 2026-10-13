@@ -102,21 +102,21 @@ export class ProviderConfigService {
       if (!providerConfig.isDefault) continue;
 
       switch (providerConfig.provider) {
-        case 'openai':
-          if (providerConfig.config.apiKey) {
-            config.openai = { apiKey: providerConfig.config.apiKey };
-          }
-          break;
-        case 'anthropic':
-          if (providerConfig.config.apiKey) {
-            config.anthropic = { apiKey: providerConfig.config.apiKey };
-          }
-          break;
-        case 'ollama':
-          config.ollama = {
-            baseUrl: providerConfig.config.baseUrl ?? 'http://localhost:11434',
-          };
-          break;
+      case 'openai':
+        if (providerConfig.config.apiKey) {
+          config.openai = { apiKey: providerConfig.config.apiKey };
+        }
+        break;
+      case 'anthropic':
+        if (providerConfig.config.apiKey) {
+          config.anthropic = { apiKey: providerConfig.config.apiKey };
+        }
+        break;
+      case 'ollama':
+        config.ollama = {
+          baseUrl: providerConfig.config.baseUrl ?? 'http://localhost:11434',
+        };
+        break;
       }
     }
 

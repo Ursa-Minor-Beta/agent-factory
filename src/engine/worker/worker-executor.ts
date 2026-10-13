@@ -270,7 +270,8 @@ export class WorkerExecutor {
           }
 
           this.callbacks.onNodeCompleted(nodeId, node.type, nodeState);
-        } catch (error) {
+        }
+        catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
 
           // Build error details
@@ -283,7 +284,8 @@ export class WorkerExecutor {
               response: error.context.response,
               cause: error.originalError?.message,
             };
-          } else if (error instanceof Error) {
+          }
+          else if (error instanceof Error) {
             errorDetails = {
               message: error.message,
               stack: error.stack,
@@ -332,7 +334,8 @@ export class WorkerExecutor {
 
       await this.runRepo.complete(runId, output, allFiles.length > 0 ? allFiles : undefined);
       return { output, status: 'completed', files: allFiles.length > 0 ? allFiles : undefined };
-    } catch (error) {
+    }
+    catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await this.runRepo.fail(runId, errorMessage);
       return { output: {}, status: 'failed', error: errorMessage };

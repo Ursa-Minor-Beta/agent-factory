@@ -79,7 +79,8 @@ export async function runMigrations(): Promise<void> {
       await migration.up();
       await MigrationModel.create({ name });
       console.log(`  Completed: ${name}`);
-    } catch (error) {
+    }
+    catch (error) {
       console.error(`  Failed: ${name}`, error);
       throw error;
     }

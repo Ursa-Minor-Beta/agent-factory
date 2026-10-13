@@ -26,7 +26,8 @@ function getByPath(obj: unknown, path: string): unknown {
     }
     if (typeof current === 'object') {
       current = (current as Record<string, unknown>)[part];
-    } else {
+    }
+    else {
       return undefined;
     }
   }
@@ -118,7 +119,8 @@ export function interpolateDeep<T>(value: T, options: InterpolateOptions = {}): 
     // Try to parse JSON strings (e.g., when node output was an object)
     try {
       return JSON.parse(interpolated) as T;
-    } catch {
+    }
+    catch {
       return interpolated as T;
     }
   }

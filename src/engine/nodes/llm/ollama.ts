@@ -50,7 +50,8 @@ export async function callOllama(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
     });
-  } catch (error) {
+  }
+  catch (error) {
     throw new NodeExecutionError(
       `Ollama request failed: ${error instanceof Error ? error.message : String(error)}`,
       { request: { url, method: 'POST', body: { ...requestBody, messages: `[${messages.length} messages]` } } },

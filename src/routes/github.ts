@@ -528,7 +528,8 @@ export async function githubRoutes(app: FastifyInstance) {
     try {
       const commits = await githubSyncService.listAgentCommits(userId, id, getDeps());
       return reply.send({ success: true, data: commits });
-    } catch (error) {
+    }
+    catch (error) {
       return reply.status(400).send({
         success: false,
         error: { code: 'LIST_COMMITS_FAILED', message: error instanceof Error ? error.message : 'Unknown error' },

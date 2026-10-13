@@ -14,7 +14,8 @@ export async function connectDatabase(): Promise<typeof mongoose> {
       console.log('MongoDB connected successfully');
       await runMigrations();
       return conn;
-    } catch (error) {
+    }
+    catch (error) {
       lastError = error as Error;
       console.error(`MongoDB connection attempt ${attempt} failed:`, lastError.message);
 

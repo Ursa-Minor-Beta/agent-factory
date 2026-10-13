@@ -68,7 +68,8 @@ export async function requireAuth(request: FastifyRequest): Promise<void> {
     try {
       await request.jwtVerify();
       return;
-    } catch {
+    }
+    catch {
       throw new UnauthorizedError('Invalid or expired token');
     }
   }
@@ -83,7 +84,8 @@ export async function requireAuth(request: FastifyRequest): Promise<void> {
         role: decoded.role ?? 'user',
       };
       return;
-    } catch {
+    }
+    catch {
       throw new UnauthorizedError('Invalid or expired token');
     }
   }

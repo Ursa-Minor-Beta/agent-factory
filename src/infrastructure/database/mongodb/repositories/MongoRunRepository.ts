@@ -13,7 +13,8 @@ export class MongoRunRepository implements IRunRepository {
         doc.nodeStates.forEach((value, key) => {
           nodeStates[key] = value;
         });
-      } else {
+      }
+      else {
         // Plain object from aggregation
         Object.entries(doc.nodeStates as unknown as Record<string, NodeState>).forEach(([key, value]) => {
           nodeStates[key] = value;

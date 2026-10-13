@@ -43,7 +43,8 @@ export function resolveRunOutput(run: Run): Record<string, unknown> {
   for (const [key, value] of Object.entries(run.output)) {
     if (isNodeRef(value)) {
       resolved[key] = resolveNodeRef(value, run.nodeStates);
-    } else {
+    }
+    else {
       resolved[key] = value;
     }
   }

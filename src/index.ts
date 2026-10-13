@@ -106,7 +106,8 @@ async function bootstrap() {
       // Check if origin matches any allowed pattern (supports wildcards)
       if (isOriginAllowed(origin, config.cors.allowedOrigins)) {
         callback(null, true);
-      } else {
+      }
+      else {
         callback(new Error('Not allowed by CORS'), false);
       }
     },
@@ -199,7 +200,8 @@ async function bootstrap() {
       if (systemCreated.length > 0) {
         app.log.info(`System agents created: ${systemCreated.join(', ')}`);
       }
-    } else {
+    }
+    else {
       app.log.info('System agent seeding disabled (SEED_SYSTEM_AGENTS_ON_START=false)');
     }
 
@@ -228,7 +230,8 @@ async function bootstrap() {
 
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
-  } catch (err) {
+  }
+  catch (err) {
     app.log.error(err);
     process.exit(1);
   }

@@ -90,17 +90,17 @@ Extract facts and call the update_session_notes tool.`;
 
     let result;
     switch (data.provider) {
-      case 'openai':
-        result = await callOpenAI(data, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);
-        break;
-      case 'anthropic':
-        result = await callAnthropic(data, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);
-        break;
-      case 'ollama':
-        result = await callOllama(data, finalSystemPrompt, userPrompt, conversationHistory, options);
-        break;
-      default:
-        throw new Error(`Unknown LLM provider: ${data.provider}`);
+    case 'openai':
+      result = await callOpenAI(data, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);
+      break;
+    case 'anthropic':
+      result = await callAnthropic(data, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);
+      break;
+    case 'ollama':
+      result = await callOllama(data, finalSystemPrompt, userPrompt, conversationHistory, options);
+      break;
+    default:
+      throw new Error(`Unknown LLM provider: ${data.provider}`);
     }
 
     const outputs: Record<string, unknown> = {
