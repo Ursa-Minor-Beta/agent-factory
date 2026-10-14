@@ -90,4 +90,10 @@ export interface IRunRepository {
    * Returns the number of deleted documents.
    */
   deleteBy(options: { id?: string | string[]; agentId?: string | string[]; userId?: string }): Promise<number>;
+
+  /**
+   * Cancel all active child runs (running/cancelling/pending) when parent exits.
+   * Recursively cancels nested children. Returns IDs of cancelled runs.
+   */
+  cancelChildRuns(parentRunId: string, error?: string): Promise<string[]>;
 }

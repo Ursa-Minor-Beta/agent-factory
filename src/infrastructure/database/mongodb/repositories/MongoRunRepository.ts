@@ -495,4 +495,44 @@ export class MongoRunRepository implements IRunRepository {
 
     return (await RunModel.deleteMany(query)).deletedCount ?? 0;
   }
+
+  async cancelChildRuns(parentRunId: string, error?: string): Promise<string[]> {
+    // Find all descendants recursively using $graphLookup
+    const descendants = await RunModel.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(parentRunId) } },
+      {
+        $graphLookup: {
+          from: 'runs',
+          startWith: '$_id',
+          connectFromField: '_id',
+          connectToField: 'parentRunId',
+          as: 'descendants',
+        },
+      },
+      { $unwind: '$descendants' },
+      { $replaceRoot: { newRoot: '$descendants' } },
+      { $match: { status: { $in: ['running', 'cancelling', 'pending'] } } },
+      { $project: { _id: 1 } },
+    ]);
+
+    if (descendants.length === 0) {
+      return [];
+    }
+
+    const childIds = descendants.map((d) => d._id);
+    const updateData: Record<string, unknown> = {
+      status: 'cancelled',
+      completedAt: new Date(),
+    };
+    if (error) {
+      updateData.error = error;
+    }
+
+    await RunModel.updateMany(
+      { _id: { $in: childIds } },
+      { $set: updateData }
+    );
+
+    return childIds.map((id: mongoose.Types.ObjectId) => id.toString());
+  }
 }

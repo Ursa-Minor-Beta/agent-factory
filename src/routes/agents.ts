@@ -1184,8 +1184,13 @@ export async function agentRoutes(app: FastifyInstance) {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            cancelled: { type: 'boolean' },
-            message: { type: 'string' },
+            data: {
+              type: 'object',
+              properties: {
+                cancelled: { type: 'boolean' },
+                cancelledChildRunIds: { type: 'array', items: { type: 'string' } },
+              },
+            },
           },
         },
         400: errorSchema,
@@ -1200,17 +1205,14 @@ export async function agentRoutes(app: FastifyInstance) {
     const { runId } = request.body as { runId: string };
 
     try {
-      const cancelledRun = await runService.cancel(userId, runId);
-
-      const cancelled = cancelledRun.status === 'cancelled';
-      const message = cancelled
-        ? 'Run cancelled'
-        : 'Cancellation requested. Run will stop after current node completes.';
+      const { run, cancelledChildRunIds } = await runService.cancel(userId, runId);
 
       return reply.send({
         success: true,
-        cancelled,
-        message,
+        data: {
+          cancelled: true,
+          cancelledChildRunIds,
+        },
       });
     }
     catch (error) {

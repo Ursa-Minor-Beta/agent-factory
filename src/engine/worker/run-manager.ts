@@ -48,6 +48,11 @@ export interface RunCompletionResult {
   error?: string;
 }
 
+export interface CancelRunResult {
+  cancelled: boolean;
+  cancelledChildRunIds: string[];
+}
+
 /**
  * Manages child processes for agent run execution.
  * Each run executes in an isolated child process for:
@@ -200,44 +205,35 @@ export class RunManager extends EventEmitter {
 
   /**
    * Cancel a running execution
-   * First sends SIGTERM for graceful shutdown, then SIGKILL after timeout
+   * Immediately kills the worker process. handleWorkerExit handles DB cleanup.
+   * Returns cancelled status and IDs of any cancelled child runs.
    */
-  async cancelRun(runId: string): Promise<boolean> {
+  async cancelRun(runId: string): Promise<CancelRunResult> {
     const activeRun = this.activeRuns.get(runId);
     if (!activeRun) {
       // Run not active in this process - try to update DB status
       const run = await this.runRepo.findById(runId);
       if (run && run.status === 'running') {
-        await this.runRepo.updateStatus(runId, 'cancelled');
-        return true;
+        const [, cancelChildResult] = await Promise.all([
+          this.runRepo.updateStatus(runId, 'cancelled'),
+          this.runRepo.cancelChildRuns(runId, 'Run was cancelled'),
+        ]);
+        return { cancelled: true, cancelledChildRunIds: cancelChildResult };
       }
-      return false;
+      return { cancelled: false, cancelledChildRunIds: [] };
     }
 
     const { process: child } = activeRun;
 
-    // Update status to cancelling
+    // Update status to cancelling, then kill immediately
+    // handleWorkerExit will update to 'cancelled' and cancel children
     await this.runRepo.updateStatus(runId, 'cancelling');
+    child.kill('SIGKILL');
 
-    // Send cancel message first (for graceful shutdown)
-    child.send({ type: 'cancel' });
+    // Cancel child runs immediately
+    const cancelledChildRunIds = await this.runRepo.cancelChildRuns(runId, 'Parent run was cancelled');
 
-    // Then send SIGTERM
-    child.kill('SIGTERM');
-
-    // Set up hard kill timeout
-    activeRun.killTimer = setTimeout(() => {
-      if (!child.killed) {
-        child.kill('SIGKILL');
-        this.emit('log', {
-          runId,
-          level: 'warn',
-          message: 'Worker did not exit gracefully, sent SIGKILL',
-        });
-      }
-    }, this.config.killTimeout);
-
-    return true;
+    return { cancelled: true, cancelledChildRunIds };
   }
 
   /**

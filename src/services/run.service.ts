@@ -8,6 +8,11 @@ import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
+export interface CancelResult {
+  run: Run;
+  cancelledChildRunIds: string[];
+}
+
 export class RunService {
   private providerConfigService: ProviderConfigService;
   private userSecretService: UserSecretService;
@@ -72,8 +77,9 @@ export class RunService {
 
   /**
    * Cancel a running execution
+   * Returns the cancelled run and IDs of any cancelled child runs.
    */
-  async cancel(userId: string, runId: string): Promise<Run> {
+  async cancel(userId: string, runId: string): Promise<CancelResult> {
     // Verify ownership
     const run = await this.getById(userId, runId);
 
@@ -83,7 +89,7 @@ export class RunService {
     }
 
     // Cancel via RunManager (handles both in-memory and DB-only cases)
-    const cancelled = await this.runManager.cancelRun(runId);
+    const { cancelled, cancelledChildRunIds } = await this.runManager.cancelRun(runId);
     if (!cancelled) {
       throw new Error('Failed to cancel run');
     }
@@ -94,7 +100,7 @@ export class RunService {
       throw new Error('Run not found after cancellation');
     }
 
-    return updatedRun;
+    return { run: updatedRun, cancelledChildRunIds };
   }
 
   async getById(userId: string, runId: string): Promise<Run> {

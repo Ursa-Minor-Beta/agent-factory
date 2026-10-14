@@ -51,6 +51,7 @@ const runSummarySchema: Record<string, unknown> = {
     agentName: { type: 'string' },
     userId: { type: 'string' },
     status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'] },
+    serviceStatus: { type: 'string', enum: ['active', 'inactive'], description: 'Real-time process status from RunManager' },
     error: { type: 'string', nullable: true },
     startedAt: { type: 'string', format: 'date-time' },
     completedAt: { type: 'string', format: 'date-time', nullable: true },
@@ -251,6 +252,17 @@ export async function runRoutes(app: FastifyInstance) {
     // Admins can see all or filter by userId
     const effectiveUserId = role === 'admin' ? query.userId : currentUserId;
 
+    // Get active run IDs from RunManager for real-time status
+    const activeRunIds = new Set(container.runManager.getActiveRunIds());
+
+    // Helper to add serviceStatus to runs
+    const addServiceStatus = <T extends { id: string }>(runs: T[]): (T & { serviceStatus: 'active' | 'inactive' })[] => {
+      return runs.map(run => ({
+        ...run,
+        serviceStatus: activeRunIds.has(run.id) ? 'active' as const : 'inactive' as const,
+      }));
+    };
+
     // Use summary with child IDs when includeChildren is true
     if (query.includeChildren) {
       const result = await runService.listParentsWithChildIdsSummary({
@@ -267,7 +279,10 @@ export async function runRoutes(app: FastifyInstance) {
 
       return reply.send({
         success: true,
-        data: result,
+        data: {
+          ...result,
+          runs: addServiceStatus(result.runs),
+        },
       });
     }
 
@@ -286,7 +301,10 @@ export async function runRoutes(app: FastifyInstance) {
 
     return reply.send({
       success: true,
-      data: result,
+      data: {
+        ...result,
+        runs: addServiceStatus(result.runs),
+      },
     });
   });
 
