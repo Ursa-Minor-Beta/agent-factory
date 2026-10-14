@@ -11,6 +11,7 @@ import {
   DEFAULT_TEMPERATURE,
   DEFAULT_MAX_TOKENS,
   DEFAULT_MAX_TOOL_CALLS,
+  DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
 import { buildToolErrorSummary, resolveTools } from './utils.js';
 import { config } from '../../../config/index.js';
@@ -259,15 +260,38 @@ export async function callOpenAI(
 
     // Execute tools and continue loop
     messages.push(assistantMessage);
-    for (const toolCall of toolCalls) {
-      const callResult = await executeSingleToolCall(toolCall, toolMap, options, nodeId);
-      const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
-      executedToolCalls.push({ name: callResult.name, input: toolArgs, result: callResult.result });
-      messages.push({
-        role: 'tool',
-        tool_call_id: callResult.toolCallId,
-        content: JSON.stringify(callResult.result),
-      });
+    const executionMode = data.toolExecutionMode ?? DEFAULT_TOOL_EXECUTION_MODE;
+
+    if (executionMode === 'sequential') {
+      // Execute tools one by one
+      for (const toolCall of toolCalls) {
+        const callResult = await executeSingleToolCall(toolCall, toolMap, options, nodeId);
+        const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
+        executedToolCalls.push({ name: callResult.name, input: toolArgs, result: callResult.result });
+        messages.push({
+          role: 'tool',
+          tool_call_id: callResult.toolCallId,
+          content: JSON.stringify(callResult.result),
+        });
+      }
+    } 
+    else {
+      // Execute tools in parallel
+      const callResults = await Promise.all(
+        toolCalls.map((toolCall) => executeSingleToolCall(toolCall, toolMap, options, nodeId))
+      );
+
+      for (let i = 0; i < toolCalls.length; i++) {
+        const toolCall = toolCalls[i]!;
+        const callResult = callResults[i]!;
+        const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
+        executedToolCalls.push({ name: callResult.name, input: toolArgs, result: callResult.result });
+        messages.push({
+          role: 'tool',
+          tool_call_id: callResult.toolCallId,
+          content: JSON.stringify(callResult.result),
+        });
+      }
     }
   }
 }

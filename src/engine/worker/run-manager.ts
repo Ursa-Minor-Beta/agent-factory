@@ -276,7 +276,6 @@ export class RunManager extends EventEmitter {
           resolve();
         }
       }, 100);
-
       // Force resolve after kill timeout + buffer
       setTimeout(() => {
         clearInterval(checkInterval);

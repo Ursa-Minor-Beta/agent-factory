@@ -9,6 +9,7 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js';
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
+import { getNodeStatusText } from '../engine/nodes/definitions.js';
 import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
 import {
   CHAT_AGENT,
@@ -1057,23 +1058,9 @@ export async function agentRoutes(app: FastifyInstance) {
 
       const runId = ctx.init.runId;
 
-      // Map node type to human-readable status text
+      // Get status text for node execution (only show for 'started' status)
       const getStatusText = (nodeType: string, status: string): string => {
-        if (status !== 'started') return '';
-        switch (nodeType) {
-        case 'llm': return 'Thinking...';
-        case 'http': return 'Fetching...';
-        case 'js': return 'Executing code...';
-        case 'agent': return 'Running agent...';
-        case 'branch': return 'Evaluating condition...';
-        case 'input': return 'Processing input...';
-        case 'output': return 'Preparing output...';
-        case 'memory-store': return 'Saving to memory...';
-        case 'memory-search': return 'Searching memory...';
-        case 'memory-update': return 'Updating memory...';
-        case 'memory-delete': return 'Deleting from memory...';
-        default: return 'Processing...';
-        }
+        return status === 'started' ? getNodeStatusText(nodeType) : '';
       };
 
       // Set up event listeners for this run

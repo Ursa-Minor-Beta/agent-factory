@@ -1,5 +1,12 @@
 import { config } from '../../config/index.js';
 import { JS_NODE_AVAILABLE_GLOBALS } from './js.js';
+import {
+  DEFAULT_MAX_TOOL_CALLS,
+  DEFAULT_TOOL_EXECUTION_MODE,
+  DEFAULT_TEMPERATURE,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_MAX_MESSAGES,
+} from './llm/constants.js';
 
 /**
  * Node type definitions with metadata for documentation and tooling
@@ -63,9 +70,11 @@ export interface NodeExample {
   data: Record<string, unknown>;
 }
 
-export interface NodeDefinition {
+interface NodeDefinitionRaw {
   type: NodeType;
   description: string;
+  /** Human-readable status text shown during node execution (e.g., "Thinking...") */
+  statusText: string;
   inputs: string[];
   outputs: string[];
   options: NodeOption[];
@@ -73,10 +82,13 @@ export interface NodeDefinition {
   examples?: NodeExample[];
 }
 
-export const NODE_DEFINITIONS: NodeDefinition[] = [
+export type NodeDefinition = Omit<NodeDefinitionRaw, 'statusText'>;
+
+const NODE_DEFINITIONS_RAW: NodeDefinitionRaw[] = [
   {
     type: 'input',
     description: 'Workflow entry point. Defines the input schema for the workflow.',
+    statusText: 'Processing input...',
     inputs: [],
     outputs: ['*'],
     options: [
@@ -117,6 +129,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'output',
     description: 'Workflow exit point. Define output fields directly in data object.',
+    statusText: 'Preparing output...',
     inputs: ['*'],
     outputs: [],
     options: [],
@@ -173,6 +186,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'llm',
     description: 'LLM call node. Sends prompts to OpenAI, Anthropic, or Ollama.',
+    statusText: 'Thinking...',
     inputs: ['prompt', 'context'],
     outputs: ['response', 'usage', 'toolCalls'],
     options: [
@@ -203,19 +217,19 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         name: 'temperature',
         type: 'number',
         description: 'Sampling temperature (0-2).',
-        default: 0.7,
+        default: DEFAULT_TEMPERATURE,
       },
       {
         name: 'maxTokens',
         type: 'number',
         description: 'Maximum tokens in response.',
-        default: 1000,
+        default: DEFAULT_MAX_TOKENS,
       },
       {
         name: 'maxMessages',
         type: 'number',
         description: 'Maximum conversation history messages to include.',
-        default: 0,
+        default: DEFAULT_MAX_MESSAGES,
       },
       {
         name: 'tools',
@@ -226,7 +240,14 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
         name: 'maxToolCalls',
         type: 'number',
         description: `Maximum tool call iterations before stopping${config.llm.maxToolCalls ? ` (server limit: ${config.llm.maxToolCalls})` : ''}.`,
-        default: Math.min(20, config.llm.maxToolCalls || 20)
+        default: Math.min(DEFAULT_MAX_TOOL_CALLS, config.llm.maxToolCalls || DEFAULT_MAX_TOOL_CALLS)
+      },
+      {
+        name: 'toolExecutionMode',
+        type: 'enum',
+        description: 'How to execute multiple tool calls: parallel (all at once) or sequential (one by one).',
+        values: ['parallel', 'sequential'],
+        default: DEFAULT_TOOL_EXECUTION_MODE,
       },
     ],
     features: [
@@ -299,6 +320,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'http',
     description: 'HTTP request node. Makes external API calls. Partial SSE support: auto-extracts fields that downstream nodes expect.',
+    statusText: 'Fetching...',
     inputs: ['body', 'params'],
     outputs: ['response', 'status'],
     options: [
@@ -373,6 +395,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'js',
     description: 'JavaScript transform node. Executes custom code in a sandboxed environment with memory/timeout limits.',
+    statusText: 'Executing code...',
     inputs: ['input'],
     outputs: ['output'],
     options: [
@@ -449,6 +472,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'agent',
     description: 'Sub-agent node. Executes another agent as part of the workflow.',
+    statusText: 'Running agent...',
     inputs: ['input'],
     outputs: ['output'],
     options: [
@@ -474,6 +498,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'branch',
     description: 'Multi-way conditional branching with execution control. Only nodes in the active branch execute.',
+    statusText: 'Evaluating condition...',
     inputs: ['input'],
     outputs: ['activeBranch', '*'],
     options: [
@@ -549,6 +574,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'memory-store',
     description: 'Save data to a memory collection. Use to persist learned patterns, successful actions, or important facts.',
+    statusText: 'Saving to memory...',
     inputs: ['data', 'trigger'],
     outputs: ['success', 'id', 'record'],
     options: [
@@ -586,6 +612,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'memory-search',
     description: 'Search records in a memory collection. Use to retrieve relevant past experiences before taking action.',
+    statusText: 'Searching memory...',
     inputs: ['trigger'],
     outputs: ['records', 'count'],
     options: [
@@ -635,6 +662,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'memory-update',
     description: 'Update an existing memory record. Use to refine or correct stored information.',
+    statusText: 'Updating memory...',
     inputs: ['data', 'trigger'],
     outputs: ['success', 'record'],
     options: [
@@ -673,6 +701,7 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
   {
     type: 'memory-delete',
     description: 'Delete a memory record. Use when information is no longer valid.',
+    statusText: 'Deleting from memory...',
     inputs: ['trigger'],
     outputs: ['success', 'deleted'],
     options: [
@@ -703,6 +732,11 @@ export const NODE_DEFINITIONS: NodeDefinition[] = [
     ],
   },
 ];
+
+export const NODE_DEFINITIONS: NodeDefinition[] = NODE_DEFINITIONS_RAW.map( n => {
+  const { statusText, ...rest } = n;
+  return rest
+})
 
 /**
  * Generate a text description of all node types for LLM prompts
@@ -743,3 +777,16 @@ export function generateNodeDocsForPrompt(): string {
 
   return lines.join('\n');
 }
+
+/** Map of node type to status text for fast lookup */
+const NODE_STATUS_TEXT_MAP = new Map<string, string>(
+  NODE_DEFINITIONS_RAW.map((def) => [def.type, def.statusText])
+);
+
+/**
+ * Get the status text for a node type (used during execution)
+ * @param nodeType - The node type to get status text for
+ * @returns The human-readable status text, or 'Processing...' for unknown types
+ */
+export const getNodeStatusText = (nodeType: string): string =>
+  NODE_STATUS_TEXT_MAP.get(nodeType) ?? 'Processing...';

@@ -4,6 +4,12 @@ export const DEFAULT_MAX_MESSAGES = 0;
 /** Default max tool call iterations before giving up */
 export const DEFAULT_MAX_TOOL_CALLS = 5;
 
+/** Tool execution mode type */
+export type ToolExecutionMode = 'parallel' | 'sequential';
+
+/** Default tool execution mode: parallel runs all tools at once, sequential runs one by one */
+export const DEFAULT_TOOL_EXECUTION_MODE: ToolExecutionMode = 'sequential';
+
 /** Default temperature for LLM responses */
 export const DEFAULT_TEMPERATURE = 0.7;
 
