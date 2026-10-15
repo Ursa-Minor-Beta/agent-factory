@@ -515,7 +515,7 @@ export class SessionService {
 
     // Persisted session
     await this.getById(userId, sessionId);
-    return this.messageRepo.findBySessionId(sessionId, { ...options, order: 'asc' });
+    return this.messageRepo.findBySessionId(sessionId, { ...options, order: 'desc' });
   }
 
   /**
