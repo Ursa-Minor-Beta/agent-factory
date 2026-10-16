@@ -322,7 +322,7 @@ const NODE_DEFINITIONS_RAW: NodeDefinitionRaw[] = [
     description: 'HTTP request node. Makes external API calls. Partial SSE support: auto-extracts fields that downstream nodes expect.',
     statusText: 'Fetching...',
     inputs: ['body', 'params'],
-    outputs: ['response', 'status'],
+    outputs: ['response', 'status', 'error'],
     options: [
       {
         name: 'method',
@@ -354,6 +354,12 @@ const NODE_DEFINITIONS_RAW: NodeDefinitionRaw[] = [
         default: 30000,
       },
       {
+        name: 'continueOnError',
+        type: 'boolean',
+        description: 'If true, errors are returned in the error output instead of throwing. Allows workflow to continue on HTTP failures.',
+        default: false,
+      },
+      {
         name: 'persistedFields',
         type: 'enum[]',
         description: 'Fields to persist in run state for debugging. Empty by default. WARNING: headers/body may expose secrets.',
@@ -366,6 +372,7 @@ const NODE_DEFINITIONS_RAW: NodeDefinitionRaw[] = [
       'Automatic event accumulation with deep merge',
       'Early termination when required paths are found',
       'Supports both standard SSE (data: prefix) and raw JSON lines',
+      'continueOnError: capture errors in output instead of failing workflow',
     ],
     examples: [
       {
@@ -389,7 +396,18 @@ const NODE_DEFINITIONS_RAW: NodeDefinitionRaw[] = [
           headers: { 'Content-Type': 'application/json' },
           body: { name: '{{node:input.name}}', value: '{{node:input.value}}' },
         },
-      }
+      },
+      {
+        name: 'Continue on error',
+        description: 'Request that continues workflow even on failure. Error available in {{node:http-3.error}}',
+        id: 'http-3',
+        type: 'http',
+        data: {
+          method: 'GET',
+          url: 'https://api.example.com/data',
+          continueOnError: true,
+        },
+      },
     ],
   },
   {

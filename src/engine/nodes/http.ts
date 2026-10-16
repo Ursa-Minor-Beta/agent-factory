@@ -14,6 +14,7 @@ interface HttpNodeData {
   body?: unknown;
   timeout?: number;
   persistedFields?: HttpPersistedField[];
+  continueOnError?: boolean;
 }
 
 interface SSEEvent {
@@ -73,22 +74,29 @@ export class HttpNode extends BaseNode {
       const contentType = res.headers.get('content-type') ?? '';
 
       // Pass signal to parseResponse - SSE streaming should also respect timeout
-      const { data: response, sseEvents } = await this.parseResponse(
+      const { data: response, sseEvents, error: parseError } = await this.parseResponse(
         res,
         contentType,
         options.requiredOutputPaths,
-        controller.signal
+        controller.signal,
+        data.continueOnError
       );
 
       clearTimeout(timeoutId);
 
-      const outputs = { response, status };
+      // If continueOnError and there was an HTTP error, include error in outputs
+      const outputs = parseError
+        ? { response, status, error: parseError }
+        : { response, status };
 
       // Extract files from response, store in context with temp refs
       const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
 
       context.setOutput(node.id, 'response', (cleanedOutput as Record<string, unknown>).response);
       context.setOutput(node.id, 'status', (cleanedOutput as Record<string, unknown>).status);
+      if (parseError) {
+        context.setOutput(node.id, 'error', parseError);
+      }
 
       this.addResponseState(data, state, status, res.headers, sseEvents);
 
@@ -100,6 +108,31 @@ export class HttpNode extends BaseNode {
     }
     catch (error) {
       clearTimeout(timeoutId);
+
+      // If continueOnError is enabled, return error info as outputs instead of throwing
+      if (data.continueOnError) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isTimeout = error instanceof Error && error.name === 'AbortError';
+        const partialData = isTimeout
+          ? (error as unknown as { partialData?: SSEResult }).partialData
+          : undefined;
+
+        const outputs = {
+          response: partialData?.accumulated ?? null,
+          status: null,
+          error: isTimeout ? `Request timed out after ${timeout}ms` : errorMessage,
+        };
+
+        context.setOutput(node.id, 'response', outputs.response);
+        context.setOutput(node.id, 'status', outputs.status);
+        context.setOutput(node.id, 'error', outputs.error);
+
+        if (partialData?.events && state && data.persistedFields?.includes('sseEvents')) {
+          state.sseEvents = partialData.events;
+        }
+
+        return { outputs, state };
+      }
 
       if (error instanceof Error && error.name === 'AbortError') {
         const partialData = (error as unknown as { partialData?: SSEResult }).partialData;
@@ -234,11 +267,24 @@ export class HttpNode extends BaseNode {
     res: Response,
     contentType: string,
     requiredPaths?: string[],
-    signal?: AbortSignal
-  ): Promise<{ data: unknown; sseEvents?: SSEEvent[] }> {
+    signal?: AbortSignal,
+    continueOnError?: boolean
+  ): Promise<{ data: unknown; sseEvents?: SSEEvent[]; error?: string }> {
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`HTTP ${res.status}: ${res.statusText} - ${body}`);
+      const errorMessage = `HTTP ${res.status}: ${res.statusText} - ${body}`;
+      if (continueOnError) {
+        // Return error response body as data, with error message
+        let parsedBody: unknown = body;
+        try {
+          parsedBody = JSON.parse(body);
+        }
+        catch {
+          // Keep as string
+        }
+        return { data: parsedBody, error: errorMessage };
+      }
+      throw new Error(errorMessage);
     }
     if (contentType.includes('text/event-stream') && res.body) {
       const result = await this.parseSSEResponse(res.body, requiredPaths ?? [], signal);
