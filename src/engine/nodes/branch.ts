@@ -9,6 +9,7 @@ import { interpolateDeep } from './interpolate.js';
  * Data config:
  *   - input: Template for input value, e.g., "{{node:input-1.score}}"
  *   - branches: Array of branch definitions with conditions and associated node IDs
+ *   - persistedFields: Fields to persist in run state for debugging
  *
  * Branch definition:
  *   - name: Branch name (e.g., "pass", "fail")
@@ -25,10 +26,18 @@ import { interpolateDeep } from './interpolate.js';
  *   - Nodes in inactive branches are skipped
  */
 
+type BranchPersistedField = 'input' | 'activeBranch';
+
 interface BranchDefinition {
   name: string;
   condition: string;
   nodes: string[];
+}
+
+interface BranchNodeData {
+  input?: unknown;
+  branches?: BranchDefinition[];
+  persistedFields?: BranchPersistedField[];
 }
 
 export class BranchNode extends BaseNode {
@@ -39,14 +48,15 @@ export class BranchNode extends BaseNode {
     context: ExecutionContext,
     _options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
-    const branches = (node.data.branches as BranchDefinition[]) ?? [];
+    const data = node.data as BranchNodeData;
+    const branches = data.branches ?? [];
 
     if (branches.length === 0) {
       throw new Error('Branch node requires at least one branch definition');
     }
 
     // Resolve input via interpolation
-    const input = interpolateDeep(node.data.input, { context });
+    const input = interpolateDeep(data.input, { context });
 
     // Evaluate branches in order and find the first matching one
     let activeBranch: BranchDefinition | null = null;
@@ -94,6 +104,29 @@ export class BranchNode extends BaseNode {
       allBranchNodes: branches.flatMap((b) => b.nodes),
     });
 
-    return { outputs };
+    const state = this.buildState(data, input, activeBranch.name);
+
+    return { outputs, state };
+  }
+
+  private buildState(
+    data: BranchNodeData,
+    input: unknown,
+    activeBranch: string
+  ): Record<string, unknown> | undefined {
+    if (!data.persistedFields?.length) return undefined;
+
+    const state: Record<string, unknown> = {};
+    for (const field of data.persistedFields) {
+      switch (field) {
+      case 'input':
+        state.input = input;
+        break;
+      case 'activeBranch':
+        state.activeBranch = activeBranch;
+        break;
+      }
+    }
+    return state;
   }
 }

@@ -73,13 +73,11 @@ export class MongoMemorySchemaRepository implements IMemorySchemaRepository {
       id ? new Types.ObjectId(id) : null
     );
 
-    console.log('[findByName] Query:', { userId, name, workspaceIds, workspaceIdObjects: workspaceIdObjects.map(o => o?.toString() ?? null) });
     const docs = await MemorySchemaModel.find({
       userId: new Types.ObjectId(userId),
       name,
       workspaceId: { $in: workspaceIdObjects },
     }).sort({ workspaceId: -1 });
-    console.log('[findByName] Found docs:', docs.length, docs.map(d => ({ id: d._id.toString(), name: d.name, workspaceId: d.workspaceId?.toString() })));
 
     if (docs.length === 0) return null;
 

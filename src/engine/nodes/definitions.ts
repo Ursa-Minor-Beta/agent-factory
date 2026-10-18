@@ -531,6 +531,12 @@ const NODE_DEFINITIONS_RAW: NodeDefinitionRaw[] = [
         required: true,
         description: 'Array of branch definitions. Each has: name (string), condition (expression), nodes (array of node IDs to execute if active).',
       },
+      {
+        name: 'persistedFields',
+        type: 'enum[]',
+        description: 'Fields to persist in run state for debugging. Empty by default.',
+        values: ['input', 'activeBranch'],
+      },
     ],
     features: [
       'Evaluates branches in order, activates first matching condition',
