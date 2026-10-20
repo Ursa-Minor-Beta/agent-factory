@@ -104,12 +104,18 @@ export class ProviderConfigService {
       switch (providerConfig.provider) {
       case 'openai':
         if (providerConfig.config.apiKey) {
-          config.openai = { apiKey: providerConfig.config.apiKey };
+          config.openai = {
+            apiKey: providerConfig.config.apiKey,
+            baseUrl: providerConfig.config.baseUrl,
+          };
         }
         break;
       case 'anthropic':
         if (providerConfig.config.apiKey) {
-          config.anthropic = { apiKey: providerConfig.config.apiKey };
+          config.anthropic = {
+            apiKey: providerConfig.config.apiKey,
+            baseUrl: providerConfig.config.baseUrl,
+          };
         }
         break;
       case 'ollama':
