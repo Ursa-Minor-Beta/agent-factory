@@ -857,7 +857,7 @@ export async function agentRoutes(app: FastifyInstance) {
     // Unlink from GitHub if linked (cleanup orphaned sync record)
     const sync = await container.gitHubSyncRepository.findByEntity(userId, 'agent', id);
     if (sync) {
-      await container.gitHubSyncRepository.delete(sync.id);
+      await container.gitHubSyncRepository.delete({ id: sync.id });
     }
 
     return reply.send({

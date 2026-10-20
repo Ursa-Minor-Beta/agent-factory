@@ -97,7 +97,7 @@ export class UserSecretService {
       throw new ForbiddenError('Access denied');
     }
 
-    await this.userSecretRepo.delete(id);
+    await this.userSecretRepo.delete({ id });
   }
 
   /**

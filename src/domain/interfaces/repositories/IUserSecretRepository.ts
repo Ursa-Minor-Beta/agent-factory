@@ -19,12 +19,11 @@ export interface IUserSecretRepository {
   findByName(userId: string, name: string, workspaceIds?: (string | null)[]): Promise<UserSecret | null>;
   create(data: CreateUserSecretDTO): Promise<UserSecret>;
   update(id: string, data: UpdateUserSecretDTO): Promise<UserSecret | null>;
-  delete(id: string): Promise<boolean>;
   /**
-   * Delete all secrets scoped to a workspace
+   * Delete secrets by id, workspaceId, or userId
    * @returns Number of deleted secrets
    */
-  deleteByWorkspaceId(workspaceId: string): Promise<number>;
+  delete(options: { id?: string; workspaceId?: string; userId?: string }): Promise<number>;
   /**
    * Find all secrets available to an agent (global + workspace-scoped)
    * Workspace-scoped secrets take precedence over global on name conflict

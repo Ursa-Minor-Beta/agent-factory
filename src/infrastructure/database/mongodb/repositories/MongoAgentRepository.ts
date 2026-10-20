@@ -405,13 +405,12 @@ export class MongoAgentRepository implements IAgentRepository {
     return doc ? this.toEntity(doc) : null;
   }
 
-  async delete(id: string): Promise<boolean> {
-    const result = await AgentModel.findByIdAndDelete(id);
-    return result !== null;
-  }
-
-  async deleteByWorkspaceId(workspaceId: string): Promise<number> {
-    const result = await AgentModel.deleteMany({ workspaceId });
+  async delete(options: { id?: string; workspaceId?: string; userId?: string }): Promise<number> {
+    const query: Record<string, unknown> = {};
+    if (options.id) query._id = options.id;
+    if (options.workspaceId) query.workspaceId = options.workspaceId;
+    if (options.userId) query.userId = options.userId;
+    const result = await AgentModel.deleteMany(query);
     return result.deletedCount;
   }
 

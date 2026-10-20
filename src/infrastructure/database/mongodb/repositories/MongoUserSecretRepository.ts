@@ -128,15 +128,12 @@ export class MongoUserSecretRepository implements IUserSecretRepository {
     return this.toEntity(doc, workspaceName);
   }
 
-  async delete(id: string): Promise<boolean> {
-    const result = await UserSecretModel.findByIdAndDelete(id);
-    return result !== null;
-  }
-
-  async deleteByWorkspaceId(workspaceId: string): Promise<number> {
-    const result = await UserSecretModel.deleteMany({
-      workspaceId: new Types.ObjectId(workspaceId),
-    });
+  async delete(options: { id?: string; workspaceId?: string; userId?: string }): Promise<number> {
+    const query: Record<string, unknown> = {};
+    if (options.id) query._id = options.id;
+    if (options.workspaceId) query.workspaceId = new Types.ObjectId(options.workspaceId);
+    if (options.userId) query.userId = new Types.ObjectId(options.userId);
+    const result = await UserSecretModel.deleteMany(query);
     return result.deletedCount;
   }
 

@@ -13,5 +13,5 @@ export interface IGitHubSyncRepository {
   findByAgentInMap(userId: string, agentId: string): Promise<GitHubSync[]>;
   create(data: CreateGitHubSyncDTO): Promise<GitHubSync>;
   update(id: string, data: UpdateGitHubSyncDTO): Promise<GitHubSync | null>;
-  delete(id: string): Promise<boolean>;
+  delete(options: { id?: string; userId?: string }): Promise<number>;
 }

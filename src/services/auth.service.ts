@@ -154,7 +154,7 @@ export class AuthService {
       throw new NotFoundError('API Key');
     }
 
-    await this.apiKeyRepo.delete(keyId);
+    await this.apiKeyRepo.delete({ id: keyId });
   }
 
   async validateApiKey(key: string): Promise<ApiKey | null> {

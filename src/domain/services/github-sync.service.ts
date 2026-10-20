@@ -163,7 +163,8 @@ export async function unlinkFromGitHub(
   if (!sync) {
     return false;
   }
-  return deps.gitHubSyncRepo.delete(sync.id);
+  const deleted = await deps.gitHubSyncRepo.delete({ id: sync.id });
+  return deleted > 0;
 }
 
 /**
@@ -331,7 +332,7 @@ export async function pullAgent(
     for (const [refId, localId] of Object.entries(existingMap)) {
       if (!exportRefIds.has(refId) && localId !== agentId) {
         // This agent was removed from the export - delete it locally
-        await deps.agentRepo.delete(localId);
+        await deps.agentRepo.delete({ id: localId });
       }
     }
 

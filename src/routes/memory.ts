@@ -369,7 +369,7 @@ export async function memoryRoutes(app: FastifyInstance) {
     const deletedRecords = await memoryStoreRepo.deleteBySchemaId(id);
 
     // Delete schema
-    await memorySchemaRepo.delete(id);
+    await memorySchemaRepo.delete({ id });
 
     return reply.send({
       success: true,

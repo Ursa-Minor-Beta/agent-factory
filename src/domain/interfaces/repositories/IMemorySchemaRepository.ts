@@ -42,15 +42,10 @@ export interface IMemorySchemaRepository {
   update(id: string, data: UpdateMemorySchemaDTO): Promise<MemorySchema | null>;
 
   /**
-   * Delete a schema (and optionally all its records)
-   */
-  delete(id: string): Promise<boolean>;
-
-  /**
-   * Delete all schemas scoped to a workspace
+   * Delete schemas by id, workspaceId, or userId
    * @returns Number of deleted schemas
    */
-  deleteByWorkspaceId(workspaceId: string): Promise<number>;
+  delete(options: { id?: string; workspaceId?: string; userId?: string }): Promise<number>;
 
   /**
    * Check if a schema name is already used by user within workspace scope

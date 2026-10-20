@@ -235,8 +235,8 @@ export async function deleteCollection(
     throw new Error(`Collection "${name}" not found`);
   }
 
-  const deleted = await deps.memorySchemaRepo.delete(schema.id);
-  if (!deleted) {
+  const deleted = await deps.memorySchemaRepo.delete({ id: schema.id });
+  if (deleted === 0) {
     throw new Error('Failed to delete collection');
   }
 }

@@ -23,12 +23,11 @@ export interface IProviderConfigRepository {
   create(data: CreateProviderConfigDTO): Promise<ProviderConfig>;
   update(id: string, data: UpdateProviderConfigDTO): Promise<ProviderConfig | null>;
   setDefault(id: string, userId: string, provider: ProviderType): Promise<ProviderConfig | null>;
-  delete(id: string): Promise<boolean>;
   /**
-   * Delete all provider configs scoped to a workspace
+   * Delete provider configs by id, workspaceId, or userId
    * @returns Number of deleted configs
    */
-  deleteByWorkspaceId(workspaceId: string): Promise<number>;
+  delete(options: { id?: string; workspaceId?: string; userId?: string }): Promise<number>;
   /**
    * Find all provider configs available to an agent (global + workspace-scoped)
    * Workspace-scoped configs take precedence over global on provider conflict

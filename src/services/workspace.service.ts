@@ -88,15 +88,15 @@ export class WorkspaceService {
 
     // Delete all resources in parallel
     await Promise.all([
-      this.agentRepo.deleteByWorkspaceId(workspaceId),
+      this.agentRepo.delete({ workspaceId }),
       ...schemas.map((schema) => this.memoryStoreRepo.deleteBySchemaId(schema.id)),
-      this.userSecretRepo.deleteByWorkspaceId(workspaceId),
-      this.providerConfigRepo.deleteByWorkspaceId(workspaceId),
-      this.memorySchemaRepo.deleteByWorkspaceId(workspaceId),
+      this.userSecretRepo.delete({ workspaceId }),
+      this.providerConfigRepo.delete({ workspaceId }),
+      this.memorySchemaRepo.delete({ workspaceId }),
     ]);
 
     // Delete the workspace
-    await this.workspaceRepo.delete(workspaceId);
+    await this.workspaceRepo.delete({ id: workspaceId });
   }
 
   async getAgentCount(userId: string, workspaceId: string): Promise<number> {

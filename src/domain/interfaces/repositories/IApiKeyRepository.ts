@@ -6,5 +6,5 @@ export interface IApiKeyRepository {
   findByUserId(userId: string): Promise<ApiKey[]>;
   create(data: CreateApiKeyDTO & { keyHash: string; keyPrefix: string }): Promise<ApiKey>;
   updateLastUsed(id: string): Promise<void>;
-  delete(id: string): Promise<boolean>;
+  delete(options: { id?: string; userId?: string }): Promise<number>;
 }

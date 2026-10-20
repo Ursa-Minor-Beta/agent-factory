@@ -12,7 +12,7 @@ export interface IWorkspaceRepository {
   findByDefaultName(defaultName: string): Promise<Workspace | null>;
   create(data: CreateWorkspaceDTO): Promise<Workspace>;
   update(id: string, data: UpdateWorkspaceDTO): Promise<Workspace | null>;
-  delete(id: string): Promise<boolean>;
+  delete(options: { id?: string; userId?: string }): Promise<number>;
   count(): Promise<number>;
   countAgentsInWorkspace(workspaceId: string): Promise<number>;
 }

@@ -50,8 +50,11 @@ export class MongoApiKeyRepository implements IApiKeyRepository {
     await ApiKeyModel.findByIdAndUpdate(id, { $set: { lastUsedAt: new Date() } });
   }
 
-  async delete(id: string): Promise<boolean> {
-    const result = await ApiKeyModel.findByIdAndDelete(id);
-    return result !== null;
+  async delete(options: { id?: string; userId?: string }): Promise<number> {
+    const query: Record<string, unknown> = {};
+    if (options.id) query._id = options.id;
+    if (options.userId) query.userId = options.userId;
+    const result = await ApiKeyModel.deleteMany(query);
+    return result.deletedCount;
   }
 }

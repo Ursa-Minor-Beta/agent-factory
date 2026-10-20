@@ -85,7 +85,7 @@ export class AgentService {
       this.versionRepo.deleteVersionsByAgentId(agentId);
     }
 
-    await this.agentRepo.delete(agentId);
+    await this.agentRepo.delete({ id: agentId });
   }
 
   async listVersions(

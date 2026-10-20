@@ -85,7 +85,7 @@ export class ProviderConfigService {
       throw new ForbiddenError('Access denied');
     }
 
-    await this.providerConfigRepo.delete(id);
+    await this.providerConfigRepo.delete({ id });
   }
 
   /**
