@@ -152,8 +152,19 @@ export class MongoProviderConfigRepository implements IProviderConfigRepository 
     const updateData: Record<string, unknown> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.isDefault !== undefined) updateData.isDefault = data.isDefault;
-    if (data.config !== undefined) updateData.config = this.encryptConfig(data.config);
     if (data.workspaceId !== undefined) updateData.workspaceId = data.workspaceId;
+
+    // Merge config fields individually to preserve existing values
+    if (data.config !== undefined) {
+      const existing = await ProviderConfigModel.findById(id);
+      if (existing) {
+        const mergedConfig = {
+          ...existing.config,
+          ...data.config,
+        };
+        updateData.config = this.encryptConfig(mergedConfig);
+      }
+    }
 
     const doc = await ProviderConfigModel.findByIdAndUpdate(
       id,
