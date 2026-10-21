@@ -11,6 +11,10 @@ Thanks for your interest in contributing! Agent Factory is a backend API for bui
 - **Improve documentation** (README, API docs, examples)
 - **Fix bugs or add features** via pull requests
 
+## Claiming an issue
+
+Before starting work on an issue, comment on it to let others know you're taking it. This avoids duplicate effort. If you don't see activity on your comment within a few days, feel free to start working. For larger changes, wait for a maintainer to confirm the approach before investing significant time.
+
 ## Related repositories
 
 - [agent-factory-ui](https://github.com/Ursa-Minor-Beta/agent-factory-ui): the web UI client. UI issues and PRs belong there.
