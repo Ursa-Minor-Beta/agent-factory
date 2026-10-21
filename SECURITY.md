@@ -20,7 +20,6 @@ Security fixes are applied to `master` only. If you run Agent Factory, please ke
 Report them privately using either option:
 
 - **GitHub private vulnerability reporting (preferred):** open the repository's [Security tab](https://github.com/Ursa-Minor-Beta/agent-factory/security) and click **Report a vulnerability**.
-- **Email:** SECURITY_EMAIL
 
 Please include as much of the following as you can:
 
