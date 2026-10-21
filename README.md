@@ -4,6 +4,8 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 
 > **⚠️ Note:** The current version is actively being built. There could be breaking changes.
 
+> **💻 UI:** A web-based UI client is available at [agent-factory-ui](https://github.com/Ursa-Minor-Beta/agent-factory-ui).
+
 > **🐳 One shot Docker Deployment:** For a complete deployment with both API and UI, see [agent-factory-docker-api-ui](https://github.com/Ursa-Minor-Beta/agent-factory-docker-api-ui).
 
 ## Features
@@ -27,10 +29,6 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **GitHub Sync** - Link agents to GitHub repos with push/pull support
 - **Agent Snapshots** - Version history with restore capability
 - **Swagger Docs** - Full API documentation at `/docs`
-
-## UI Client
-
-A web-based UI client is available at [agent-factory-ui](https://github.com/Ursa-Minor-Beta/agent-factory-ui).
 
 ## Environment Variables
 
