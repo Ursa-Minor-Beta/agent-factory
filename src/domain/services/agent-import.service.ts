@@ -144,6 +144,7 @@ export async function importAgent(
       name: exportedAgent.name,
       description: exportedAgent.description,
       nodes: remappedNodes,
+      editorData: exportedAgent.editorData,
       workspaceId: workspaceId,
     });
 

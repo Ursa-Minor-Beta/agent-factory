@@ -389,6 +389,7 @@ export async function agentRoutes(app: FastifyInstance) {
                     name: { type: 'string' },
                     description: { type: 'string' },
                     nodes: { type: 'array', items: nodeSchema },
+                    editorData: editorDataSchema,
                   },
                 },
                 dependencies: {
@@ -400,6 +401,7 @@ export async function agentRoutes(app: FastifyInstance) {
                       name: { type: 'string' },
                       description: { type: 'string' },
                       nodes: { type: 'array', items: nodeSchema },
+                      editorData: editorDataSchema,
                     },
                   },
                 },

@@ -207,6 +207,7 @@ function toExportedAgent(agent: Agent, refId: string, idToRefId: Map<string, str
     name: agent.name,
     description: agent.description,
     nodes: replaceAgentIdsInNodes(agent.nodes, idToRefId),
+    editorData: agent.editorData,
   };
 }
 
