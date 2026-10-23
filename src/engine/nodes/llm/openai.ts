@@ -163,8 +163,6 @@ export async function callOpenAI(
     throw new NodeExecutionError('OpenAI API provider not configured', {});
   }
 
-  console.log('options', options)
-
   const client = new OpenAI({
     apiKey,
     baseURL: options.providers.openai?.baseUrl,
