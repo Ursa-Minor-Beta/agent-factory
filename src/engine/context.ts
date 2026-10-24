@@ -22,6 +22,8 @@ export class ExecutionContext {
   // branchNodeId -> BranchControl (for efficient branch execution control)
   private branchControls: Map<string, BranchControl> = new Map();
   // tempRef -> file data (base64 kept in context for downstream nodes)
+  // nodeIds skipped during this run (for downstream skip propagation)
+  private skippedNodes: Set<string> = new Set();
   private tempFiles: Map<string, TempFile> = new Map();
 
   /**
@@ -77,6 +79,29 @@ export class ExecutionContext {
       }
     }
     return false;
+  }
+
+  /**
+   * Resolve skip reason for a node, or null if it should execute.
+   * A node is skipped if it is in an inactive branch, or if it has
+   * dependencies and ALL of them were skipped (skip propagates downstream).
+   * Skipped nodes are recorded so propagation works transitively.
+   */
+  getSkipReason(nodeId: string, dependencies: Set<string>): string | null {
+    let reason: string | null = null;
+
+    if (this.shouldSkipNode(nodeId)) {
+      reason = 'Not in active branch';
+    }
+    // else if (dependencies.size > 0 && [...dependencies].every((dep) => this.skippedNodes.has(dep))) {
+    else if (dependencies.size > 0 && [...dependencies].some( dep => this.skippedNodes.has(dep) )) {
+      reason = 'All dependencies skipped';
+    }
+
+    if (reason) {
+      this.skippedNodes.add(nodeId);
+    }
+    return reason;
   }
 
   /**

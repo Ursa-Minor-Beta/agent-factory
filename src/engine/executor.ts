@@ -3,7 +3,7 @@ import type { Run, NodeErrorDetails, RunTrigger } from '../domain/entities/Run.j
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import { ExecutionContext } from './context.js';
-import { topologicalSort, validateWorkflow, extractRequiredOutputPaths } from './graph.js';
+import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from './graph.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
 import { NodeExecutionError } from '../utils/errors.js';
 import { stripBase64ForStorage } from '../utils/file-extractor.js';
@@ -210,21 +210,23 @@ export class WorkflowExecutor {
         const node = agent.nodes.find((n) => n.id === nodeId);
         if (!node) continue;
 
-        // Check if this node should be skipped due to branch control
-        if (context.shouldSkipNode(nodeId)) {
-          // Mark node as skipped
-          await this.runRepo.updateNodeState(runId, nodeId, {
-            status: 'skipped',
-            input: safeClone(node.data),
-            output: {
-              __skipped: true,
-              reason: 'Not in active branch'
-            },
-            error: null,
-            startedAt: new Date(),
-            completedAt: new Date(),
-          });
-          continue;
+        if (node.type !== 'output') {
+          // Check if this node should be skipped (inactive branch or all dependencies skipped)
+          const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node));
+          if (skipReason) {
+            await this.runRepo.updateNodeState(runId, nodeId, {
+              status: 'skipped',
+              input: safeClone(node.data),
+              output: {
+                __skipped: true,
+                reason: skipReason
+              },
+              error: null,
+              startedAt: new Date(),
+              completedAt: new Date(),
+            });
+            continue;
+          }
         }
 
         // Update node state to running with input data

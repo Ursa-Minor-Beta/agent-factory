@@ -99,6 +99,23 @@ export function extractTemplateDependencies(node: WorkflowNode): Set<string> {
 }
 
 /**
+ * Extract node IDs listed in a branch node's branches[].nodes
+ */
+function extractBranchTargets(node: WorkflowNode): Set<string> {
+  const targets = new Set<string>();
+  const branches = (node.data as { branches?: { nodes?: unknown }[] }).branches;
+  if (!Array.isArray(branches)) return targets;
+
+  for (const branch of branches) {
+    if (!Array.isArray(branch?.nodes)) continue;
+    for (const id of branch.nodes) {
+      if (typeof id === 'string') targets.add(id);
+    }
+  }
+  return targets;
+}
+
+/**
  * Extract which output field paths downstream nodes need from a specific node.
  * Scans all nodes for {{node:targetNodeId.path}} patterns and returns the paths.
  * Used for SSE early termination - stop streaming once required fields are available.
@@ -142,6 +159,17 @@ export function buildAdjacencyList(nodes: WorkflowNode[]): Map<string, string[]>
         if (targets && !targets.includes(node.id)) {
           targets.push(node.id);
         }
+      }
+    }
+  }
+
+  // Branch nodes must execute before the nodes listed in their branches
+  for (const node of nodes) {
+    if (node.type !== 'branch') continue;
+    const targets = adjacency.get(node.id)!;
+    for (const targetId of extractBranchTargets(node)) {
+      if (nodeIds.has(targetId) && targetId !== node.id && !targets.includes(targetId)) {
+        targets.push(targetId);
       }
     }
   }
