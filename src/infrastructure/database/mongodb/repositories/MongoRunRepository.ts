@@ -69,14 +69,32 @@ export class MongoRunRepository implements IRunRepository {
     return summary;
   }
 
+  // Populates agentName from the agents collection
+  private static readonly AGENT_NAME_STAGES = [
+    {
+      $lookup: {
+        from: 'agents',
+        localField: 'agentId',
+        foreignField: '_id',
+        as: 'agent',
+      },
+    },
+    { $addFields: { agentName: { $arrayElemAt: ['$agent.name', 0] } } },
+    { $project: { agent: 0 } },
+  ];
+
   async findById(id: string): Promise<Run | null> {
-    const doc = await RunModel.findById(id);
-    return doc ? this.toEntity(doc) : null;
+    const results = await RunModel.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(id) } },
+      ...MongoRunRepository.AGENT_NAME_STAGES,
+    ]);
+    return results.length > 0 ? this.toEntity(results[0] as RunDocument) : null;
   }
 
   async findByIdWithChildren(id: string): Promise<Run | null> {
     const results = await RunModel.aggregate([
       { $match: { _id: new mongoose.Types.ObjectId(id) } },
+      ...MongoRunRepository.AGENT_NAME_STAGES,
       {
         $lookup: {
           from: 'runs',
