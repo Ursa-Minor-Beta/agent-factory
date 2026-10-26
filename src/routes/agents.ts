@@ -19,7 +19,6 @@ import { isOriginAllowed } from '../utils/cors.js';
 import * as agentExportService from '../domain/services/agent-export.service.js';
 import * as agentImportService from '../domain/services/agent-import.service.js';
 import * as githubSyncService from '../domain/services/github-sync.service.js';
-import { AGENT_EXPORT_VERSION } from '../domain/entities/AgentExport.js';
 import { PROVIDER_TYPES } from '../domain/entities/ProviderConfig.js';
 
 // Schemas

@@ -24,6 +24,8 @@ export class ExecutionContext {
   // tempRef -> file data (base64 kept in context for downstream nodes)
   // nodeIds skipped during this run (for downstream skip propagation)
   private skippedNodes: Set<string> = new Set();
+  // nodeIds executed on an active branch path (branch target or downstream of one)
+  private activeBranchPathNodes: Set<string> = new Set();
   private tempFiles: Map<string, TempFile> = new Map();
 
   /**
@@ -82,24 +84,48 @@ export class ExecutionContext {
   }
 
   /**
+   * Check if a node is listed in an active branch of any branch control.
+   */
+  isInActiveBranch(nodeId: string): boolean {
+    for (const control of this.branchControls.values()) {
+      if (control.activeNodes.includes(nodeId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Check if at least one dependency is on an active branch path.
+   * Allows merge nodes after a branch to run with whichever branch executed.
+   */
+  hasActiveBranchInput(dependencies: Set<string>): boolean {
+    return [...dependencies].some((dep) => this.activeBranchPathNodes.has(dep));
+  }
+
+  /**
    * Resolve skip reason for a node, or null if it should execute.
-   * A node is skipped if it is in an inactive branch, or if it has
-   * dependencies and ALL of them were skipped (skip propagates downstream).
-   * Skipped nodes are recorded so propagation works transitively.
+   * A node is skipped if it is in an inactive branch, or if ANY dependency
+   * was skipped and NO dependency comes from an active branch path.
+   * Skipped nodes are recorded so propagation works transitively;
+   * executed nodes on an active branch path are recorded for merge detection.
    */
   getSkipReason(nodeId: string, dependencies: Set<string>): string | null {
     let reason: string | null = null;
+    const deps = [...dependencies];
 
     if (this.shouldSkipNode(nodeId)) {
       reason = 'Not in active branch';
     }
-    // else if (dependencies.size > 0 && [...dependencies].every((dep) => this.skippedNodes.has(dep))) {
-    else if (dependencies.size > 0 && [...dependencies].some( dep => this.skippedNodes.has(dep) )) {
-      reason = 'All dependencies skipped';
+    else if (deps.some((dep) => this.skippedNodes.has(dep)) && !this.hasActiveBranchInput(dependencies)) {
+      reason = 'Dependency skipped';
     }
 
     if (reason) {
       this.skippedNodes.add(nodeId);
+    }
+    else if (this.isInActiveBranch(nodeId) || this.hasActiveBranchInput(dependencies)) {
+      this.activeBranchPathNodes.add(nodeId);
     }
     return reason;
   }
