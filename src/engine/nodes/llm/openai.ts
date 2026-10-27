@@ -27,7 +27,7 @@ type ToolCallResult = {
  * Execute a single OpenAI tool call
  */
 async function executeSingleToolCall(
-  toolCall: OpenAI.Chat.ChatCompletionMessageToolCall,
+  toolCall: OpenAI.Chat.ChatCompletionMessageFunctionToolCall,
   toolMap: Map<string, ToolDefinition>,
   options: ExecutionOptions,
   nodeId: string
@@ -239,7 +239,10 @@ export async function callOpenAI(
     }
 
     const assistantMessage = choice.message;
-    const toolCalls = assistantMessage.tool_calls ?? [];
+    // Only function tool calls are supported (we never register custom tools)
+    const toolCalls = (assistantMessage.tool_calls ?? []).filter(
+      (tc): tc is OpenAI.Chat.ChatCompletionMessageFunctionToolCall => tc.type === 'function'
+    );
 
     // Done: no tool calls requested
     if (toolCalls.length === 0) {
