@@ -76,9 +76,6 @@ export class AgentNode extends BaseNode {
     const isBatch = Array.isArray(resolvedInputs);
     const items = (isBatch ? resolvedInputs : [resolvedInputs]) as unknown[];
 
-    console.log('data.inputs', data.inputs)
-    console.log('items', items)
-
     // Validate every item against the target input schema before running anything
     const inputNode = targetAgent.nodes.find((n) => n.type === 'input');
     const schema = (inputNode?.data.schema as Record<string, InputFieldDef> | undefined) ?? {};
