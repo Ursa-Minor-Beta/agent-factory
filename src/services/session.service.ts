@@ -46,6 +46,8 @@ export interface ChatOptions {
   incognito?: boolean;
   /** Max length for session notes (default: 8000) */
   maxNotesLength?: number;
+  /** Max workflow nodes executed in parallel (default: ENGINE_DEFAULT_PARALLEL_NODES) */
+  maxParallelNodes?: number;
 }
 
 export interface ChatResult {
@@ -178,6 +180,7 @@ export class SessionService {
       providers,
       resolvedSecrets,
       sessionContext,
+      maxParallelNodes: options.maxParallelNodes,
     });
 
     // Fetch final run state from DB
@@ -302,6 +305,7 @@ export class SessionService {
       providers,
       resolvedSecrets,
       sessionContext,
+      maxParallelNodes: options.maxParallelNodes,
     });
 
     // Return context with finalize function

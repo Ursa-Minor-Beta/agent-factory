@@ -887,6 +887,7 @@ export async function agentRoutes(app: FastifyInstance) {
           input: { type: 'object', additionalProperties: true, description: 'Input object matching agent schema (e.g., { "message": "hello" } or { "text": "hello", "count": 3 })' },
           sessionId: { type: 'string', description: 'Continue an existing session (or incognito_* for incognito sessions)' },
           incognito: { type: 'boolean', default: false, description: 'Start incognito session (messages stored in memory, not persisted)' },
+          maxParallelNodes: { type: 'integer', minimum: 1, maximum: 20, default: config.engine.defaultParallelNodes, description: 'Max workflow nodes executed in parallel (1 = sequential)' },
         },
       },
       response: {
@@ -929,16 +930,18 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id: agentId } = request.params as { id: string };
-    const { input, sessionId, incognito } = request.body as {
+    const { input, sessionId, incognito, maxParallelNodes } = request.body as {
       input: Record<string, unknown>;
       sessionId?: string;
       incognito?: boolean;
+      maxParallelNodes?: number;
     };
 
     try {
       const result = await sessionService.chat(userId, agentId, input, {
         sessionId,
         incognito,
+        maxParallelNodes,
       });
 
       return reply.send({
@@ -981,6 +984,7 @@ export async function agentRoutes(app: FastifyInstance) {
           input: { type: 'object', additionalProperties: true },
           sessionId: { type: 'string' },
           incognito: { type: 'boolean', default: false },
+          maxParallelNodes: { type: 'integer', minimum: 1, maximum: 20, default: config.engine.defaultParallelNodes, description: 'Max workflow nodes executed in parallel (1 = sequential)' },
         },
       },
     },
@@ -988,10 +992,11 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id: agentId } = request.params as { id: string };
-    const { input, sessionId, incognito } = request.body as {
+    const { input, sessionId, incognito, maxParallelNodes } = request.body as {
       input: Record<string, unknown>;
       sessionId?: string;
       incognito?: boolean;
+      maxParallelNodes?: number;
     };
 
     // Set SSE headers with CORS
@@ -1052,6 +1057,7 @@ export async function agentRoutes(app: FastifyInstance) {
       const ctx = await sessionService.chatStream(userId, agentId, input, {
         sessionId,
         incognito,
+        maxParallelNodes,
       });
 
       // Send init event with runId

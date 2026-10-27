@@ -60,6 +60,9 @@ ADMIN_NAME=Admin
 
 # Agent Versions (optional)
 AGENT_MAX_SNAPSHOTS=50  # Maximum snapshots per agent (default: 50)
+
+# Workflow Engine (optional)
+ENGINE_DEFAULT_PARALLEL_NODES=2  # Default max nodes run in parallel per run, 1 = sequential (default: 2)
 ```
 
 ## Quick Start

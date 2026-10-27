@@ -1,7 +1,7 @@
 /**
  * WorkerExecutor - Workflow executor designed for child process context.
  * Similar to WorkflowExecutor but with:
- * - Cancellation support (checks shouldStop before each node)
+ * - Cancellation support (no new nodes start once shouldStop is true)
  * - Progress callbacks for IPC updates
  * - Works with pre-created run record
  */
@@ -16,6 +16,7 @@ import type { IMemorySchemaRepository } from '../../domain/interfaces/repositori
 import type { IMemoryStoreRepository } from '../../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import { ExecutionContext } from '../context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from '../graph.js';
+import { runNodesConcurrently } from '../scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
@@ -86,6 +87,8 @@ export interface WorkerExecutorOptions {
   resolvedSecrets?: Record<string, string>;
   /** Session context for chat-based execution */
   sessionContext?: SessionContext;
+  /** Max workflow nodes executed in parallel */
+  maxParallelNodes?: number;
 }
 
 export interface WorkerExecutionResult {
@@ -192,125 +195,132 @@ export class WorkerExecutor {
       maxNotesLength: options.sessionContext?.maxNotesLength,
     };
 
-    try {
-      for (const nodeId of executionOrder) {
-        // Check for cancellation before each node
-        if (this.shouldStop()) {
-          await this.runRepo.updateStatus(runId, 'cancelled');
-          return { output: {}, status: 'cancelled' };
-        }
+    // Returns error message if the node failed, null otherwise
+    const runNode = async (nodeId: string): Promise<string | null> => {
+      const node = agent.nodes.find((n) => n.id === nodeId);
+      if (!node) return null;
 
-        const node = agent.nodes.find((n) => n.id === nodeId);
-        if (!node) continue;
-
-        if (node.type !== 'output') {
-          // Check if this node should be skipped due to branch control
-          // Check if this node should be skipped (inactive branch or all dependencies skipped)
-          const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node));
-          if (skipReason) {
-            await this.runRepo.updateNodeState(runId, nodeId, {
-              status: 'skipped',
-              input: safeClone(node.data),
-              output: { __skipped: true, reason: skipReason },
-              error: null,
-              startedAt: new Date(),
-              completedAt: new Date(),
-            });
-            continue;
-          }
-        }
-
-        // Update node state to running with input data
-        await this.runRepo.updateNodeState(runId, nodeId, {
-          status: 'running',
-          input: safeClone(node.data),
-          startedAt: new Date(),
-        });
-        this.callbacks.onNodeStarted(nodeId, node.type);
-
-        const nodeHandler = getNode(node.type);
-
-        // Compute which output paths downstream nodes need (for SSE early termination)
-        const requiredOutputPaths = extractRequiredOutputPaths(agent.nodes, nodeId);
-        const nodeExecOptions = requiredOutputPaths.length > 0
-          ? { ...execOptions, requiredOutputPaths, fileRepo: this.fileRepo }
-          : { ...execOptions, fileRepo: this.fileRepo };
-
-        try {
-          const result = await nodeHandler.execute(node, context, nodeExecOptions);
-
-          // Check for cancellation after node execution
-          if (this.shouldStop()) {
-            await this.runRepo.updateStatus(runId, 'cancelled');
-            return { output: {}, status: 'cancelled' };
-          }
-
-          // Keep raw output in context (including base64) for downstream nodes
-          // This allows LLM nodes to use images for vision, etc.
-          // File extraction happens only at output node when needed
-
-          // For MongoDB storage, strip base64 to avoid bloating the run document
-          const outputForStorage = result.outputs && typeof result.outputs === 'object'
-            ? stripBase64ForStorage(result.outputs as Record<string, unknown>)
-            : result.outputs;
-
-          // Update node state to completed
-          const nodeState: Partial<NodeState> = {
-            status: 'completed',
-            output: safeClone(outputForStorage),
-            state: safeClone(result.state),
-            files: result.files,
-            completedAt: new Date(),
-          };
-          await this.runRepo.updateNodeState(runId, nodeId, nodeState);
-
-          // Accumulate LLM usage at run level
-          if (node.type === 'llm' && result.outputs) {
-            const outputs = result.outputs as { usage?: TokenUsage };
-            const nodeData = node.data as { provider?: LLMProvider };
-            if (outputs.usage && nodeData.provider) {
-              await this.runRepo.addUsage(runId, nodeData.provider, outputs.usage);
-            }
-          }
-
-          this.callbacks.onNodeCompleted(nodeId, node.type, nodeState);
-        }
-        catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-
-          // Build error details
-          let errorDetails: NodeErrorDetails | undefined;
-          if (error instanceof NodeExecutionError) {
-            errorDetails = {
-              message: error.message,
-              stack: error.stack,
-              request: error.context.request,
-              response: error.context.response,
-              cause: error.originalError?.message,
-            };
-          }
-          else if (error instanceof Error) {
-            errorDetails = {
-              message: error.message,
-              stack: error.stack,
-            };
-          }
-
-          // Update node state to failed (include state if available from error)
-          const errorState =
-            error instanceof NodeExecutionError ? safeClone(error.state) : undefined;
+      if (node.type !== 'output') {
+        // Check if this node should be skipped due to branch control
+        // Check if this node should be skipped (inactive branch or all dependencies skipped)
+        const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node));
+        if (skipReason) {
           await this.runRepo.updateNodeState(runId, nodeId, {
-            status: 'failed',
-            error: errorMessage,
-            errorDetails,
-            state: errorState,
+            status: 'skipped',
+            input: safeClone(node.data),
+            output: { __skipped: true, reason: skipReason },
+            error: null,
+            startedAt: new Date(),
             completedAt: new Date(),
           });
-          this.callbacks.onNodeFailed(nodeId, node.type, errorMessage);
-
-          await this.runRepo.fail(runId, errorMessage);
-          return { output: {}, status: 'failed', error: errorMessage };
+          return null;
         }
+      }
+
+      // Update node state to running with input data
+      await this.runRepo.updateNodeState(runId, nodeId, {
+        status: 'running',
+        input: safeClone(node.data),
+        startedAt: new Date(),
+      });
+      this.callbacks.onNodeStarted(nodeId, node.type);
+
+      const nodeHandler = getNode(node.type);
+
+      // Compute which output paths downstream nodes need (for SSE early termination)
+      const requiredOutputPaths = extractRequiredOutputPaths(agent.nodes, nodeId);
+      const nodeExecOptions = requiredOutputPaths.length > 0
+        ? { ...execOptions, requiredOutputPaths, fileRepo: this.fileRepo }
+        : { ...execOptions, fileRepo: this.fileRepo };
+
+      try {
+        const result = await nodeHandler.execute(node, context, nodeExecOptions);
+
+        // Cancelled during execution - scheduler reports the run as cancelled
+        if (this.shouldStop()) {
+          return null;
+        }
+
+        // Keep raw output in context (including base64) for downstream nodes
+        // This allows LLM nodes to use images for vision, etc.
+        // File extraction happens only at output node when needed
+
+        // For MongoDB storage, strip base64 to avoid bloating the run document
+        const outputForStorage = result.outputs && typeof result.outputs === 'object'
+          ? stripBase64ForStorage(result.outputs as Record<string, unknown>)
+          : result.outputs;
+
+        // Update node state to completed
+        const nodeState: Partial<NodeState> = {
+          status: 'completed',
+          output: safeClone(outputForStorage),
+          state: safeClone(result.state),
+          files: result.files,
+          completedAt: new Date(),
+        };
+        await this.runRepo.updateNodeState(runId, nodeId, nodeState);
+
+        // Accumulate LLM usage at run level
+        if (node.type === 'llm' && result.outputs) {
+          const outputs = result.outputs as { usage?: TokenUsage };
+          const nodeData = node.data as { provider?: LLMProvider };
+          if (outputs.usage && nodeData.provider) {
+            await this.runRepo.addUsage(runId, nodeData.provider, outputs.usage);
+          }
+        }
+
+        this.callbacks.onNodeCompleted(nodeId, node.type, nodeState);
+      }
+      catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Build error details
+        let errorDetails: NodeErrorDetails | undefined;
+        if (error instanceof NodeExecutionError) {
+          errorDetails = {
+            message: error.message,
+            stack: error.stack,
+            request: error.context.request,
+            response: error.context.response,
+            cause: error.originalError?.message,
+          };
+        }
+        else if (error instanceof Error) {
+          errorDetails = {
+            message: error.message,
+            stack: error.stack,
+          };
+        }
+
+        // Update node state to failed (include state if available from error)
+        const errorState =
+            error instanceof NodeExecutionError ? safeClone(error.state) : undefined;
+        await this.runRepo.updateNodeState(runId, nodeId, {
+          status: 'failed',
+          error: errorMessage,
+          errorDetails,
+          state: errorState,
+          completedAt: new Date(),
+        });
+        this.callbacks.onNodeFailed(nodeId, node.type, errorMessage);
+
+        return errorMessage;
+      }
+      return null;
+    };
+
+    try {
+      const scheduled = await runNodesConcurrently(agent.nodes, executionOrder, runNode, {
+        shouldStop: () => this.shouldStop(),
+        maxParallel: options.maxParallelNodes,
+      });
+      if (scheduled.status === 'cancelled') {
+        await this.runRepo.updateStatus(runId, 'cancelled');
+        return { output: {}, status: 'cancelled' };
+      }
+      if (scheduled.status === 'failed') {
+        await this.runRepo.fail(runId, scheduled.error);
+        return { output: {}, status: 'failed', error: scheduled.error };
       }
 
       // Get output from output nodes

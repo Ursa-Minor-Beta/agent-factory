@@ -28,6 +28,8 @@ export interface StartRunOptions {
   resolvedSecrets?: Record<string, string>;
   /** Session context for chat-based execution */
   sessionContext?: SessionContext;
+  /** Max workflow nodes executed in parallel */
+  maxParallelNodes?: number;
 }
 
 interface ActiveRun {
@@ -134,6 +136,7 @@ export class RunManager extends EventEmitter {
       mongoUri: this.config.mongoUri,
       resolvedSecrets: options.resolvedSecrets,
       sessionContext: options.sessionContext,
+      maxParallelNodes: options.maxParallelNodes,
     };
 
     child.send({ type: 'start', config });
