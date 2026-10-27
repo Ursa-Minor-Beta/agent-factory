@@ -28,7 +28,7 @@ export const BRANCH_NODE_DEFINITION: NodeDefinitionRaw = {
   features: [
     'Evaluates branches in order, activates first matching condition',
     'Only nodes in active branch execute - others are skipped',
-    'Nodes not listed in any branch execute unless ALL of their {{node:...}} dependencies were skipped',
+    'Nodes not listed in any branch are skipped if ANY {{node:...}} dependency was skipped, unless another dependency comes from an active branch path (merge node)',
     'Each branch outputs input value if active, null if inactive',
     'Outputs activeBranch name for reference',
   ],

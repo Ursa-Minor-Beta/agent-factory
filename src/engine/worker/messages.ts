@@ -35,6 +35,8 @@ export interface WorkerExecutionConfig {
   resolvedSecrets?: Record<string, string>;
   /** Session context for chat-based execution */
   sessionContext?: SessionContext;
+  /** Max workflow nodes executed in parallel */
+  maxParallelNodes?: number;
 }
 
 /**

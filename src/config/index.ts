@@ -41,6 +41,10 @@ export const config = {
   agentVersions: {
     maxSnapshots: parseInt(process.env['AGENT_MAX_SNAPSHOTS'] ?? '10', 10),
   },
+  engine: {
+    /** Default max nodes executed in parallel within one run (1 = sequential) */
+    defaultParallelNodes: parseInt(process.env['ENGINE_DEFAULT_PARALLEL_NODES'] ?? '2', 10),
+  },
   llm: {
     /** Hard limit on tool calls per LLM invocation (if defined, overrides node settings) */
     maxToolCalls: process.env['LLM_MAX_TOOL_CALLS']

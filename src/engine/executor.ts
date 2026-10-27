@@ -3,7 +3,8 @@ import type { Run, NodeErrorDetails, RunTrigger } from '../domain/entities/Run.j
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import { ExecutionContext } from './context.js';
-import { topologicalSort, validateWorkflow, extractRequiredOutputPaths } from './graph.js';
+import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from './graph.js';
+import { runNodesConcurrently } from './scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
 import { NodeExecutionError } from '../utils/errors.js';
 import { stripBase64ForStorage } from '../utils/file-extractor.js';
@@ -204,101 +205,109 @@ export class WorkflowExecutor {
       resolvedSecrets: options.resolvedSecrets,
     };
 
-    try {
-      // Execute nodes in order
-      for (const nodeId of executionOrder) {
-        const node = agent.nodes.find((n) => n.id === nodeId);
-        if (!node) continue;
+    // Returns error message if the node failed, null otherwise
+    const runNode = async (nodeId: string): Promise<string | null> => {
+      const node = agent.nodes.find((n) => n.id === nodeId);
+      if (!node) return null;
 
-        // Check if this node should be skipped due to branch control
-        if (context.shouldSkipNode(nodeId)) {
-          // Mark node as skipped
+      if (node.type !== 'output') {
+        // Check if this node should be skipped (inactive branch or all dependencies skipped)
+        const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node));
+        if (skipReason) {
           await this.runRepo.updateNodeState(runId, nodeId, {
             status: 'skipped',
             input: safeClone(node.data),
             output: {
               __skipped: true,
-              reason: 'Not in active branch'
+              reason: skipReason
             },
             error: null,
             startedAt: new Date(),
             completedAt: new Date(),
           });
-          continue;
+          return null;
+        }
+      }
+
+      // Update node state to running with input data
+      await this.runRepo.updateNodeState(runId, nodeId, {
+        status: 'running',
+        input: safeClone(node.data),
+        startedAt: new Date(),
+      });
+
+      const nodeHandler = getNode(node.type);
+
+      // Compute which output paths downstream nodes need (for SSE early termination)
+      const requiredOutputPaths = extractRequiredOutputPaths(agent.nodes, nodeId);
+      const nodeExecOptions = requiredOutputPaths.length > 0
+        ? { ...execOptions, requiredOutputPaths, fileRepo: this.fileRepo }
+        : { ...execOptions, fileRepo: this.fileRepo };
+
+      try {
+        const result = await nodeHandler.execute(node, context, nodeExecOptions);
+
+        // Node outputs contain temp refs ({{temp:nodeId:idx}}) instead of base64
+        // Base64 data is stored separately in ExecutionContext.tempFiles
+        // Downstream nodes can resolve temp refs via resolveTempRefsToBase64() if needed
+        // Output node resolves temp refs and saves files to DB with permanent {{inner:id}} refs
+
+        // Strip any remaining base64 for MongoDB storage (as safety measure)
+        const outputForStorage = result.outputs && typeof result.outputs === 'object'
+          ? stripBase64ForStorage(result.outputs as Record<string, unknown>)
+          : result.outputs;
+
+        // Update node state to completed
+        // Use safeClone to handle circular references before saving to MongoDB
+        await this.runRepo.updateNodeState(runId, nodeId, {
+          status: 'completed',
+          output: safeClone(outputForStorage),
+          state: safeClone(result.state),
+          files: result.files,
+          completedAt: new Date(),
+        });
+      }
+      catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Build error details for debugging
+        let errorDetails: NodeErrorDetails | undefined;
+        if (error instanceof NodeExecutionError) {
+          errorDetails = {
+            message: error.message,
+            stack: error.stack,
+            request: error.context.request,
+            response: error.context.response,
+            cause: error.originalError?.message,
+          };
+        }
+        else if (error instanceof Error) {
+          errorDetails = {
+            message: error.message,
+            stack: error.stack,
+          };
         }
 
-        // Update node state to running with input data
+        // Update node state to failed (include state if available from error)
+        const errorState =
+            error instanceof NodeExecutionError ? safeClone(error.state) : undefined;
         await this.runRepo.updateNodeState(runId, nodeId, {
-          status: 'running',
-          input: safeClone(node.data),
-          startedAt: new Date(),
+          status: 'failed',
+          error: errorMessage,
+          errorDetails,
+          state: errorState,
+          completedAt: new Date(),
         });
 
-        const nodeHandler = getNode(node.type);
+        return errorMessage;
+      }
+      return null;
+    };
 
-        // Compute which output paths downstream nodes need (for SSE early termination)
-        const requiredOutputPaths = extractRequiredOutputPaths(agent.nodes, nodeId);
-        const nodeExecOptions = requiredOutputPaths.length > 0
-          ? { ...execOptions, requiredOutputPaths, fileRepo: this.fileRepo }
-          : { ...execOptions, fileRepo: this.fileRepo };
-
-        try {
-          const result = await nodeHandler.execute(node, context, nodeExecOptions);
-
-          // Node outputs contain temp refs ({{temp:nodeId:idx}}) instead of base64
-          // Base64 data is stored separately in ExecutionContext.tempFiles
-          // Downstream nodes can resolve temp refs via resolveTempRefsToBase64() if needed
-          // Output node resolves temp refs and saves files to DB with permanent {{inner:id}} refs
-
-          // Strip any remaining base64 for MongoDB storage (as safety measure)
-          const outputForStorage = result.outputs && typeof result.outputs === 'object'
-            ? stripBase64ForStorage(result.outputs as Record<string, unknown>)
-            : result.outputs;
-
-          // Update node state to completed
-          // Use safeClone to handle circular references before saving to MongoDB
-          await this.runRepo.updateNodeState(runId, nodeId, {
-            status: 'completed',
-            output: safeClone(outputForStorage),
-            state: safeClone(result.state),
-            files: result.files,
-            completedAt: new Date(),
-          });
-        }
-        catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-
-          // Build error details for debugging
-          let errorDetails: NodeErrorDetails | undefined;
-          if (error instanceof NodeExecutionError) {
-            errorDetails = {
-              message: error.message,
-              stack: error.stack,
-              request: error.context.request,
-              response: error.context.response,
-              cause: error.originalError?.message,
-            };
-          }
-          else if (error instanceof Error) {
-            errorDetails = {
-              message: error.message,
-              stack: error.stack,
-            };
-          }
-
-          // Update node state to failed (include state if available from error)
-          const errorState =
-            error instanceof NodeExecutionError ? safeClone(error.state) : undefined;
-          await this.runRepo.updateNodeState(runId, nodeId, {
-            status: 'failed',
-            error: errorMessage,
-            errorDetails,
-            state: errorState,
-            completedAt: new Date(),
-          });
-
-          return { output: {}, status: 'failed', error: errorMessage };
-        }
+    try {
+      const scheduled = await runNodesConcurrently(agent.nodes, executionOrder, runNode);
+      if (scheduled.status === 'failed') {
+        return { output: {}, status: 'failed', error: scheduled.error };
       }
 
       // Get output from output nodes - store references instead of duplicating data

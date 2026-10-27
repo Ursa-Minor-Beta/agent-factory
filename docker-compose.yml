@@ -19,6 +19,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - ADMIN_NAME=${ADMIN_NAME:-Admin}
       - AGENT_MAX_SNAPSHOTS=${AGENT_MAX_SNAPSHOTS:-50}
+      - ENGINE_DEFAULT_PARALLEL_NODES=${ENGINE_DEFAULT_PARALLEL_NODES:-2}
     restart: unless-stopped
 
   # Optional: only starts with --profile local-db

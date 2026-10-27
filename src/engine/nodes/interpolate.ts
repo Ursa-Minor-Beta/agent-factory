@@ -2,9 +2,9 @@ import type { ExecutionContext } from '../context.js';
 
 
 /**
- * Regex pattern to find node references: {{node:<id>.path}}
+ * Regex pattern to find node references: {{node:<id>.path}} or {{node:<id>}} (whole output)
  */
-export const NODE_PATTERN = /\{\{node:([^.}]+)\.([^}]+)\}\}/g;
+export const NODE_PATTERN = /\{\{node:([^.}]+)(?:\.([^}]+))?\}\}/g;
 
 /**
  * Regex pattern to find secret references: {{secret:KEY_NAME}}
@@ -58,6 +58,7 @@ export interface InterpolateOptions {
  *
  * Supports:
  * - {{node:nodeId.path.to.value}} - Reference output from another node
+ * - {{node:nodeId}} - Reference all outputs of another node
  * - {{secret:KEY}} - Reference a secret value
  *
  * @example
@@ -69,7 +70,7 @@ export function interpolate(template: string, options: InterpolateOptions = {}):
   let result = template;
 
   // 1. Handle {{node:nodeId.path}} pattern - reference other node outputs
-  result = result.replace(NODE_PATTERN, (match, nodeId, path) => {
+  result = result.replace(NODE_PATTERN, (match, nodeId: string, path: string | undefined) => {
     if (!context) {
       return match;
     }
@@ -79,7 +80,7 @@ export function interpolate(template: string, options: InterpolateOptions = {}):
       return match;
     }
 
-    const value = getByPath(nodeOutputs, path);
+    const value = path ? getByPath(nodeOutputs, path) : nodeOutputs;
     if (value === undefined) {
       return match;
     }

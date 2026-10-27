@@ -12,6 +12,13 @@ export class CycleError extends Error {
  */
 const SKIP_KEYS = new Set(['systemPrompt', 'description']);
 
+/** Marker path for {{node:id}} refs that use the whole node output */
+const WHOLE_OUTPUT = '*';
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Extract field paths from {{node:targetId.path}} patterns for a specific node
  */
@@ -27,12 +34,11 @@ function extractFieldPathsForNode(
   }
 
   if (typeof value === 'string') {
-    const regex = new RegExp(`\\{\\{node:${targetNodeId}\\.([^}]+)\\}\\}`, 'g');
+    const regex = new RegExp(`\\{\\{node:${escapeRegExp(targetNodeId)}(?:\\.([^}]+))?\\}\\}`, 'g');
     let match;
     while ((match = regex.exec(value)) !== null) {
-      if (match[1]) {
-        paths.add(match[1]);
-      }
+      // Whole-node ref ({{node:id}}) needs every field
+      paths.add(match[1] ?? WHOLE_OUTPUT);
     }
   }
   else if (Array.isArray(value)) {
@@ -54,7 +60,7 @@ function extractFieldPathsForNode(
 }
 
 /**
- * Extract node IDs referenced in {{node:id.path}} templates from any string value
+ * Extract node IDs referenced in {{node:id.path}} or {{node:id}} templates from any string value
  */
 function extractNodeRefs(value: unknown, key?: string): Set<string> {
   const refs = new Set<string>();
@@ -65,7 +71,7 @@ function extractNodeRefs(value: unknown, key?: string): Set<string> {
   }
 
   if (typeof value === 'string') {
-    const regex = /\{\{node:([^.}]+)\./g;
+    const regex = /\{\{node:([^.}]+)[.}]/g;
     let match;
     while ((match = regex.exec(value)) !== null) {
       if (match[1]) {
@@ -99,6 +105,23 @@ export function extractTemplateDependencies(node: WorkflowNode): Set<string> {
 }
 
 /**
+ * Extract node IDs listed in a branch node's branches[].nodes
+ */
+function extractBranchTargets(node: WorkflowNode): Set<string> {
+  const targets = new Set<string>();
+  const branches = (node.data as { branches?: { nodes?: unknown }[] }).branches;
+  if (!Array.isArray(branches)) return targets;
+
+  for (const branch of branches) {
+    if (!Array.isArray(branch?.nodes)) continue;
+    for (const id of branch.nodes) {
+      if (typeof id === 'string') targets.add(id);
+    }
+  }
+  return targets;
+}
+
+/**
  * Extract which output field paths downstream nodes need from a specific node.
  * Scans all nodes for {{node:targetNodeId.path}} patterns and returns the paths.
  * Used for SSE early termination - stop streaming once required fields are available.
@@ -114,6 +137,9 @@ export function extractRequiredOutputPaths(
       paths.add(path);
     }
   }
+
+  // Whole output needed - no early termination
+  if (paths.has(WHOLE_OUTPUT)) return [];
 
   return [...paths];
 }
@@ -142,6 +168,17 @@ export function buildAdjacencyList(nodes: WorkflowNode[]): Map<string, string[]>
         if (targets && !targets.includes(node.id)) {
           targets.push(node.id);
         }
+      }
+    }
+  }
+
+  // Branch nodes must execute before the nodes listed in their branches
+  for (const node of nodes) {
+    if (node.type !== 'branch') continue;
+    const targets = adjacency.get(node.id)!;
+    for (const targetId of extractBranchTargets(node)) {
+      if (nodeIds.has(targetId) && targetId !== node.id && !targets.includes(targetId)) {
+        targets.push(targetId);
       }
     }
   }
