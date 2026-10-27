@@ -3,12 +3,20 @@ import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { WorkflowExecutor } from '../executor.js';
 import { resolveRunOutput } from '../../utils/node-ref.js';
-import { interpolateAll } from './interpolate.js';
+import { interpolateDeep } from './interpolate.js';
 import { extractAndStoreFiles } from './file-helper.js';
 
 interface AgentNodeData {
   agentId: string;
-  input?: string; // Template for input, e.g., "{{node:http-1.response}}"
+  // Field templates, e.g., { query: "{{node:http-1.response}}" },
+  // or an array / template resolving to an array to run once per item
+  inputs?: Record<string, unknown> | unknown[] | string;
+}
+
+interface InputFieldDef {
+  type?: string;
+  required?: boolean;
+  default?: unknown;
 }
 
 /**
@@ -16,7 +24,7 @@ interface AgentNodeData {
  *
  * Data config:
  *   - agentId: ID of the agent to execute
- *   - input: Template for input, e.g., "{{node:http-1.response}}"
+ *   - inputs: Values for the target agent's input schema fields, e.g., { query: "{{node:http-1.response}}" }
  */
 export class AgentNode extends BaseNode {
   readonly type = 'agent';
@@ -62,56 +70,73 @@ export class AgentNode extends BaseNode {
     const newCallStack = new Set(callStack);
     newCallStack.add(data.agentId);
 
-    // Get input from template or workflow input
-    let subInput: Record<string, unknown>;
-    if (data.input && typeof data.input === 'string') {
-      const interpolated = interpolateAll(data.input, { context });
-      try {
-        subInput = JSON.parse(interpolated);
-      }
-      catch {
-        subInput = { value: interpolated };
-      }
-    }
-    else {
-      subInput = options.workflowInput;
-    }
+    // Build sub-agent input(s) from field templates.
+    // An array (literal or template resolving to an array) runs the agent once per item.
+    const resolvedInputs = interpolateDeep(data.inputs ?? {}, { context });
+    const isBatch = Array.isArray(resolvedInputs);
+    const items = (isBatch ? resolvedInputs : [resolvedInputs]) as unknown[];
 
-    // Execute the sub-agent (pass all repositories and context)
+    console.log('data.inputs', data.inputs)
+    console.log('items', items)
+
+    // Validate every item against the target input schema before running anything
+    const inputNode = targetAgent.nodes.find((n) => n.type === 'input');
+    const schema = (inputNode?.data.schema as Record<string, InputFieldDef> | undefined) ?? {};
+
+    items.forEach((item, index) => {
+      if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+        throw new Error(`Input${isBatch ? ` item ${index}` : ''} for agent ${targetAgent.name} must be an object`);
+      }
+      const missingFields = Object.entries(schema)
+        .filter(([key, def]) => def?.required && def.default === undefined && (item as Record<string, unknown>)[key] === undefined)
+        .map(([key]) => key);
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required input fields${isBatch ? ` in item ${index}` : ''} for agent ${targetAgent.name}: ${missingFields.join(', ')}`);
+      }
+    });
+
+    // Execute the sub-agent for each item sequentially (pass all repositories and context)
     const executor = new WorkflowExecutor(options.runRepo, options.fileRepo);
-    const run = await executor.executeInternal(
-      targetAgent,
-      subInput,
-      options.userId,
-      {
-        providers: options.providers,
-        workflowInput: subInput,
-        agentRepo: options.agentRepo,
-        runRepo: options.runRepo,
-        messageRepo: options.messageRepo,
-        memorySchemaRepo: options.memorySchemaRepo,
-        memoryStoreRepo: options.memoryStoreRepo,
-        fileRepo: options.fileRepo,
-        callStack: newCallStack,
-        userId: options.userId,
-        resolvedSecrets: options.resolvedSecrets,
-        sessionId: options.sessionId,
-        messages: options.messages,
-        sessionNotes: options.sessionNotes,
-        onSessionNotesUpdate: options.onSessionNotesUpdate,
-        maxNotesLength: options.maxNotesLength,
-        parentRunId: options.currentRunId,
-        triggeredBy: { triggerType: 'agent_node', nodeId: node.id },
-      }
-    );
+    const runs = [];
+    for (const [index, item] of items.entries()) {
+      const subInput = item as Record<string, unknown>;
+      const run = await executor.executeInternal(
+        targetAgent,
+        subInput,
+        options.userId,
+        {
+          providers: options.providers,
+          workflowInput: subInput,
+          agentRepo: options.agentRepo,
+          runRepo: options.runRepo,
+          messageRepo: options.messageRepo,
+          memorySchemaRepo: options.memorySchemaRepo,
+          memoryStoreRepo: options.memoryStoreRepo,
+          fileRepo: options.fileRepo,
+          callStack: newCallStack,
+          userId: options.userId,
+          resolvedSecrets: options.resolvedSecrets,
+          sessionId: options.sessionId,
+          messages: options.messages,
+          sessionNotes: options.sessionNotes,
+          onSessionNotesUpdate: options.onSessionNotesUpdate,
+          maxNotesLength: options.maxNotesLength,
+          parentRunId: options.currentRunId,
+          triggeredBy: { triggerType: 'agent_node', nodeId: node.id },
+        }
+      );
 
-    if (run.status === 'failed') {
-      throw new Error(`Sub-agent failed: ${run.error}`);
+      if (run.status === 'failed') {
+        throw new Error(`Sub-agent failed${isBatch ? ` on item ${index}` : ''}: ${run.error}`);
+      }
+      runs.push(run);
     }
 
     // Resolve nodeRef references to actual values for downstream nodes
-    const resolvedOutput = resolveRunOutput(run);
-    const outputs = { output: resolvedOutput, run };
+    const resolvedOutputs = runs.map((run) => resolveRunOutput(run));
+    const outputs = isBatch
+      ? { output: resolvedOutputs, run: runs }
+      : { output: resolvedOutputs[0], run: runs[0] };
 
     // Extract files from output, store in context with temp refs
     const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
@@ -119,10 +144,12 @@ export class AgentNode extends BaseNode {
     context.setOutput(node.id, 'output', (cleanedOutput as Record<string, unknown>).output);
     context.setOutput(node.id, 'run', (cleanedOutput as Record<string, unknown>).run);
 
-    // Propagate files from sub-agent run
+    // Propagate files from sub-agent runs
     const allFileRefs = [...fileRefs];
-    if (run.files && run.files.length > 0) {
-      allFileRefs.push(...run.files);
+    for (const run of runs) {
+      if (run.files && run.files.length > 0) {
+        allFileRefs.push(...run.files);
+      }
     }
 
     return {
