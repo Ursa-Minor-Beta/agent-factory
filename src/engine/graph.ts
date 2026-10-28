@@ -183,6 +183,17 @@ export function buildAdjacencyList(nodes: WorkflowNode[]): Map<string, string[]>
     }
   }
 
+  // runAfter: ordering-only edges (no data, no skip propagation)
+  for (const node of nodes) {
+    for (const depId of node.runAfter ?? []) {
+      if (!nodeIds.has(depId) || depId === node.id) continue;
+      const targets = adjacency.get(depId)!;
+      if (!targets.includes(node.id)) {
+        targets.push(node.id);
+      }
+    }
+  }
+
   return adjacency;
 }
 
@@ -267,6 +278,7 @@ export function validateWorkflow(nodes: WorkflowNode[]): { valid: boolean; error
 
   // Check for required output node
   const outputNodes = nodes.filter((n) => n.type === 'output');
+  const outputNodeIds = new Set(outputNodes.map((n) => n.id));
   if (outputNodes.length === 0) {
     errors.push('Workflow must have at least one output node');
   }
@@ -277,6 +289,21 @@ export function validateWorkflow(nodes: WorkflowNode[]): { valid: boolean; error
     for (const depId of deps) {
       if (!nodeIds.has(depId)) {
         errors.push(`Node "${node.id}" references non-existent node: ${depId}`);
+      }
+    }
+  }
+
+  // Check runAfter references
+  for (const node of nodes) {
+    for (const depId of node.runAfter ?? []) {
+      if (depId === node.id) {
+        errors.push(`Node "${node.id}" cannot runAfter itself`);
+      }
+      else if (!nodeIds.has(depId)) {
+        errors.push(`Node "${node.id}" runAfter references non-existent node: ${depId}`);
+      }
+      else if (outputNodeIds.has(depId)) {
+        errors.push(`Node "${node.id}" cannot runAfter output node "${depId}" (output nodes always run last)`);
       }
     }
   }

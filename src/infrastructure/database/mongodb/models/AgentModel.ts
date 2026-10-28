@@ -24,6 +24,7 @@ export const nodeSchema = new Schema(
       enum: NODE_TYPES,
     },
     data: { type: Schema.Types.Mixed, default: {} },
+    runAfter: { type: [String], default: undefined },
   },
   { _id: false }
 );

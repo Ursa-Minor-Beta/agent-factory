@@ -57,6 +57,7 @@ const nodeSchema = {
     id: { type: 'string' },
     type: { type: 'string', enum: NODE_TYPES as unknown as string[] },
     data: { type: 'object', additionalProperties: true },
+    runAfter: { type: 'array', items: { type: 'string' } },
   },
 };
 

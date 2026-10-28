@@ -5,6 +5,8 @@ export interface WorkflowNode {
   id: string;
   type: NodeType;
   data: Record<string, unknown>;
+  /** Ordering-only dependencies: node ids that must finish (or be skipped) before this node runs */
+  runAfter?: string[];
 }
 
 export interface NodePosition {

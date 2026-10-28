@@ -30,6 +30,7 @@ export type NodeType = (typeof NODE_TYPES)[number];
  * - object: JSON object or array
  * - enum: Single selection from predefined values
  * - enum[]: Multiple selections from predefined values
+ * - node[]: Multiple ids of other nodes in the same workflow
  */
 export const NODE_OPTION_TYPES = [
   'string',
@@ -39,7 +40,8 @@ export const NODE_OPTION_TYPES = [
   'boolean',
   'object',
   'enum',
-  'enum[]'
+  'enum[]',
+  'node[]'
 ] as const;
 export type NodeOptionType = (typeof NODE_OPTION_TYPES)[number];
 
@@ -58,7 +60,19 @@ export interface NodeExample {
   id: string;
   type: NodeType;
   data: Record<string, unknown>;
+  runAfter?: string[];
 }
+
+/**
+ * Fields set on the node itself (next to id/type), not inside `data`
+ */
+export const COMMON_NODE_FIELDS: NodeOption[] = [
+  {
+    name: 'runAfter',
+    type: 'node[]',
+    description: 'Ordering-only dependencies: ids of nodes that must finish (or be skipped) before this node runs. No data is passed; use {{node:id.path}} for that.',
+  },
+];
 
 export interface NodeDefinitionRaw {
   type: NodeType;
@@ -68,6 +82,8 @@ export interface NodeDefinitionRaw {
   inputs: string[];
   outputs: string[];
   options: NodeOption[];
+  /** Node-level fields (outside `data`). Filled from COMMON_NODE_FIELDS by the registry when omitted */
+  nodeFields?: NodeOption[];
   features?: string[];
   examples?: NodeExample[];
 }

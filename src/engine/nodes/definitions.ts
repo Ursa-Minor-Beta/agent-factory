@@ -1,4 +1,4 @@
-import type { NodeDefinition, NodeDefinitionRaw } from './definition.types.js';
+import { COMMON_NODE_FIELDS, type NodeDefinition, type NodeDefinitionRaw } from './definition.types.js';
 import { INPUT_NODE_DEFINITION } from './input.definition.js';
 import { OUTPUT_NODE_DEFINITION } from './output.definition.js';
 import { LLM_NODE_DEFINITION } from './llm/llm.definition.js';
@@ -32,7 +32,9 @@ const NODE_DEFINITIONS_RAW: NodeDefinitionRaw[] = [
 
 export const NODE_DEFINITIONS: NodeDefinition[] = NODE_DEFINITIONS_RAW.map( n => {
   const { statusText, ...rest } = n;
-  return rest
+  // Output nodes always run last, so runAfter is meaningless there
+  const nodeFields = rest.nodeFields ?? (rest.type === 'output' ? [] : COMMON_NODE_FIELDS);
+  return { ...rest, nodeFields }
 })
 
 /**
@@ -40,6 +42,12 @@ export const NODE_DEFINITIONS: NodeDefinition[] = NODE_DEFINITIONS_RAW.map( n =>
  */
 export function generateNodeDocsForPrompt(): string {
   const lines: string[] = ['## Available Node Types\n'];
+
+  lines.push('Node-level fields (set next to id/type, not inside data; not available on output nodes):');
+  for (const field of COMMON_NODE_FIELDS) {
+    lines.push(`- ${field.name}: ${field.description}`);
+  }
+  lines.push('');
 
   for (const node of NODE_DEFINITIONS) {
     lines.push(`### ${node.type}`);
@@ -65,6 +73,7 @@ export function generateNodeDocsForPrompt(): string {
         id: firstExample.id,
         type: firstExample.type,
         data: firstExample.data,
+        ...(firstExample.runAfter && { runAfter: firstExample.runAfter }),
       }, null, 2));
       lines.push('```');
     }

@@ -20,6 +20,7 @@ const exampleSchema = {
     name: { type: 'string' },
     description: { type: 'string' },
     data: { type: 'object', additionalProperties: true },
+    runAfter: { type: 'array', items: { type: 'string' } },
   },
 };
 
@@ -31,6 +32,7 @@ const nodeSchema = {
     inputs: { type: 'array', items: { type: 'string' } },
     outputs: { type: 'array', items: { type: 'string' } },
     options: { type: 'array', items: optionSchema },
+    nodeFields: { type: 'array', items: optionSchema },
     features: { type: 'array', items: { type: 'string' } },
     examples: { type: 'array', items: exampleSchema },
   },
