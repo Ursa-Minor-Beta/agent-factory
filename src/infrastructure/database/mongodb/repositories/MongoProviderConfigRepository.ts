@@ -89,6 +89,7 @@ export class MongoProviderConfigRepository implements IProviderConfigRepository 
 
     const docs = await ProviderConfigModel.aggregate<ProviderConfigWithWorkspace>([
       { $match: matchStage },
+      { $sort: { provider: 1, name: 1 } },
       {
         $lookup: {
           from: 'workspaces',
