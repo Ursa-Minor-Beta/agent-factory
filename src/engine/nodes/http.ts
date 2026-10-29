@@ -189,7 +189,7 @@ export class HttpNode extends BaseNode {
     method: string,
     interpolateOpts: { secrets: Record<string, string>; context: ExecutionContext }
   ): string | undefined {
-    if (method === 'GET' || data.body === undefined) return undefined;
+    if (method === 'GET' || data.body === undefined || data.body === '') return undefined;
 
     const bodyString = typeof data.body === 'string'
       ? data.body
