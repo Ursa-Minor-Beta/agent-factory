@@ -6,6 +6,7 @@ import { ExecutionContext } from './context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from './graph.js';
 import { runNodesConcurrently } from './scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
+import type { SubAgentNodeEvent } from './nodes/base.js';
 import { NodeExecutionError } from '../utils/errors.js';
 import { stripBase64ForStorage } from '../utils/file-extractor.js';
 
@@ -204,6 +205,22 @@ export class WorkflowExecutor {
       onSessionNotesUpdate: options.onSessionNotesUpdate,
       maxNotesLength: options.maxNotesLength,
       resolvedSecrets: options.resolvedSecrets,
+      onSubAgentNodeEvent: options.onSubAgentNodeEvent,
+      subAgentPath: options.subAgentPath,
+    };
+
+    const emitNodeEvent = (nodeId: string, nodeType: string, status: SubAgentNodeEvent['status'], error?: string) => {
+      options.onSubAgentNodeEvent?.({
+        runId,
+        parentRunId: options.parentRunId,
+        agentId: agent.id,
+        agentName: agent.name,
+        nodeId,
+        nodeType,
+        path: [...(options.subAgentPath ?? []), nodeId],
+        status,
+        error,
+      });
     };
 
     // Returns error message if the node failed, null otherwise
@@ -227,6 +244,7 @@ export class WorkflowExecutor {
             startedAt: new Date(),
             completedAt: new Date(),
           });
+          emitNodeEvent(nodeId, node.type, 'skipped');
           return null;
         }
       }
@@ -238,6 +256,7 @@ export class WorkflowExecutor {
         input: safeClone(node.data),
         startedAt: new Date(),
       });
+      emitNodeEvent(nodeId, node.type, 'started');
 
       const nodeHandler = getNode(node.type);
 
@@ -269,6 +288,7 @@ export class WorkflowExecutor {
           files: result.files,
           completedAt: new Date(),
         });
+        emitNodeEvent(nodeId, node.type, 'completed');
       }
       catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -301,6 +321,7 @@ export class WorkflowExecutor {
           state: errorState,
           completedAt: new Date(),
         });
+        emitNodeEvent(nodeId, node.type, 'failed', errorMessage);
 
         return errorMessage;
       }

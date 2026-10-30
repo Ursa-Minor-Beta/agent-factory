@@ -1,6 +1,7 @@
 import type { Agent } from '../../domain/entities/Agent.js';
 import type { NodeState } from '../../domain/entities/Run.js';
 import type { ProviderConfig } from '../nodes/index.js';
+import type { SubAgentNodeEvent } from '../nodes/base.js';
 
 /**
  * Chat message for session context
@@ -55,6 +56,7 @@ export type WorkerMessage =
   | { type: 'node-completed'; nodeId: string; nodeType: string; state: Partial<NodeState> }
   | { type: 'node-failed'; nodeId: string; nodeType: string; error: string }
   | { type: 'node-skipped'; nodeId: string; nodeType: string }
+  | { type: 'subagent-node'; event: SubAgentNodeEvent }
   | { type: 'completed'; output: Record<string, unknown>; files?: string[] }
   | { type: 'failed'; error: string }
   | { type: 'cancelled' };
@@ -80,6 +82,7 @@ export function isWorkerMessage(msg: unknown): msg is WorkerMessage {
     m.type === 'node-completed' ||
     m.type === 'node-failed' ||
     m.type === 'node-skipped' ||
+    m.type === 'subagent-node' ||
     m.type === 'completed' ||
     m.type === 'failed' ||
     m.type === 'cancelled'

@@ -118,6 +118,8 @@ export class AgentNode extends BaseNode {
           sessionNotes: options.sessionNotes,
           onSessionNotesUpdate: options.onSessionNotesUpdate,
           maxNotesLength: options.maxNotesLength,
+          onSubAgentNodeEvent: options.onSubAgentNodeEvent,
+          subAgentPath: [...(options.subAgentPath ?? []), node.id, targetAgent.name],
           parentRunId: options.currentRunId,
           triggeredBy: { triggerType: 'agent_node', nodeId: node.id },
         }

@@ -25,6 +25,19 @@ export interface ChatMessage {
   content: string;
 }
 
+/** Node lifecycle event emitted from a sub-agent run (agent node / agent tool) */
+export interface SubAgentNodeEvent {
+  runId: string; // Sub-agent run ID
+  parentRunId?: string;
+  agentId: string;
+  agentName: string;
+  nodeId: string;
+  path: string[]; // [callerNodeId, agentName, ..., nodeId] from the top-level agent
+  nodeType: string;
+  status: 'started' | 'completed' | 'failed' | 'skipped';
+  error?: string;
+}
+
 export interface ExecutionOptions {
   providers: ProviderConfig;
   workflowInput: Record<string, unknown>;
@@ -53,6 +66,9 @@ export interface ExecutionOptions {
   // Memory storage - for memory node operations
   memorySchemaRepo?: IMemorySchemaRepository;
   memoryStoreRepo?: IMemoryStoreRepository;
+  // Forwards node events of nested sub-agent runs up to the top-level run
+  onSubAgentNodeEvent?: (event: SubAgentNodeEvent) => void;
+  subAgentPath?: string[]; // Path to the current sub-agent: [callerNodeId, agentName, ...]
 }
 
 export abstract class BaseNode {

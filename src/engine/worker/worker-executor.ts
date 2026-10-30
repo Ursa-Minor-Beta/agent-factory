@@ -18,6 +18,7 @@ import { ExecutionContext } from '../context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from '../graph.js';
 import { runNodesConcurrently } from '../scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
+import type { SubAgentNodeEvent } from '../nodes/base.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
 
@@ -69,6 +70,8 @@ export interface WorkerExecutorCallbacks {
   onNodeFailed: (nodeId: string, nodeType: string, error: string) => void;
   /** Called when a node is skipped */
   onNodeSkipped: (nodeId: string, nodeType: string) => void;
+  /** Called on node events of nested sub-agent runs */
+  onSubAgentNodeEvent?: (event: SubAgentNodeEvent) => void;
 }
 
 export interface SessionContext {
@@ -194,6 +197,7 @@ export class WorkerExecutor {
       sessionNotes: options.sessionContext?.notes,
       onSessionNotesUpdate: options.sessionContext?.onNotesUpdate,
       maxNotesLength: options.sessionContext?.maxNotesLength,
+      onSubAgentNodeEvent: this.callbacks.onSubAgentNodeEvent,
     };
 
     // Returns error message if the node failed, null otherwise

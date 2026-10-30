@@ -307,6 +307,10 @@ export class RunManager extends EventEmitter {
       this.emit('node-skipped', { runId, nodeId: msg.nodeId, nodeType: msg.nodeType });
       break;
 
+    case 'subagent-node':
+      this.emit('subagent-node', { runId, event: msg.event });
+      break;
+
     case 'completed':
       this.emit('run-completed', { runId, output: msg.output, files: msg.files });
       this.cleanup(runId);

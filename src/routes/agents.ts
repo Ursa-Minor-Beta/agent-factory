@@ -10,6 +10,7 @@ import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js'
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { getNodeStatusText } from '../engine/nodes/definitions.js';
+import type { SubAgentNodeEvent } from '../engine/nodes/base.js';
 import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
 import {
   CHAT_AGENT,
@@ -1039,7 +1040,8 @@ export async function agentRoutes(app: FastifyInstance) {
     // Track all listeners for cleanup
     type NodeEventHandler = (e: { runId: string; nodeId: string; nodeType: string }) => void;
     type RunEventHandler = (e: { runId: string; error?: string }) => void;
-    const listeners: Array<{ event: string; handler: NodeEventHandler | RunEventHandler }> = [];
+    type SubAgentEventHandler = (e: { runId: string; event: SubAgentNodeEvent }) => void;
+    const listeners: Array<{ event: string; handler: NodeEventHandler | RunEventHandler | SubAgentEventHandler }> = [];
     let cleanedUp = false;
 
     const cleanupAll = () => {
@@ -1083,6 +1085,28 @@ export async function agentRoutes(app: FastifyInstance) {
       };
       const onNodeSkipped: NodeEventHandler = (e) => {
         if (e.runId === runId) sendEvent('status', { nodeId: e.nodeId, status: 'skipped', statusText: '' });
+      };
+      // [topNode, agentA, nodeA, agentB, nodeB] -> "topNode / agentA: nodeA / agentB: nodeB"
+      const formatSubAgentPath = (path: string[]): string => {
+        const [topNodeId, ...rest] = path;
+        const segments = [topNodeId];
+        for (let i = 0; i < rest.length; i += 2) {
+          segments.push(`${rest[i]}: ${rest[i + 1]}`);
+        }
+        return segments.join(' / ');
+      };
+      const onSubAgentNode: SubAgentEventHandler = ({ runId: rootRunId, event }) => {
+        if (rootRunId !== runId) return;
+        sendEvent('subagent-status', {
+          agentId: event.agentId,
+          agentName: event.agentName,
+          path: formatSubAgentPath(event.path),
+          nodeId: event.nodeId,
+          nodeType: event.nodeType,
+          status: event.status,
+          statusText: getStatusText(event.nodeType, event.status),
+          ...(event.error ? { error: event.error } : {}),
+        });
       };
 
       // Wait for run to complete
@@ -1140,6 +1164,7 @@ export async function agentRoutes(app: FastifyInstance) {
       container.runManager.on('node-completed', onNodeCompleted);
       container.runManager.on('node-failed', onNodeFailed);
       container.runManager.on('node-skipped', onNodeSkipped);
+      container.runManager.on('subagent-node', onSubAgentNode);
       container.runManager.on('run-completed', onComplete);
       container.runManager.on('run-failed', onFail);
       container.runManager.on('run-cancelled', onCancel);
@@ -1149,6 +1174,7 @@ export async function agentRoutes(app: FastifyInstance) {
         { event: 'node-completed', handler: onNodeCompleted },
         { event: 'node-failed', handler: onNodeFailed },
         { event: 'node-skipped', handler: onNodeSkipped },
+        { event: 'subagent-node', handler: onSubAgentNode },
         { event: 'run-completed', handler: onComplete },
         { event: 'run-failed', handler: onFail },
         { event: 'run-cancelled', handler: onCancel }
