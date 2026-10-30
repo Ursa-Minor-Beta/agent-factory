@@ -3,6 +3,7 @@ import { RunService } from '../services/run.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { RunStatus } from '../domain/entities/Run.js';
+import { NODE_TYPES } from '../domain/entities/Agent.js';
 
 // Schemas
 const errorSchema = {
@@ -22,6 +23,7 @@ const errorSchema = {
 const nodeStateSchema = {
   type: 'object',
   properties: {
+    nodeType: {type: 'string', enum: NODE_TYPES },
     status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'skipped'] },
     input: {},
     output: {},

@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import type { RunStatus, NodeState, RunTrigger } from '../../../../domain/entities/Run.js';
 import type { RunUsage } from '../../../../engine/nodes/llm/types.js';
+import { NODE_TYPES } from '../../../../domain/entities/Agent.js';
 
 export interface RunDocument extends Document {
   _id: mongoose.Types.ObjectId;
@@ -23,6 +24,7 @@ export interface RunDocument extends Document {
 
 const nodeStateSchema = new Schema(
   {
+    nodeType: { type: String, enum: NODE_TYPES },
     status: {
       type: String,
       enum: ['pending', 'running', 'completed', 'failed', 'skipped'],

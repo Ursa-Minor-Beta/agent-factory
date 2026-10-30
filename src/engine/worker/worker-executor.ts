@@ -149,6 +149,7 @@ export class WorkerExecutor {
     // Initialize node states
     for (const node of agent.nodes) {
       await this.runRepo.updateNodeState(runId, node.id, {
+        nodeType: node.type,
         status: 'pending',
         input: null,
         output: null,
@@ -206,6 +207,7 @@ export class WorkerExecutor {
         const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node));
         if (skipReason) {
           await this.runRepo.updateNodeState(runId, nodeId, {
+            nodeType: node.type,
             status: 'skipped',
             input: safeClone(node.data),
             output: { __skipped: true, reason: skipReason },
@@ -219,6 +221,7 @@ export class WorkerExecutor {
 
       // Update node state to running with input data
       await this.runRepo.updateNodeState(runId, nodeId, {
+        nodeType: node.type,
         status: 'running',
         input: safeClone(node.data),
         startedAt: new Date(),

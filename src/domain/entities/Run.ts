@@ -1,4 +1,5 @@
 import type { RunUsage } from '../../engine/nodes/llm/types.js';
+import type { NodeType } from './Agent.js';
 
 export type RunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelling' | 'cancelled';
 export type NodeStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
@@ -20,6 +21,7 @@ export interface NodeErrorDetails {
 }
 
 export interface NodeState {
+  nodeType?: NodeType;
   status: NodeStatus;
   input: unknown;
   output: unknown;
