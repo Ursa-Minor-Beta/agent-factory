@@ -45,7 +45,7 @@ export class MemoryDeleteNode extends BaseNode {
 
     await memoryService.deleteMemoryRecord(
       userId,
-      data.collection,
+      interpolateAll(data.collection, interpolateOpts),
       recordId,
       {
         memorySchemaRepo: options.memorySchemaRepo,

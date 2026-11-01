@@ -57,7 +57,7 @@ export class MemoryUpdateNode extends BaseNode {
 
     const updated = await memoryService.updateMemoryRecord(
       userId,
-      data.collection,
+      interpolateAll(data.collection, interpolateOpts),
       recordId,
       interpolatedData,
       {

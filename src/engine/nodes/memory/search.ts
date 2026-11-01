@@ -2,7 +2,7 @@ import type { WorkflowNode } from '../../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from '../base.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
-import { interpolateDeep } from '../interpolate.js';
+import { interpolateAll, interpolateDeep } from '../interpolate.js';
 import * as memoryService from '../../../domain/services/memory.service.js';
 import { extractAndStoreFiles } from '../file-helper.js';
 
@@ -48,7 +48,7 @@ export class MemorySearchNode extends BaseNode {
 
     const records = await memoryService.searchMemoryRecords(
       userId,
-      data.collection,
+      interpolateAll(data.collection, interpolateOpts),
       {
         filters: interpolatedFilters,
         sort: data.sort,
