@@ -3,7 +3,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { config } from '../../config/index.js';
-import { interpolateDeep } from './interpolate.js';
+import { interpolate, interpolateDeep, NODE_PATTERN } from './interpolate.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { extractAndStoreFiles } from './file-helper.js';
 
@@ -145,7 +145,28 @@ export class JsNode extends BaseNode {
   }
 
   private resolveInput(data: JsNodeData, context: ExecutionContext): unknown {
-    return interpolateDeep(data.input, { context });
+    return interpolateDeep(this.nullifyUnresolvedRefs(data.input, context), { context });
+  }
+
+  /**
+   * Replace {{node:...}} refs that can't be resolved with null,
+   * so JSON input templates like { "a": {{node:x.y}} } still parse
+   */
+  private nullifyUnresolvedRefs(value: unknown, context: ExecutionContext): unknown {
+    if (typeof value === 'string') {
+      return value.replace(NODE_PATTERN, (match) =>
+        interpolate(match, { context }) === match ? 'null' : match
+      );
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.nullifyUnresolvedRefs(item, context));
+    }
+    if (value !== null && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([k, v]) => [k, this.nullifyUnresolvedRefs(v, context)])
+      );
+    }
+    return value;
   }
 
   private buildState(data: JsNodeData, input: unknown): Record<string, unknown> | undefined {
