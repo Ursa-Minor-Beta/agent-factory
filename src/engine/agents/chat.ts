@@ -24,7 +24,7 @@ export const CHAT_NODES: WorkflowNode[] = [
       temperature: 0.7,
       maxTokens: 1000,
       maxMessages: 20,
-      tools: [...SESSION_NOTES_TOOLS],
+      tools: SESSION_NOTES_TOOLS.map(({ type, name }) => ({ type, name })),
     },
   },
   {

@@ -44,6 +44,23 @@ function formatValue(value: unknown): string {
 }
 
 /**
+ * Resolve a node reference to its raw (unformatted) value.
+ * Returns undefined if the node or path can't be resolved.
+ */
+export function resolveNodeRef(
+  nodeId: string,
+  path: string | undefined,
+  context: ExecutionContext | undefined
+): unknown {
+  if (!context) return undefined;
+
+  const nodeOutputs = context.getNodeOutputs(nodeId);
+  if (!nodeOutputs || Object.keys(nodeOutputs).length === 0) return undefined;
+
+  return path ? getByPath(nodeOutputs, path) : nodeOutputs;
+}
+
+/**
  * Options for interpolation functions
  */
 export interface InterpolateOptions {
@@ -71,16 +88,7 @@ export function interpolate(template: string, options: InterpolateOptions = {}):
 
   // 1. Handle {{node:nodeId.path}} pattern - reference other node outputs
   result = result.replace(NODE_PATTERN, (match, nodeId: string, path: string | undefined) => {
-    if (!context) {
-      return match;
-    }
-
-    const nodeOutputs = context.getNodeOutputs(nodeId);
-    if (!nodeOutputs || Object.keys(nodeOutputs).length === 0) {
-      return match;
-    }
-
-    const value = path ? getByPath(nodeOutputs, path) : nodeOutputs;
+    const value = resolveNodeRef(nodeId, path, context);
     if (value === undefined) {
       return match;
     }

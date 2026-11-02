@@ -42,6 +42,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
   features: [
     'Sandboxed execution (no require, fs, process access)',
     'Memory and timeout limits enforced',
+    'console.log/warn/error output is captured into run state as "logs" (also on failure)',
     `Available globals: ${JS_NODE_AVAILABLE_GLOBALS.join(', ')}`,
   ],
   examples: [

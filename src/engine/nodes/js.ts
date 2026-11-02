@@ -3,11 +3,38 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { config } from '../../config/index.js';
-import { interpolate, interpolateDeep, NODE_PATTERN } from './interpolate.js';
+import { interpolateDeep, NODE_PATTERN, resolveNodeRef } from './interpolate.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { extractAndStoreFiles } from './file-helper.js';
 
 type JsPersistedField = 'input';
+
+/** A node ref that is the entire content of a JSON string literal: "{{node:id.path}}" */
+const QUOTED_NODE_PATTERN = /"\{\{node:([^.}"]+)(?:\.([^}"]+))?\}\}"/g;
+
+interface JsLogEntry {
+  level: 'log' | 'warn' | 'error';
+  message: string;
+}
+
+/** Error from worker execution, carrying console output captured before the failure */
+class JsWorkerError extends Error {
+  constructor(message: string, readonly logs: JsLogEntry[] = []) {
+    super(message);
+  }
+}
+
+/**
+ * Check whether a position in a JSON-ish template is inside a "..." string literal
+ */
+function isInsideJsonString(template: string, offset: number): boolean {
+  let inside = false;
+  for (let i = 0; i < offset; i++) {
+    if (template[i] === '\\') i++;
+    else if (template[i] === '"') inside = !inside;
+  }
+  return inside;
+}
 
 interface JsNodeData {
   code?: string;
@@ -50,10 +77,14 @@ export const JS_NODE_AVAILABLE_GLOBALS = [
 /** Sandbox entries for worker script (globals that map directly) */
 const SANDBOX_DIRECT_GLOBALS = JS_NODE_AVAILABLE_GLOBALS.filter((g) => g !== 'console');
 
+/** Limits for captured console output persisted in run state */
+const MAX_LOG_ENTRIES = 100;
+const MAX_LOG_LENGTH = 2000;
+
 /** Generate sandbox object entries for worker script */
 const sandboxEntries = [
   ...SANDBOX_DIRECT_GLOBALS,
-  'console: { log: () => {}, warn: () => {}, error: () => {} }',
+  'console: { log: capture(\'log\'), warn: capture(\'warn\'), error: capture(\'error\') }',
 ]
   .map((entry) => `  ${entry}`)
   .join(',\n');
@@ -66,6 +97,17 @@ const { parentPort, workerData } = require('node:worker_threads');
 const vm = require('node:vm');
 
 const { code, input } = workerData;
+
+const logs = [];
+const formatArg = (arg) => {
+  if (typeof arg === 'string') return arg;
+  try { return JSON.stringify(arg) ?? String(arg); } catch { return String(arg); }
+};
+const capture = (level) => (...args) => {
+  if (logs.length >= ${MAX_LOG_ENTRIES}) return;
+  const message = args.map(formatArg).join(' ');
+  logs.push({ level, message: message.length > ${MAX_LOG_LENGTH} ? message.slice(0, ${MAX_LOG_LENGTH}) + '...' : message });
+};
 
 const sandbox = {
   input,
@@ -86,11 +128,12 @@ try {
   const script = new vm.Script(wrappedCode);
   let result = script.runInContext(ctx);
   if (result === undefined) result = sandbox.output;
-  parentPort.postMessage({ success: true, result });
+  parentPort.postMessage({ success: true, result, logs });
 } catch (error) {
   parentPort.postMessage({
     success: false,
-    error: error instanceof Error ? error.message : String(error)
+    error: error instanceof Error ? error.message : String(error),
+    logs
   });
 }
 `;
@@ -116,10 +159,12 @@ export class JsNode extends BaseNode {
     const memoryMb = Math.min(data.memoryMb ?? defaultMemoryMb, maxMemoryMb);
 
     const input = this.resolveInput(data, context);
-    const state = this.buildState(data, input);
 
     try {
-      const output = await this.runInWorker(code, input, timeout, memoryMb);
+      const { result, logs } = await this.runInWorker(code, input, timeout, memoryMb);
+      // Normalize undefined to null so {{node:id.output}} refs resolve downstream
+      const output = result ?? null;
+      const state = this.buildState(data, input, logs);
 
       const outputs = { output };
 
@@ -135,11 +180,12 @@ export class JsNode extends BaseNode {
       };
     } 
     catch (error) {
+      const logs = error instanceof JsWorkerError ? error.logs : [];
       throw new NodeExecutionError(
         error instanceof Error ? error.message : String(error),
         {},
         error,
-        state
+        this.buildState(data, input, logs)
       );
     }
   }
@@ -149,14 +195,31 @@ export class JsNode extends BaseNode {
   }
 
   /**
-   * Replace {{node:...}} refs that can't be resolved with null,
-   * so JSON input templates like { "a": {{node:x.y}} } still parse
+   * Make {{node:...}} refs JSON-safe so input templates like
+   * { "a": {{node:x.y}} } still parse:
+   *   - unresolved refs become null
+   *   - resolved values are JSON-encoded (strings get quoted and escaped)
+   *   - a quoted ref that is the whole string literal ("{{node:x}}") is treated as a bare ref
+   *   - refs embedded in a longer string literal are escaped without extra quotes
+   *     (unresolved ones become an empty string)
    */
   private nullifyUnresolvedRefs(value: unknown, context: ExecutionContext): unknown {
     if (typeof value === 'string') {
-      return value.replace(NODE_PATTERN, (match) =>
-        interpolate(match, { context }) === match ? 'null' : match
-      );
+      const toJson = (nodeId: string, path: string | undefined): string => {
+        const resolved = resolveNodeRef(nodeId, path, context);
+        return resolved === undefined ? 'null' : JSON.stringify(resolved);
+      };
+
+      return value
+        .replace(QUOTED_NODE_PATTERN, (_match, nodeId: string, path: string | undefined) => toJson(nodeId, path))
+        .replace(NODE_PATTERN, (_match, nodeId: string, path: string | undefined, offset: number, template: string) => {
+          if (!isInsideJsonString(template, offset)) return toJson(nodeId, path);
+
+          const resolved = resolveNodeRef(nodeId, path, context);
+          if (resolved === undefined) return '';
+          const text = typeof resolved === 'string' ? resolved : JSON.stringify(resolved);
+          return JSON.stringify(text).slice(1, -1);
+        });
     }
     if (Array.isArray(value)) {
       return value.map((item) => this.nullifyUnresolvedRefs(item, context));
@@ -169,11 +232,18 @@ export class JsNode extends BaseNode {
     return value;
   }
 
-  private buildState(data: JsNodeData, input: unknown): Record<string, unknown> | undefined {
-    if (!data.persistedFields?.length) return undefined;
+  private buildState(
+    data: JsNodeData,
+    input: unknown,
+    logs: JsLogEntry[]
+  ): Record<string, unknown> | undefined {
+    if (!data.persistedFields?.length && logs.length === 0) return undefined;
 
     const state: Record<string, unknown> = {};
-    for (const field of data.persistedFields) {
+    if (logs.length > 0) {
+      state.logs = logs;
+    }
+    for (const field of data.persistedFields ?? []) {
       switch (field) {
       case 'input':
         state.input = input;
@@ -188,7 +258,7 @@ export class JsNode extends BaseNode {
     input: unknown,
     timeout: number,
     memoryMb: number
-  ): Promise<unknown> {
+  ): Promise<{ result: unknown; logs: JsLogEntry[] }> {
     return new Promise((resolve, reject) => {
       const worker = new Worker(workerScript, {
         eval: true,
@@ -205,14 +275,15 @@ export class JsNode extends BaseNode {
         reject(new Error(`JS node execution timed out after ${timeout}ms`));
       }, timeout);
 
-      worker.on('message', (msg: { success: boolean; result?: unknown; error?: string }) => {
+      worker.on('message', (msg: { success: boolean; result?: unknown; error?: string; logs?: JsLogEntry[] }) => {
         clearTimeout(timer);
         worker.terminate();
+        const logs = msg.logs ?? [];
         if (msg.success) {
-          resolve(msg.result);
+          resolve({ result: msg.result, logs });
         }
         else {
-          reject(new Error(`JS node execution failed: ${msg.error}`));
+          reject(new JsWorkerError(`JS node execution failed: ${msg.error}`, logs));
         }
       });
 

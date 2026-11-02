@@ -107,6 +107,7 @@ export class ExecutionContext {
    * Resolve skip reason for a node, or null if it should execute.
    * A node is skipped if it is in an inactive branch, or if ANY dependency
    * was skipped and NO dependency comes from an active branch path.
+   * Nodes explicitly listed in an active branch always execute.
    * Skipped nodes are recorded so propagation works transitively;
    * executed nodes on an active branch path are recorded for merge detection.
    */
@@ -117,7 +118,11 @@ export class ExecutionContext {
     if (this.shouldSkipNode(nodeId)) {
       reason = 'Not in active branch';
     }
-    else if (deps.some((dep) => this.skippedNodes.has(dep)) && !this.hasActiveBranchInput(dependencies)) {
+    else if (
+      !this.isInActiveBranch(nodeId) &&
+      deps.some((dep) => this.skippedNodes.has(dep)) &&
+      !this.hasActiveBranchInput(dependencies)
+    ) {
       reason = 'Dependency skipped';
     }
 
