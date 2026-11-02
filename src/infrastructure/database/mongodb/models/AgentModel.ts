@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { NODE_TYPES, type WorkflowNode, type EditorData } from '../../../../domain/entities/Agent.js';
+import { NODE_TYPES, type WorkflowNode, type EditorData, type AgentReference } from '../../../../domain/entities/Agent.js';
 
 export interface AgentDocument extends Document {
   _id: mongoose.Types.ObjectId;
@@ -9,6 +9,7 @@ export interface AgentDocument extends Document {
   nodes: WorkflowNode[];
   editorData?: EditorData;
   workspaceId?: mongoose.Types.ObjectId;
+  references?: AgentReference[];
   systemName?: string;
   defaultName?: string;
   createdAt: Date;
@@ -25,6 +26,17 @@ export const nodeSchema = new Schema(
     },
     data: { type: Schema.Types.Mixed, default: {} },
     runAfter: { type: [String], default: undefined },
+  },
+  { _id: false }
+);
+
+export const referenceSchema = new Schema(
+  {
+    kind: { type: String, required: true, enum: ['agent-node', 'agent-tool', 'builtin-tool'] },
+    nodeId: { type: String, required: true },
+    targetAgentId: { type: String },
+    toolName: { type: String },
+    dynamic: { type: Boolean },
   },
   { _id: false }
 );
@@ -55,6 +67,10 @@ export const agentSchemaDefinition = {
     type: Schema.Types.ObjectId,
     ref: 'Workspace',
   },
+  references: {
+    type: [referenceSchema],
+    default: undefined,
+  },
   systemName: {
     type: String,
   },
@@ -75,5 +91,6 @@ agentSchema.index({ systemName: 1 }, { sparse: true });
 agentSchema.index({ defaultName: 1 }, { sparse: true });
 agentSchema.index({ workspaceId: 1 }, { sparse: true });
 agentSchema.index({ userId: 1, workspaceId: 1 });
+agentSchema.index({ 'references.targetAgentId': 1 }, { sparse: true });
 
 export const AgentModel = mongoose.model<AgentDocument>('Agent', agentSchema);

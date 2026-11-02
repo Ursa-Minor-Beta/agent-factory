@@ -5,7 +5,16 @@ import {
   UpdateAgentDTO,
   AgentQueryOptions,
   AgentListResult,
+  AgentGraphItem,
 } from '../../entities/Agent.js';
+
+export interface AgentGraphQuery {
+  userId: string;
+  workspaceId?: string;
+  ids?: string[];
+  /** Agents whose references target any of these ids */
+  referencedAgentIds?: string[];
+}
 
 export interface IAgentRepository {
   findById(id: string): Promise<AgentWithDetails | null>;
@@ -19,4 +28,5 @@ export interface IAgentRepository {
   update(id: string, data: UpdateAgentDTO): Promise<Agent | null>;
   delete(options: { id?: string; workspaceId?: string; userId?: string }): Promise<number>;
   count(): Promise<number>;
+  findGraphItems(query: AgentGraphQuery): Promise<AgentGraphItem[]>;
 }
