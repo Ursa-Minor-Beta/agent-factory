@@ -84,6 +84,22 @@ export function generateNodeDocsForPrompt(): string {
   return lines.join('\n');
 }
 
+/**
+ * Generate a compact one-line-per-node summary of node data shapes (for tool descriptions)
+ */
+export function generateNodeSummaryForTool(): string {
+  return NODE_DEFINITIONS.map((node) => {
+    const fields = node.options.map((opt) => {
+      // text/code are UI hints; to the LLM they are plain strings
+      const baseType = opt.type === 'text' || opt.type === 'code' ? 'string' : opt.type;
+      const type = opt.values ? opt.values.map((v) => `"${v}"`).join('|') : baseType;
+      return `${opt.name}${opt.required ? '' : '?'}: ${opt.values && opt.type === 'enum[]' ? `(${type})[]` : type}`;
+    });
+    const data = fields.length ? ` Data: { ${fields.join(', ')} }` : '';
+    return `- ${node.type}: ${node.description}${data}`;
+  }).join('\n');
+}
+
 /** Map of node type to status text for fast lookup */
 const NODE_STATUS_TEXT_MAP = new Map<string, string>(
   NODE_DEFINITIONS_RAW.map((def) => [def.type, def.statusText])

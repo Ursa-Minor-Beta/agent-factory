@@ -70,10 +70,9 @@ Anthropic models:
 - \`claude-3-5-sonnet-20241022\` - Previous generation
 - \`claude-3-5-haiku-20241022\` - Faster, cheaper
 
-Google models:
-- \`gemini-2.0-flash\` - Fast, good quality
-- \`gemini-1.5-pro\` - More capable
-- \`gemini-1.5-flash\` - Faster
+Ollama (provider \`ollama\`, self-hosted): only use a model name the user explicitly provides (e.g., \`llama3.2\`).
+
+Supported providers are only: \`openai\`, \`anthropic\`, \`ollama\`.
 
 ## Common Patterns
 
@@ -100,19 +99,22 @@ Google models:
 }
 \`\`\`
 
-### Conditional Branching with If-Else
-The if-else node evaluates a condition and routes data to different paths. **IMPORTANT**: The if-else node requires an \`input\` field and produces \`true\`, \`false\`, and \`result\` outputs.
+### Conditional Branching
+The branch node evaluates branches in order and activates the first whose condition matches. **Only nodes listed in the active branch execute** - nodes in other branches are skipped.
 
 \`\`\`json
 {
   "nodes": [
     { "id": "input", "type": "input", "data": { "schema": { "score": { "type": "number" } } } },
     {
-      "id": "if-else-1",
-      "type": "if-else",
+      "id": "branch-1",
+      "type": "branch",
       "data": {
         "input": "{{node:input.score}}",
-        "expression": "input >= 70"
+        "branches": [
+          { "name": "pass", "condition": "input >= 70", "nodes": ["llm-pass"] },
+          { "name": "fail", "condition": "true", "nodes": ["llm-fail"] }
+        ]
       }
     },
     {
@@ -121,7 +123,7 @@ The if-else node evaluates a condition and routes data to different paths. **IMP
       "data": {
         "provider": "openai",
         "model": "gpt-4o-mini",
-        "userPrompt": "Generate a congratulations message for passing with score: {{node:if-else-1.true}}"
+        "userPrompt": "Generate a congratulations message for passing with score: {{node:branch-1.pass}}"
       }
     },
     {
@@ -130,14 +132,14 @@ The if-else node evaluates a condition and routes data to different paths. **IMP
       "data": {
         "provider": "openai",
         "model": "gpt-4o-mini",
-        "userPrompt": "Generate an encouragement message for score: {{node:if-else-1.false}}"
+        "userPrompt": "Generate an encouragement message for score: {{node:branch-1.fail}}"
       }
     },
     {
       "id": "output",
       "type": "output",
       "data": {
-        "passed": "{{node:if-else-1.result}}",
+        "branch": "{{node:branch-1.activeBranch}}",
         "passMessage": "{{node:llm-pass.response}}",
         "failMessage": "{{node:llm-fail.response}}"
       }
@@ -146,13 +148,33 @@ The if-else node evaluates a condition and routes data to different paths. **IMP
 }
 \`\`\`
 
-If-else node details:
+Branch node details:
 - **input**: Value to evaluate (use template like \`{{node:id.path}}\`)
-- **expression**: JavaScript expression using \`input\` variable (e.g., \`input > 5\`, \`input.status === 'approved'\`)
+- **branches**: Ordered array of \`{ name, condition, nodes }\`. \`condition\` is a JavaScript expression using the \`input\` variable (e.g., \`input > 5\`, \`input.status === 'approved'\`). Use \`"true"\` as the last condition for a default branch.
 - **Outputs**:
-  - \`true\`: The input value when condition is true (null otherwise)
-  - \`false\`: The input value when condition is false (null otherwise)
-  - \`result\`: Boolean result of the condition
+  - \`activeBranch\`: Name of the matched branch
+  - \`<branchName>\`: The input value if that branch is active, null otherwise
+- Nodes not listed in any branch are skipped if any of their \`{{node:...}}\` dependencies were skipped, unless another dependency comes from the active path (merge node).
+
+### Calling a Sub-Agent as a Workflow Step
+Use an agent node when another agent must always run at a fixed point. Fill the target agent's input schema via \`inputs\`:
+\`\`\`json
+{ "id": "agent-1", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": { "query": "{{node:input.message}}" } } }
+\`\`\`
+The sub-agent's result is available as \`{{node:agent-1.output.<field>}}\`.
+
+**Batch mode**: \`inputs\` can also be an array of input objects, or a template resolving to one. The agent then runs once per item, sequentially, and \`output\` becomes an array of results in item order:
+\`\`\`json
+{ "id": "agent-2", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": [ { "query": "first" }, { "query": "second" } ] } }
+{ "id": "agent-3", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": "{{node:js-1.items}}" } }
+\`\`\`
+Here \`js-1\` must output \`items\` as an array of objects matching the sub-agent's input schema. Read results with \`{{node:agent-3.output}}\` (an array).
+
+### Ordering Without Data (runAfter)
+To make a node wait for another node that it does not reference, set \`runAfter\` on the node itself (next to \`id\`/\`type\`, not inside \`data\`):
+\`\`\`json
+{ "id": "http-notify", "type": "http", "runAfter": ["memory-store-1"], "data": { "url": "https://api.example.com/notify" } }
+\`\`\`
 
 ### LLM with Tool Calling (Sub-Agent)
 When an LLM needs to call another agent as a tool:
@@ -367,8 +389,10 @@ For fixed data flow where memory operations happen at specific workflow points:
       "type": "memory-store",
       "data": {
         "collection": "conversation_log",
-        "query": "{{node:input.query}}",
-        "response": "{{node:llm-1.response}}"
+        "data": {
+          "query": "{{node:input.query}}",
+          "response": "{{node:llm-1.response}}"
+        }
       }
     },
     { "id": "output", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
@@ -377,10 +401,20 @@ For fixed data flow where memory operations happen at specific workflow points:
 \`\`\`
 
 Memory node types and outputs:
-- **memory-store**: Saves data → outputs \`record\` (the created record)
-- **memory-search**: Finds records → outputs \`records\` (array of matches)
-- **memory-update**: Updates record → outputs \`record\` (the updated record)
-- **memory-delete**: Deletes record → outputs \`deleted\` (boolean)
+- **memory-store**: Saves \`data\` (object matching the collection schema) → outputs \`success\`, \`id\`, \`record\`
+- **memory-search**: Finds records → outputs \`records\` (array of matches), \`count\`
+- **memory-update**: Merges \`data\` into record \`id\` → outputs \`success\`, \`record\`
+- **memory-delete**: Deletes record \`id\` → outputs \`success\`, \`deleted\`
+
+Other collection tools available to you: get_collection, update_collection, list_collections, delete_collection. Use list_collections to check for an existing collection before creating a new one.
+
+## Workspaces
+
+Agents and memory collections are grouped into workspaces. Scoping is automatic - you never pass a workspace ID:
+- Agents and collections you create are placed in the current workspace (or have no workspace if there is none)
+- Collection names are resolved inside the running agent's workspace first, then fall back to global (workspace-less) collections
+- So the same collection name can exist in different workspaces. Use list_collections to see what this workspace can access before creating a new one, and reuse an existing collection when it fits
+- An agent that uses a collection must live in the same workspace as that collection, or the collection must be global
 
 ## Common Mistakes to Avoid
 
@@ -395,17 +429,21 @@ Memory node types and outputs:
    - GOOD: \`"model": "gpt-4o"\`, \`"model": "gpt-4o-mini"\`, \`"model": "claude-sonnet-4-20250514"\`
 
 3. **Disconnected nodes** - Every node should either be an input, or consume another node's output
-   - BAD: If-else node without \`input\` field, nodes with outputs nobody uses
-   - GOOD: If-else with \`"input": "{{node:previous.output}}"\`, outputs connected to next nodes
+   - BAD: Branch node without \`input\` field, nodes with outputs nobody uses
+   - GOOD: Branch with \`"input": "{{node:previous.output}}"\`, outputs connected to next nodes
 
 4. **Templates inside prompts as strings** - LLM won't interpolate templates it generates at runtime
    - BAD: systemPrompt that tells LLM to use \`{{node:id.path}}\` syntax
    - GOOD: Templates in node.data fields are resolved before execution
 
 5. **Missing required fields** - Each node type has required fields
-   - If-else needs: \`input\`, \`expression\`
+   - Branch needs: \`branches\` (and usually \`input\`); every id in \`branches[].nodes\` must exist
    - HTTP needs: \`url\`
-   - LLM needs: \`userPrompt\` (or systemPrompt)
+   - LLM needs: \`provider\`, \`model\`, \`userPrompt\` (or systemPrompt)
+   - Agent needs: \`agentId\`; \`inputs\` must cover the target agent's required input fields
+   - Memory store needs: \`collection\`, \`data\` (fields go inside \`data\`, not at the root)
+
+7. **Unsupported node types** - Only use: ${SUPPORTED_NODE_TYPES}. There is no \`if-else\` node; use \`branch\`.
 
 6. **Adding parameters to builtin tools** - Builtin tools have predefined schemas
    - BAD: \`{ "type": "builtin", "name": "memory_search", "parameters": { "collection": "..." } }\`
@@ -419,7 +457,7 @@ Before creating any agent, mentally verify:
 1. [ ] **All referenced nodes exist** - For each \`{{node:X.path}}\`, is there a node with id "X"?
 2. [ ] **Model names are valid** - Check against the "Valid LLM Models" list
 3. [ ] **Data flows continuously** - Can you trace from input → processing → output?
-4. [ ] **If-else nodes have input** - Does the if-else have an \`input\` field?
+4. [ ] **Branch nodes are complete** - Does each branch node have an \`input\` and do all \`branches[].nodes\` ids exist?
 5. [ ] **No orphan nodes** - Is every node either producing or consuming data?
 6. [ ] **Output captures results** - Does the output node reference all final results?
 7. [ ] **Builtin tools have no parameters** - \`{ "type": "builtin", "name": "..." }\` only, no \`parameters\` field!
@@ -450,7 +488,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
     data: {
       provider: 'openai',
       model: 'gpt-4o',
-      maxMessages: '20',
+      maxMessages: 20,
       systemPrompt: AGENT_CREATOR_SYSTEM_PROMPT,
       userPrompt: '{{node:input.message}}',
       temperature: 0.7,

@@ -3,6 +3,8 @@
  */
 
 import type { BuiltinToolDefinition } from './types.js';
+import { generateNodeSummaryForTool } from '../nodes/definitions.js';
+import { COMMON_NODE_FIELDS } from '../nodes/definition.types.js';
 
 export const CREATE_AGENT_TOOL: BuiltinToolDefinition = {
   type: 'builtin',
@@ -10,13 +12,10 @@ export const CREATE_AGENT_TOOL: BuiltinToolDefinition = {
   description: `Create a new agent with a custom workflow using template-based data flow.
 
 Available node types:
-- input: Entry point. Data: { schema: { fieldName: { type: "string"|"number"|"boolean", required: boolean } } }
-- output: Collects results. Data: { fieldName: "{{node:nodeId.path}}", ... } - each field becomes an output
-- llm: Language model. Data: { provider: "openai"|"anthropic"|"ollama", model: string, systemPrompt: string, userPrompt: string, temperature: number, maxTokens: number, tools?: array }
-- http: HTTP request. Data: { method: "GET"|"POST"|"PUT"|"DELETE", url: string, headers?: object, body?: string }
-- js: JavaScript code. Data: { code: string } - code receives 'input' variable and should return result
-- agent: Call sub-agent. Data: { agentId: string }
-- branch: Conditional branching. Data: { branches: [{ name: string, condition: string, nodes: string[] }] } - only nodes in active branch execute
+${generateNodeSummaryForTool()}
+
+Node-level fields (next to id/type, not inside data; not on output nodes):
+${COMMON_NODE_FIELDS.map((f) => `- ${f.name}: ${f.description}`).join('\n')}
 
 Data flow uses templates:
 - {{node:nodeId.path}} - Reference another node's output (e.g., {{node:llm-1.response}}, {{node:input-1.message}})
