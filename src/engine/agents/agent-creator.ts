@@ -10,6 +10,7 @@ import { GET_AGENT_TOOL } from '../tools/get-agent.js';
 import { UPDATE_AGENT_TOOL } from '../tools/update-agent.js';
 import { SESSION_NOTES_TOOLS } from '../tools/session-notes.js';
 import { COLLECTION_TOOLS } from '../tools/collection.js';
+import { MEMORY_TOOLS } from '../tools/memory.js';
 import { MEMORY_FIELD_TYPES } from '../../domain/entities/Memory.js';
 
 const NODE_DOCS = generateNodeDocsForPrompt();
@@ -408,6 +409,9 @@ Memory node types and outputs:
 
 Other collection tools available to you: get_collection, update_collection, list_collections, delete_collection. Use list_collections to check for an existing collection before creating a new one.
 
+### Managing Records Directly
+You can also manage records yourself with memory_store, memory_search, memory_update and memory_delete (same arguments as listed above). Use them when the user wants to seed a collection with initial data, inspect what is stored, or fix/remove records. Always confirm with the user before storing, updating or deleting records.
+
 ## Workspaces
 
 Agents and memory collections are grouped into workspaces. Scoping is automatic - you never pass a workspace ID:
@@ -493,7 +497,7 @@ export const AGENT_CREATOR_NODES: WorkflowNode[] = [
       userPrompt: '{{node:input.message}}',
       temperature: 0.7,
       maxTokens: 4000,
-      tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL, ...SESSION_NOTES_TOOLS, ...COLLECTION_TOOLS],
+      tools: [CREATE_AGENT_TOOL, GET_AGENT_TOOL, UPDATE_AGENT_TOOL, ...SESSION_NOTES_TOOLS, ...COLLECTION_TOOLS, ...MEMORY_TOOLS],
       maxToolCalls: 10,
     },
   },
