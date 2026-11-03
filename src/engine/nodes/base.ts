@@ -6,6 +6,7 @@ import type { IMessageRepository } from '../../domain/interfaces/repositories/IM
 import type { IFileRepository } from '../../domain/interfaces/repositories/IFileRepository.js';
 import type { IMemorySchemaRepository } from '../../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../../domain/interfaces/repositories/IMemoryStoreRepository.js';
+import type { ClientToolDefinition } from '../tools/types.js';
 
 export interface NodeExecutionResult {
   outputs: Record<string, unknown>;
@@ -39,6 +40,13 @@ export interface SubAgentNodeEvent {
   error?: string;
 }
 
+/** Tool call that must be executed by the client (UI) */
+export interface ClientToolCall {
+  toolCallId: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
 export interface ExecutionOptions {
   providers: ProviderConfig;
   workflowInput: Record<string, unknown>;
@@ -70,6 +78,9 @@ export interface ExecutionOptions {
   // Forwards node events of nested sub-agent runs up to the top-level run
   onSubAgentNodeEvent?: (event: SubAgentNodeEvent) => void;
   subAgentPath?: string[]; // Path to the current sub-agent: [callerNodeId, agentName, ...]
+  // Client tools - top-level run only, never passed to sub-agents
+  clientTools?: ClientToolDefinition[];
+  requestClientTool?: (call: ClientToolCall) => Promise<unknown>; // Resolves with the client's result
 }
 
 export abstract class BaseNode {

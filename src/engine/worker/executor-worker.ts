@@ -5,6 +5,8 @@
 import mongoose from 'mongoose';
 import type { ParentMessage, WorkerMessage, WorkerExecutionConfig } from './messages.js';
 import { WorkerExecutor } from './worker-executor.js';
+import type { ClientToolCall } from '../nodes/base.js';
+import { config as appConfig } from '../../config/index.js';
 import { MongoRunRepository } from '../../infrastructure/database/mongodb/repositories/MongoRunRepository.js';
 import { MongoFileRepository } from '../../infrastructure/database/mongodb/repositories/MongoFileRepository.js';
 import { MongoAgentRepository } from '../../infrastructure/database/mongodb/repositories/MongoAgentRepository.js';
@@ -15,6 +17,32 @@ import { MongoMemoryStoreRepository } from '../../infrastructure/database/mongod
 
 let shouldStop = false;
 let currentExecutor: WorkerExecutor | null = null;
+
+/** Client tool calls waiting for a result from the parent (UI), keyed by toolCallId */
+const pendingClientToolCalls = new Map<string, { resolve: (result: unknown) => void; timer: NodeJS.Timeout }>();
+
+/**
+ * Ask the client to execute a tool and wait for its result (or time out)
+ */
+function requestClientTool(call: ClientToolCall): Promise<unknown> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      pendingClientToolCalls.delete(call.toolCallId);
+      resolve({ error: `Client did not respond to tool "${call.name}" within ${appConfig.llm.clientToolTimeoutMs}ms` });
+    }, appConfig.llm.clientToolTimeoutMs);
+
+    pendingClientToolCalls.set(call.toolCallId, { resolve, timer });
+    sendMessage({ type: 'client-tool-call', call });
+  });
+}
+
+function resolveClientToolCall(toolCallId: string, result: unknown): void {
+  const pending = pendingClientToolCalls.get(toolCallId);
+  if (!pending) return; // Late or duplicate result
+  clearTimeout(pending.timer);
+  pendingClientToolCalls.delete(toolCallId);
+  pending.resolve(result);
+}
 
 /**
  * Send message to parent process
@@ -100,6 +128,8 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
         resolvedSecrets: config.resolvedSecrets,
         sessionContext,
         maxParallelNodes: config.maxParallelNodes,
+        clientTools: config.clientTools,
+        requestClientTool: config.clientTools?.length ? requestClientTool : undefined,
       }
     );
 
@@ -137,6 +167,10 @@ process.on('message', (msg: ParentMessage) => {
     if (currentExecutor) {
       currentExecutor.requestStop();
     }
+    break;
+
+  case 'client-tool-result':
+    resolveClientToolCall(msg.toolCallId, msg.result);
     break;
   }
 });

@@ -6,6 +6,7 @@ import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
 import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
 import { CHAT_AGENT } from '../engine/agents/chat.js';
+import { AGENT_BUILDER } from '../engine/agents/agent-builder.js';
 
 export class SeedService {
   constructor(
@@ -96,6 +97,7 @@ export class SeedService {
     // System agents → Start workspace
     await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes, startId);
     await this.findOrCreateSystemAgent(admin.id, 'chat-agent', CHAT_AGENT.name, CHAT_AGENT.description, CHAT_AGENT.nodes, startId);
+    await this.findOrCreateSystemAgent(admin.id, 'agent-builder', AGENT_BUILDER.name, AGENT_BUILDER.description, AGENT_BUILDER.nodes, startId);
 
     return { created: [] };
   }
@@ -116,6 +118,7 @@ export class SeedService {
     const systemAgents = [
       { systemName: 'agent-creator', name: AGENT_CREATOR.name, desc: AGENT_CREATOR.description, nodes: AGENT_CREATOR.nodes },
       { systemName: 'chat-agent', name: CHAT_AGENT.name, desc: CHAT_AGENT.description, nodes: CHAT_AGENT.nodes },
+      { systemName: 'agent-builder', name: AGENT_BUILDER.name, desc: AGENT_BUILDER.description, nodes: AGENT_BUILDER.nodes },
     ];
 
     for (const { systemName, name, desc, nodes } of systemAgents) {

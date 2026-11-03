@@ -1,7 +1,8 @@
 import type { Agent } from '../../domain/entities/Agent.js';
 import type { NodeState } from '../../domain/entities/Run.js';
 import type { ProviderConfig } from '../nodes/index.js';
-import type { SubAgentNodeEvent } from '../nodes/base.js';
+import type { SubAgentNodeEvent, ClientToolCall } from '../nodes/base.js';
+import type { ClientToolDefinition } from '../tools/types.js';
 
 /**
  * Chat message for session context
@@ -38,6 +39,8 @@ export interface WorkerExecutionConfig {
   sessionContext?: SessionContext;
   /** Max workflow nodes executed in parallel */
   maxParallelNodes?: number;
+  /** Tools executed by the client (UI); results arrive via 'client-tool-result' */
+  clientTools?: ClientToolDefinition[];
 }
 
 /**
@@ -45,7 +48,8 @@ export interface WorkerExecutionConfig {
  */
 export type ParentMessage =
   | { type: 'start'; config: WorkerExecutionConfig }
-  | { type: 'cancel' }; // Request graceful shutdown
+  | { type: 'cancel' } // Request graceful shutdown
+  | { type: 'client-tool-result'; toolCallId: string; result: unknown };
 
 /**
  * Messages sent from worker to parent process
@@ -57,7 +61,8 @@ export type WorkerMessage =
   | { type: 'node-failed'; nodeId: string; nodeType: string; error: string }
   | { type: 'node-skipped'; nodeId: string; nodeType: string }
   | { type: 'subagent-node'; event: SubAgentNodeEvent }
-  | { type: 'completed'; output: Record<string, unknown>; files?: string[] }
+  | { type: 'client-tool-call'; call: ClientToolCall }
+  | { type: 'completed';output: Record<string, unknown>; files?: string[] }
   | { type: 'failed'; error: string }
   | { type: 'cancelled' };
 
@@ -67,7 +72,7 @@ export type WorkerMessage =
 export function isParentMessage(msg: unknown): msg is ParentMessage {
   if (typeof msg !== 'object' || msg === null) return false;
   const m = msg as Record<string, unknown>;
-  return m.type === 'start' || m.type === 'cancel';
+  return m.type === 'start' || m.type === 'cancel' || m.type === 'client-tool-result';
 }
 
 /**
@@ -83,6 +88,7 @@ export function isWorkerMessage(msg: unknown): msg is WorkerMessage {
     m.type === 'node-failed' ||
     m.type === 'node-skipped' ||
     m.type === 'subagent-node' ||
+    m.type === 'client-tool-call' ||
     m.type === 'completed' ||
     m.type === 'failed' ||
     m.type === 'cancelled'

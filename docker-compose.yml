@@ -20,6 +20,7 @@ services:
       - ADMIN_NAME=${ADMIN_NAME:-Admin}
       - AGENT_MAX_SNAPSHOTS=${AGENT_MAX_SNAPSHOTS:-50}
       - ENGINE_DEFAULT_PARALLEL_NODES=${ENGINE_DEFAULT_PARALLEL_NODES:-2}
+      - LLM_CLIENT_TOOL_TIMEOUT_MS=${LLM_CLIENT_TOOL_TIMEOUT_MS:-60000}
     restart: unless-stopped
 
   # Optional: only starts with --profile local-db

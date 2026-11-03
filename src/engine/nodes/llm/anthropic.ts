@@ -12,7 +12,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { buildToolErrorSummary, resolveTools } from './utils.js';
+import { buildToolErrorSummary, resolveTools, executeClientTool } from './utils.js';
 import { config } from '../../../config/index.js';
 
 type ToolCallResult = {
@@ -43,7 +43,9 @@ async function executeSingleToolCall(
   try {
     const result = toolDef.type === 'builtin'
       ? await executeBuiltinTool(toolUse.name, toolUse.input as Record<string, unknown>, options)
-      : await executeSubAgent(toolDef.agentId!, toolUse.input as Record<string, unknown>, options, nodeId, toolUse.name);
+      : toolDef.type === 'client'
+        ? await executeClientTool(toolUse.id, toolUse.name, toolUse.input as Record<string, unknown>, options)
+        : await executeSubAgent(toolDef.agentId!, toolUse.input as Record<string, unknown>, options, nodeId, toolUse.name);
 
     return { toolUseId: toolUse.id, name: toolUse.name, result };
   }
@@ -160,7 +162,7 @@ export async function callAnthropic(
   });
 
   // Resolve builtin tools to get their full definitions (with parameters)
-  const resolvedTools = resolveTools(data.tools);
+  const resolvedTools = resolveTools(data.tools, options.clientTools, nodeId);
 
   // Convert tools to Anthropic format
   const anthropicTools: Anthropic.Tool[] | undefined = resolvedTools?.map((tool) => ({

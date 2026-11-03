@@ -13,7 +13,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { buildToolErrorSummary, resolveTools } from './utils.js';
+import { buildToolErrorSummary, resolveTools, executeClientTool } from './utils.js';
 import { config } from '../../../config/index.js';
 
 type ToolCallResult = {
@@ -60,7 +60,9 @@ async function executeSingleToolCall(
   try {
     const result = toolDef.type === 'builtin'
       ? await executeBuiltinTool(toolName, toolArgs, options)
-      : await executeSubAgent(toolDef.agentId!, toolArgs, options, nodeId, toolName);
+      : toolDef.type === 'client'
+        ? await executeClientTool(toolCall.id, toolName, toolArgs, options)
+        : await executeSubAgent(toolDef.agentId!, toolArgs, options, nodeId, toolName);
 
     return { toolCallId: toolCall.id, name: toolName, result, isError: false };
   }
@@ -171,7 +173,7 @@ export async function callOpenAI(
   const messages = buildInitialMessages(systemPrompt, conversationHistory, userPrompt);
 
   // Resolve builtin tools to get their full definitions (with parameters)
-  const resolvedTools = resolveTools(data.tools);
+  const resolvedTools = resolveTools(data.tools, options.clientTools, nodeId);
 
   // Convert tools to OpenAI format
   const openaiTools: OpenAI.Chat.ChatCompletionTool[] | undefined = resolvedTools?.map((tool) => ({

@@ -7,6 +7,7 @@ export type {
   ToolDefinition,
   BuiltinToolDefinition,
   AgentToolDefinition,
+  ClientToolDefinition,
   ToolParameters,
 } from './types.js';
 

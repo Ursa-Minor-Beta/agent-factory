@@ -202,6 +202,60 @@ export async function runRoutes(app: FastifyInstance) {
     });
   });
 
+  // Submit a client tool result (answer to a "client-tool-call" SSE event)
+  app.post('/api/runs/:id/tool-results', {
+    schema: {
+      tags: ['runs'],
+      summary: 'Submit client tool result',
+      description: 'Return the result of a client tool call to the running agent. The LLM receives `result` as the tool output.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Run ID from the client-tool-call event' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['toolCallId', 'result'],
+        properties: {
+          toolCallId: { type: 'string', description: 'Tool call ID from the client-tool-call event' },
+          result: { description: 'Tool output passed to the LLM (any JSON value)' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+          },
+        },
+        401: errorSchema,
+        403: errorSchema,
+        404: errorSchema,
+        409: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { id: runId } = request.params as { id: string };
+    const { toolCallId, result } = request.body as { toolCallId: string; result: unknown };
+
+    const delivered = await runService.submitClientToolResult(userId, runId, toolCallId, result);
+    if (!delivered) {
+      return reply.status(409).send({
+        success: false,
+        error: {
+          code: 'TOOL_CALL_NOT_PENDING',
+          message: 'Run is not active or the tool call is not pending (already answered or timed out)',
+        },
+      });
+    }
+
+    return reply.send({ success: true });
+  });
+
   // List executions - users see their own, admins see all with optional filter
   app.get('/api/executions', {
     schema: {

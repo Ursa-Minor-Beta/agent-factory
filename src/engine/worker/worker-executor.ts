@@ -18,7 +18,8 @@ import { ExecutionContext } from '../context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from '../graph.js';
 import { runNodesConcurrently } from '../scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
-import type { SubAgentNodeEvent } from '../nodes/base.js';
+import type { SubAgentNodeEvent, ClientToolCall } from '../nodes/base.js';
+import type { ClientToolDefinition } from '../tools/types.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
 
@@ -92,6 +93,9 @@ export interface WorkerExecutorOptions {
   sessionContext?: SessionContext;
   /** Max workflow nodes executed in parallel */
   maxParallelNodes?: number;
+  /** Tools executed by the client (UI) - top-level run only */
+  clientTools?: ClientToolDefinition[];
+  requestClientTool?: (call: ClientToolCall) => Promise<unknown>;
 }
 
 export interface WorkerExecutionResult {
@@ -198,6 +202,8 @@ export class WorkerExecutor {
       onSessionNotesUpdate: options.sessionContext?.onNotesUpdate,
       maxNotesLength: options.sessionContext?.maxNotesLength,
       onSubAgentNodeEvent: this.callbacks.onSubAgentNodeEvent,
+      clientTools: options.clientTools,
+      requestClientTool: options.requestClientTool,
     };
 
     // Returns error message if the node failed, null otherwise

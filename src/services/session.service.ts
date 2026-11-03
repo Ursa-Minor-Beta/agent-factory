@@ -13,6 +13,7 @@ import type { Message } from '../domain/entities/Message.js';
 import { resolveRunOutput } from '../utils/node-ref.js';
 import type { ProviderConfig } from '../engine/nodes/base.js';
 import type { RunManager } from '../engine/worker/index.js';
+import type { ClientToolDefinition } from '../engine/tools/types.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
 import { NotFoundError, ForbiddenError, AgentExecutionError } from '../utils/errors.js';
@@ -48,6 +49,8 @@ export interface ChatOptions {
   maxNotesLength?: number;
   /** Max workflow nodes executed in parallel (default: ENGINE_DEFAULT_PARALLEL_NODES) */
   maxParallelNodes?: number;
+  /** Tools executed by the client (UI) - streaming only */
+  clientTools?: ClientToolDefinition[];
 }
 
 export interface ChatResult {
@@ -306,6 +309,7 @@ export class SessionService {
       resolvedSecrets,
       sessionContext,
       maxParallelNodes: options.maxParallelNodes,
+      clientTools: options.clientTools,
     });
 
     // Return context with finalize function

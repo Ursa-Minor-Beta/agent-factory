@@ -50,6 +50,8 @@ export const config = {
     maxToolCalls: process.env['LLM_MAX_TOOL_CALLS']
       ? parseInt(process.env['LLM_MAX_TOOL_CALLS'], 10)
       : undefined,
+    /** How long a run waits for the client (UI) to return a client tool result */
+    clientToolTimeoutMs: parseInt(process.env['LLM_CLIENT_TOOL_TIMEOUT_MS'] ?? '60000', 10),
   },
 } as const;
 
