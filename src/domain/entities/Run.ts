@@ -22,6 +22,8 @@ export interface NodeErrorDetails {
 
 export interface NodeState {
   nodeType?: NodeType;
+  // Provider config used for the LLM call (llm nodes only)
+  providerConfig?: { id: string; name: string };
   status: NodeStatus;
   input: unknown;
   output: unknown;

@@ -24,6 +24,13 @@ const nodeStateSchema = {
   type: 'object',
   properties: {
     nodeType: {type: 'string', enum: NODE_TYPES },
+    providerConfig: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+      },
+    },
     status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'skipped'] },
     input: {},
     output: {},

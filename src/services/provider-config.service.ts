@@ -107,6 +107,8 @@ export class ProviderConfigService {
           config.openai = {
             apiKey: providerConfig.config.apiKey,
             baseUrl: providerConfig.config.baseUrl,
+            configId: providerConfig.id,
+            name: providerConfig.name,
           };
         }
         break;
@@ -115,12 +117,16 @@ export class ProviderConfigService {
           config.anthropic = {
             apiKey: providerConfig.config.apiKey,
             baseUrl: providerConfig.config.baseUrl,
+            configId: providerConfig.id,
+            name: providerConfig.name,
           };
         }
         break;
       case 'ollama':
         config.ollama = {
           baseUrl: providerConfig.config.baseUrl ?? 'http://localhost:11434',
+          configId: providerConfig.id,
+          name: providerConfig.name,
         };
         break;
       }

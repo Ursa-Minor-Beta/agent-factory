@@ -224,10 +224,17 @@ export class WorkerExecutor {
       }
 
       // Update node state to running with input data
+      const llmProvider = node.type === 'llm'
+        ? (node.data as { provider?: LLMProvider }).provider
+        : undefined;
+      const providerEntry = llmProvider ? options.providers[llmProvider] : undefined;
       await this.runRepo.updateNodeState(runId, nodeId, {
         nodeType: node.type,
         status: 'running',
         input: safeClone(node.data),
+        ...(providerEntry?.configId && {
+          providerConfig: { id: providerEntry.configId, name: providerEntry.name ?? '' },
+        }),
         startedAt: new Date(),
       });
       this.callbacks.onNodeStarted(nodeId, node.type);

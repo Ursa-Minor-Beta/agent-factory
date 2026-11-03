@@ -14,9 +14,10 @@ export interface NodeExecutionResult {
 }
 
 export interface ProviderConfig {
-  openai?: { apiKey: string; baseUrl?: string };
-  anthropic?: { apiKey: string; baseUrl?: string };
-  ollama?: { baseUrl: string };
+  // `configId`/`name` identify the stored provider config (for run tracking)
+  openai?: { apiKey: string; baseUrl?: string; configId?: string; name?: string };
+  anthropic?: { apiKey: string; baseUrl?: string; configId?: string; name?: string };
+  ollama?: { baseUrl: string; configId?: string; name?: string };
 }
 
 // Chat message format for session context

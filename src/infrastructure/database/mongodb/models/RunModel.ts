@@ -25,6 +25,10 @@ export interface RunDocument extends Document {
 const nodeStateSchema = new Schema(
   {
     nodeType: { type: String, enum: NODE_TYPES },
+    providerConfig: {
+      type: new Schema({ id: String, name: String }, { _id: false }),
+      default: undefined,
+    },
     status: {
       type: String,
       enum: ['pending', 'running', 'completed', 'failed', 'skipped'],
