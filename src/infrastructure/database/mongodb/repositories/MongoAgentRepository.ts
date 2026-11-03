@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { AgentModel, AgentDocument } from '../models/AgentModel.js';
-import type { IAgentRepository } from '../../../../domain/interfaces/repositories/IAgentRepository.js';
+import type { IAgentRepository, AgentGraphQuery } from '../../../../domain/interfaces/repositories/IAgentRepository.js';
 import type {
   Agent,
   AgentWithDetails,
@@ -10,7 +10,9 @@ import type {
   UpdateAgentDTO,
   AgentQueryOptions,
   AgentListResult,
+  AgentGraphItem,
 } from '../../../../domain/entities/Agent.js';
+import { extractAgentReferences } from '../../../../domain/services/agent-graph.service.js';
 
 export class MongoAgentRepository implements IAgentRepository {
   private toEntity(doc: AgentDocument): Agent {
@@ -22,6 +24,7 @@ export class MongoAgentRepository implements IAgentRepository {
       nodes: doc.nodes,
       editorData: doc.editorData,
       workspaceId: doc.workspaceId?.toString(),
+      references: doc.references,
       systemName: doc.systemName,
       defaultName: doc.defaultName,
       createdAt: doc.createdAt,
@@ -151,6 +154,7 @@ export class MongoAgentRepository implements IAgentRepository {
       editorData: doc.editorData,
       workspaceId: doc.workspaceId?.toString(),
       workspaceName: doc.workspaceName,
+      references: doc.references,
       systemName: doc.systemName,
       defaultName: doc.defaultName,
       github: doc.github,
@@ -381,6 +385,7 @@ export class MongoAgentRepository implements IAgentRepository {
       name: data.name,
       description: data.description ?? '',
       nodes: data.nodes ?? [],
+      references: extractAgentReferences(data.nodes),
       editorData: data.editorData,
       workspaceId: data.workspaceId,
       defaultName: data.defaultName,
@@ -394,6 +399,7 @@ export class MongoAgentRepository implements IAgentRepository {
       name: data.name,
       description: data.description ?? '',
       nodes: data.nodes ?? [],
+      references: extractAgentReferences(data.nodes),
       systemName: data.systemName,
       workspaceId: data.workspaceId
     });
@@ -401,7 +407,8 @@ export class MongoAgentRepository implements IAgentRepository {
   }
 
   async update(id: string, data: UpdateAgentDTO): Promise<Agent | null> {
-    const doc = await AgentModel.findByIdAndUpdate(id, { $set: data }, { new: true });
+    const update = data.nodes ? { ...data, references: extractAgentReferences(data.nodes) } : data;
+    const doc = await AgentModel.findByIdAndUpdate(id, { $set: update }, { new: true });
     return doc ? this.toEntity(doc) : null;
   }
 
@@ -416,5 +423,51 @@ export class MongoAgentRepository implements IAgentRepository {
 
   async count(): Promise<number> {
     return AgentModel.countDocuments();
+  }
+
+  async findGraphItems(query: AgentGraphQuery): Promise<AgentGraphItem[]> {
+    const match: Record<string, unknown> = { userId: new mongoose.Types.ObjectId(query.userId) };
+    if (query.workspaceId) {
+      match.workspaceId = new mongoose.Types.ObjectId(query.workspaceId);
+    }
+    if (query.ids) {
+      const ids = query.ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+      match._id = { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) };
+      // Referenced system agents may belong to another user
+      delete match.userId;
+      match.$or = [{ userId: new mongoose.Types.ObjectId(query.userId) }, { systemName: { $exists: true, $ne: null } }];
+    }
+    if (query.referencedAgentIds) {
+      match['references.targetAgentId'] = { $in: query.referencedAgentIds };
+    }
+
+    const docs = await AgentModel.aggregate<{
+      _id: mongoose.Types.ObjectId;
+      name: string;
+      workspaceId?: mongoose.Types.ObjectId;
+      workspaceName?: string;
+      references?: AgentGraphItem['references'];
+    }>([
+      { $match: match },
+      { $project: { name: 1, workspaceId: 1, references: 1 } },
+      {
+        $lookup: {
+          from: 'workspaces',
+          localField: 'workspaceId',
+          foreignField: '_id',
+          as: 'workspace',
+        },
+      },
+      { $addFields: { workspaceName: { $first: '$workspace.name' } } },
+      { $project: { workspace: 0 } },
+    ]);
+
+    return docs.map((doc) => ({
+      id: doc._id.toString(),
+      name: doc.name,
+      workspaceId: doc.workspaceId?.toString(),
+      workspaceName: doc.workspaceName,
+      references: doc.references,
+    }));
   }
 }

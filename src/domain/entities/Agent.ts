@@ -19,6 +19,28 @@ export interface EditorData {
   [key: string]: unknown;
 }
 
+/** Outgoing reference from an agent workflow (computed on save) */
+export interface AgentReference {
+  kind: 'agent-node' | 'agent-tool' | 'builtin-tool';
+  /** Workflow node that holds the reference */
+  nodeId: string;
+  /** Static target agent id (agent-node / agent-tool) */
+  targetAgentId?: string;
+  /** Tool name (agent-tool / builtin-tool) */
+  toolName?: string;
+  /** Target agent id is templated and resolved at runtime */
+  dynamic?: boolean;
+}
+
+/** Lightweight agent projection used for graph building */
+export interface AgentGraphItem {
+  id: string;
+  name: string;
+  workspaceId?: string;
+  workspaceName?: string;
+  references?: AgentReference[];
+}
+
 export interface Agent {
   id: string;
   userId: string;
@@ -29,6 +51,8 @@ export interface Agent {
   editorData?: EditorData;
   /** Workspace identifier - groups agents into workspaces */
   workspaceId?: string;
+  /** Outgoing references to other agents / builtin tools, derived from nodes on save */
+  references?: AgentReference[];
   /** System agent identifier - used by seeding to find/update system agents */
   systemName?: string;
   /** Default agent identifier - used by seeding to find/update default agents */

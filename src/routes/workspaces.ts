@@ -252,6 +252,88 @@ export async function workspaceRoutes(app: FastifyInstance) {
     }
   );
 
+  // Get agent relation graph for workspace
+  app.get(
+    '/api/workspaces/:id/agent-graph',
+    {
+      onRequest: [requireAuth],
+      schema: {
+        description: 'Get agent relation graph (agent nodes, agent tools, builtin tools), including agents from other workspaces called by this workspace',
+        tags: ['workspaces'],
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        querystring: {
+          type: 'object',
+          properties: {
+            includeCallers: { type: 'boolean', default: false, description: 'Also include agents from other workspaces that call this workspace\'s agents' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              nodes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' },
+                    workspaceId: { type: 'string', nullable: true },
+                    workspaceName: { type: 'string', nullable: true },
+                    external: { type: 'boolean' },
+                    missing: { type: 'boolean' },
+                  },
+                },
+              },
+              edges: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    from: { type: 'string' },
+                    to: { type: 'string', nullable: true },
+                    kind: { type: 'string', enum: ['agent-node', 'agent-tool'] },
+                    nodeId: { type: 'string' },
+                    toolName: { type: 'string', nullable: true },
+                    dynamic: { type: 'boolean' },
+                  },
+                },
+              },
+              builtins: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    agentId: { type: 'string' },
+                    nodeId: { type: 'string' },
+                    toolName: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          401: errorSchema,
+          403: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = request.user as AuthenticatedUser;
+      const { id } = request.params as { id: string };
+
+      const { includeCallers } = request.query as { includeCallers?: boolean };
+
+      const graph = await workspaceService.getAgentGraph(user.userId, id, includeCallers);
+      return reply.send(graph);
+    }
+  );
+
   // Get agent count for workspace
   app.get(
     '/api/workspaces/:id/agent-count',

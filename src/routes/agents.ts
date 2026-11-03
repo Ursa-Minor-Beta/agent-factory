@@ -11,7 +11,7 @@ import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { getNodeStatusText } from '../engine/nodes/definitions.js';
 import type { SubAgentNodeEvent } from '../engine/nodes/base.js';
-import { NotFoundError, AgentExecutionError } from '../utils/errors.js';
+import { AgentExecutionError } from '../utils/errors.js';
 import {
   CHAT_AGENT,
   AGENT_CREATOR,
