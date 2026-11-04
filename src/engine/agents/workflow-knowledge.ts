@@ -161,6 +161,7 @@ To make a node wait for another node that it does not reference, set \`runAfter\
 \`\`\`json
 { "id": "http-notify", "type": "http", "runAfter": ["memory-store-1"], "data": { "url": "https://api.example.com/notify" } }
 \`\`\`
+**Do not use \`runAfter\` when the node already references the other node** via a \`{{node:<id>...}}\` template (in any field, including \`inputs\`, prompts, \`url\`, etc.). A referenced node is automatically a dependency, so the ordering is already guaranteed. Only use \`runAfter\` for a pure side-effect ordering where no data flows between the two nodes.
 
 ### LLM with Tool Calling (Sub-Agent)
 When an LLM needs to call another agent as a tool:
