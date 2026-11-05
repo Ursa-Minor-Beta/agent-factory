@@ -9,6 +9,7 @@ import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/ind
 import type { SubAgentNodeEvent } from './nodes/base.js';
 import { NodeExecutionError } from '../utils/errors.js';
 import { stripBase64ForStorage } from '../utils/file-extractor.js';
+import { substituteVariables } from './nodes/interpolate.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -205,6 +206,7 @@ export class WorkflowExecutor {
       onSessionNotesUpdate: options.onSessionNotesUpdate,
       maxNotesLength: options.maxNotesLength,
       resolvedSecrets: options.resolvedSecrets,
+      resolvedVariables: options.resolvedVariables,
       onSubAgentNodeEvent: options.onSubAgentNodeEvent,
       subAgentPath: options.subAgentPath,
       onToolCallEvent: options.onToolCallEvent,
@@ -226,8 +228,13 @@ export class WorkflowExecutor {
 
     // Returns error message if the node failed, null otherwise
     const runNode = async (nodeId: string): Promise<string | null> => {
-      const node = agent.nodes.find((n) => n.id === nodeId);
-      if (!node) return null;
+      const rawNode = agent.nodes.find((n) => n.id === nodeId);
+      if (!rawNode) return null;
+
+      // Substitute {{var:KEY}} user variables in node inputs
+      const node = options.resolvedVariables
+        ? { ...rawNode, data: substituteVariables(rawNode.data, options.resolvedVariables) }
+        : rawNode;
 
       if (node.type !== 'output') {
         // Check if this node should be skipped (inactive branch or all dependencies skipped)

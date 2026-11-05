@@ -113,6 +113,7 @@ export class AgentNode extends BaseNode {
           callStack: newCallStack,
           userId: options.userId,
           resolvedSecrets: options.resolvedSecrets,
+          resolvedVariables: options.resolvedVariables,
           sessionId: options.sessionId,
           messages: options.messages,
           sessionNotes: options.sessionNotes,

@@ -420,6 +420,7 @@ export async function githubRoutes(app: FastifyInstance) {
                   type: 'object',
                   properties: {
                     missingSecrets: { type: 'array', items: { type: 'string' } },
+                    missingVariables: { type: 'array', items: { type: 'string' } },
                     missingProviders: { type: 'array', items: { type: 'string' } },
                     missingCollections: {
                       type: 'array',

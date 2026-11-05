@@ -16,6 +16,7 @@ import { nodeRoutes } from './routes/nodes.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { toolRoutes } from './routes/tools.js';
 import { secretRoutes } from './routes/secrets.js';
+import { variableRoutes } from './routes/variables.js';
 import { fileRoutes } from './routes/files.js';
 import { memoryRoutes } from './routes/memory.js';
 import { workspaceRoutes } from './routes/workspaces.js';
@@ -55,6 +56,7 @@ async function bootstrap() {
         { name: 'sessions', description: 'Conversation sessions with agents' },
         { name: 'providers', description: 'LLM provider configurations' },
         { name: 'secrets', description: 'Encrypted user secrets for HTTP nodes' },
+        { name: 'variables', description: 'Plain-text user variables for any node input' },
         { name: 'files', description: 'Build-in file storage for message attachments' },
         { name: 'memory', description: 'Agent long-term memory collections and records' },
       ],
@@ -172,6 +174,7 @@ async function bootstrap() {
   await app.register(sessionRoutes);
   await app.register(settingsRoutes);
   await app.register(secretRoutes);
+  await app.register(variableRoutes);
   await app.register(fileRoutes);
   await app.register(nodeRoutes);
   await app.register(toolRoutes);

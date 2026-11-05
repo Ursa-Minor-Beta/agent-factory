@@ -144,14 +144,16 @@ export async function agentRoutes(app: FastifyInstance) {
     container.runRepository,
     container.runManager,
     container.providerConfigRepository,
-    container.userSecretRepository
+    container.userSecretRepository,
+    container.userVariableRepository
   );
   const runService = new RunService(
     container.runRepository,
     container.agentRepository,
     container.runManager,
     container.providerConfigRepository,
-    container.userSecretRepository
+    container.userSecretRepository,
+    container.userVariableRepository
   );
 
   // List agents
@@ -436,6 +438,15 @@ export async function agentRoutes(app: FastifyInstance) {
                     },
                   },
                 },
+                variables: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                    },
+                  },
+                },
                 providers: {
                   type: 'array',
                   items: { type: 'string', enum: PROVIDER_TYPES as unknown as string[] },
@@ -510,6 +521,11 @@ export async function agentRoutes(app: FastifyInstance) {
                       type: 'array',
                       items: { type: 'string' },
                       description: 'Secret names that need to be configured',
+                    },
+                    missingVariables: {
+                      type: 'array',
+                      items: { type: 'string' },
+                      description: 'User variable names that need to be configured',
                     },
                     missingProviders: {
                       type: 'array',

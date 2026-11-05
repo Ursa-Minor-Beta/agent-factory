@@ -27,6 +27,7 @@ export interface StartRunOptions {
   /** Provider config (API keys, etc.) - user-specific */
   providers: ProviderConfig;
   resolvedSecrets?: Record<string, string>;
+  resolvedVariables?: Record<string, string>;
   /** Session context for chat-based execution */
   sessionContext?: SessionContext;
   /** Max workflow nodes executed in parallel */
@@ -141,6 +142,7 @@ export class RunManager extends EventEmitter {
       providers: options.providers,
       mongoUri: this.config.mongoUri,
       resolvedSecrets: options.resolvedSecrets,
+      resolvedVariables: options.resolvedVariables,
       sessionContext: options.sessionContext,
       maxParallelNodes: options.maxParallelNodes,
       clientTools: options.clientTools,

@@ -8,6 +8,7 @@ import { MongoRunRepository } from '../infrastructure/database/mongodb/repositor
 import { MongoSessionRepository } from '../infrastructure/database/mongodb/repositories/MongoSessionRepository.js';
 import { MongoMessageRepository } from '../infrastructure/database/mongodb/repositories/MongoMessageRepository.js';
 import { MongoUserSecretRepository } from '../infrastructure/database/mongodb/repositories/MongoUserSecretRepository.js';
+import { MongoUserVariableRepository } from '../infrastructure/database/mongodb/repositories/MongoUserVariableRepository.js';
 import { MongoFileRepository } from '../infrastructure/database/mongodb/repositories/MongoFileRepository.js';
 import { MongoMemorySchemaRepository } from '../infrastructure/database/mongodb/repositories/MongoMemorySchemaRepository.js';
 import { MongoMemoryStoreRepository } from '../infrastructure/database/mongodb/repositories/MongoMemoryStoreRepository.js';
@@ -25,6 +26,7 @@ import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepos
 import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
 import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type { IUserVariableRepository } from '../domain/interfaces/repositories/IUserVariableRepository.js';
 import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
@@ -41,6 +43,7 @@ export interface Container {
   sessionRepository: ISessionRepository;
   messageRepository: IMessageRepository;
   userSecretRepository: IUserSecretRepository;
+  userVariableRepository: IUserVariableRepository;
   fileRepository: IFileRepository;
   memorySchemaRepository: IMemorySchemaRepository;
   memoryStoreRepository: IMemoryStoreRepository;
@@ -79,6 +82,7 @@ export const container: Container = {
   sessionRepository: new MongoSessionRepository(),
   messageRepository: new MongoMessageRepository(),
   userSecretRepository: new MongoUserSecretRepository(),
+  userVariableRepository: new MongoUserVariableRepository(),
   fileRepository: new MongoFileRepository(),
   memorySchemaRepository: new MongoMemorySchemaRepository(),
   memoryStoreRepository: new MongoMemoryStoreRepository(),

@@ -35,6 +35,7 @@ export interface WorkerExecutionConfig {
   providers: ProviderConfig;
   mongoUri: string;
   resolvedSecrets?: Record<string, string>;
+  resolvedVariables?: Record<string, string>;
   /** Session context for chat-based execution */
   sessionContext?: SessionContext;
   /** Max workflow nodes executed in parallel */

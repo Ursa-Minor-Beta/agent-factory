@@ -96,7 +96,8 @@ export async function runRoutes(app: FastifyInstance) {
     container.agentRepository,
     container.runManager,
     container.providerConfigRepository,
-    container.userSecretRepository
+    container.userSecretRepository,
+    container.userVariableRepository
   );
 
   // List runs for agent

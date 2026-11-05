@@ -80,6 +80,8 @@ export interface ExecutionOptions {
   messageRepo?: IMessageRepository;
   // Pre-resolved secrets for {{secret:KEY}} interpolation in HTTP nodes
   resolvedSecrets?: Record<string, string>;
+  // Pre-resolved user variables for {{var:KEY}} substitution in any node input
+  resolvedVariables?: Record<string, string>;
   // Session context (separate from user input)
   messages?: ChatMessage[]; // For incognito sessions - conversation history
   // Session notes (scratchpad) - persists important context across conversation
