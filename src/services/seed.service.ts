@@ -124,7 +124,8 @@ export class SeedService {
     for (const { systemName, name, desc, nodes } of systemAgents) {
       const existing = await this.agentRepo.findBySystemName(systemName);
       if (existing) {
-        await this.agentRepo.update(existing.id, { name, description: desc, nodes, workspaceId: startId });
+        const mergedNodes = this.keepLlmSettings(nodes, existing.nodes);
+        await this.agentRepo.update(existing.id, { name, description: desc, nodes: mergedNodes, workspaceId: startId });
         updated.push(name);
       }
       else {
@@ -136,7 +137,27 @@ export class SeedService {
     return { updated, created };
   }
 
-  async getAllAgentIds(): Promise<{ name: string; id: string; systemName?: string }[]> {
+  /**
+   * Preserve provider/model chosen by the admin on existing LLM nodes (matched by node id)
+   */
+  private keepLlmSettings(nodes: WorkflowNode[], existingNodes: WorkflowNode[]): WorkflowNode[] {
+    const existingById = new Map(existingNodes.map((n) => [n.id, n]));
+    return nodes.map((node) => {
+      const prev = existingById.get(node.id);
+      if (node.type !== 'llm' || prev?.type !== 'llm') return node;
+      const { provider, model } = prev.data as { provider?: unknown; model?: unknown };
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          ...(provider !== undefined && { provider }),
+          ...(model !== undefined && { model }),
+        },
+      };
+    });
+  }
+
+  async getAllAgentIds():Promise<{ name: string; id: string; systemName?: string }[]> {
     const systemAgents = await this.agentRepo.findAllSystemAgents();
     const admin = await this.getAdminUser();
     const result: { name: string; id: string; systemName?: string }[] = [];
