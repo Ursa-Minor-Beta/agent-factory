@@ -5,6 +5,8 @@
 
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import { GET_AGENT_TOOL } from '../tools/get-agent.js';
+import { CREATE_AGENT_TOOL } from '../tools/create-agent.js';
+import { UPDATE_AGENT_TOOL } from '../tools/update-agent.js';
 import { SESSION_NOTES_TOOLS } from '../tools/session-notes.js';
 import { COLLECTION_TOOLS } from '../tools/collection.js';
 import { WORKFLOW_KNOWLEDGE } from './workflow-knowledge.js';
@@ -36,6 +38,7 @@ const AGENT_BUILDER_SYSTEM_PROMPT = `You are the Agent Builder, an assistant emb
 
 ## Other Tools
 - **get_agent** - inspect another agent (e.g. a sub-agent) to learn its input schema before wiring an agent node or agent tool.
+- **create_agent / update_agent** - create a new sub-agent or change an existing one (never the agent open in the editor - edit that through editor tools). These are saved immediately, unlike editor changes - always confirm with the user first. Use get_agent before update_agent.
 - **list_collections / get_collection** - find existing memory collections and their fields before adding memory tools or memory nodes.
 - **create_collection / update_collection / delete_collection** - change workspace memory collections. These are saved immediately, unlike editor changes - always confirm with the user first.
 
@@ -79,7 +82,7 @@ export const AGENT_BUILDER_NODES: WorkflowNode[] = [
       temperature: 0.3,
       // Tool args carry full nodes (long prompts) - truncation breaks the JSON
       maxTokens: 16000,
-      tools: [GET_AGENT_TOOL, ...SESSION_NOTES_TOOLS, ...COLLECTION_TOOLS],
+      tools: [GET_AGENT_TOOL, CREATE_AGENT_TOOL, UPDATE_AGENT_TOOL, ...SESSION_NOTES_TOOLS, ...COLLECTION_TOOLS],
       maxToolCalls: 20,
       // Editor edits depend on each other (e.g. add node, then wire it) - apply them in order
       toolExecutionMode: 'sequential',
