@@ -1,7 +1,7 @@
 import type { Agent } from '../../domain/entities/Agent.js';
 import type { NodeState } from '../../domain/entities/Run.js';
 import type { ProviderConfig } from '../nodes/index.js';
-import type { SubAgentNodeEvent, ClientToolCall } from '../nodes/base.js';
+import type { SubAgentNodeEvent, ClientToolCall, ToolCallEvent } from '../nodes/base.js';
 import type { ClientToolDefinition } from '../tools/types.js';
 
 /**
@@ -62,6 +62,7 @@ export type WorkerMessage =
   | { type: 'node-skipped'; nodeId: string; nodeType: string }
   | { type: 'subagent-node'; event: SubAgentNodeEvent }
   | { type: 'client-tool-call'; call: ClientToolCall }
+  | { type: 'tool-call'; event: ToolCallEvent }
   | { type: 'completed';output: Record<string, unknown>; files?: string[] }
   | { type: 'failed'; error: string }
   | { type: 'cancelled' };
@@ -89,6 +90,7 @@ export function isWorkerMessage(msg: unknown): msg is WorkerMessage {
     m.type === 'node-skipped' ||
     m.type === 'subagent-node' ||
     m.type === 'client-tool-call' ||
+    m.type === 'tool-call' ||
     m.type === 'completed' ||
     m.type === 'failed' ||
     m.type === 'cancelled'

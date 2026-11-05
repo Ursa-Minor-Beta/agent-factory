@@ -207,6 +207,7 @@ export class WorkflowExecutor {
       resolvedSecrets: options.resolvedSecrets,
       onSubAgentNodeEvent: options.onSubAgentNodeEvent,
       subAgentPath: options.subAgentPath,
+      onToolCallEvent: options.onToolCallEvent,
     };
 
     const emitNodeEvent = (nodeId: string, nodeType: string, status: SubAgentNodeEvent['status'], error?: string) => {

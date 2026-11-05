@@ -18,7 +18,7 @@ import { ExecutionContext } from '../context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from '../graph.js';
 import { runNodesConcurrently } from '../scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
-import type { SubAgentNodeEvent, ClientToolCall } from '../nodes/base.js';
+import type { SubAgentNodeEvent, ClientToolCall, ToolCallEvent } from '../nodes/base.js';
 import type { ClientToolDefinition } from '../tools/types.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
@@ -73,6 +73,8 @@ export interface WorkerExecutorCallbacks {
   onNodeSkipped: (nodeId: string, nodeType: string) => void;
   /** Called on node events of nested sub-agent runs */
   onSubAgentNodeEvent?: (event: SubAgentNodeEvent) => void;
+  /** Called on server tool call events (top-level and nested sub-agents) */
+  onToolCallEvent?: (event: ToolCallEvent) => void;
 }
 
 export interface SessionContext {
@@ -202,6 +204,7 @@ export class WorkerExecutor {
       onSessionNotesUpdate: options.sessionContext?.onNotesUpdate,
       maxNotesLength: options.sessionContext?.maxNotesLength,
       onSubAgentNodeEvent: this.callbacks.onSubAgentNodeEvent,
+      onToolCallEvent: this.callbacks.onToolCallEvent,
       clientTools: options.clientTools,
       requestClientTool: options.requestClientTool,
     };

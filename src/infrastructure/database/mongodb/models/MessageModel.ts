@@ -16,8 +16,7 @@ const toolCallSchema = new Schema(
   {
     id: { type: String, required: true },
     name: { type: String, required: true },
-    arguments: { type: Schema.Types.Mixed },
-    result: { type: Schema.Types.Mixed },
+    status: { type: String, enum: ['completed', 'failed'], required: true },
   },
   { _id: false }
 );

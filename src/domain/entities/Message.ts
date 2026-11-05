@@ -3,8 +3,7 @@ export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 export interface ToolCall {
   id: string;
   name: string;
-  arguments: unknown;
-  result?: unknown;
+  status: 'completed' | 'failed';
 }
 
 export interface Message {

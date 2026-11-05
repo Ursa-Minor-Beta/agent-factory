@@ -336,6 +336,10 @@ export class RunManager extends EventEmitter {
       this.emit('client-tool-call', { runId, call: msg.call });
       break;
 
+    case 'tool-call':
+      this.emit('tool-call', { runId, event: msg.event });
+      break;
+
     case 'completed':
       this.emit('run-completed', { runId, output: msg.output, files: msg.files });
       this.cleanup(runId);

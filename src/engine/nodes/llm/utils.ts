@@ -2,6 +2,8 @@ import type { ExecutedToolCall } from './types.js';
 import type { ToolDefinition, ClientToolDefinition } from '../../tools/index.js';
 import type { ExecutionOptions } from '../base.js';
 import { getBuiltinTool } from '../../tools/index.js';
+import { executeBuiltinTool } from './builtin-tools/index.js';
+import { executeSubAgent } from './sub-agent.js';
 import { TOOL_RESULT_TRUNCATE_LENGTH } from './constants.js';
 
 /**
@@ -45,6 +47,54 @@ export async function executeClientTool(
     throw new Error(`Client tool "${name}" is not available: no client attached to this run`);
   }
   return options.requestClientTool({ toolCallId, name, args });
+}
+
+/**
+ * Execute a server tool (builtin / sub-agent), emitting started/completed/failed tool call events.
+ * A result shaped like { error } counts as failed, same as a thrown error (which is rethrown).
+ */
+export async function executeServerTool(
+  toolCallId: string,
+  toolDef: ToolDefinition,
+  args: Record<string, unknown>,
+  options: ExecutionOptions,
+  nodeId: string
+): Promise<unknown> {
+  const base = {
+    toolCallId,
+    name: toolDef.name,
+    toolType: toolDef.type === 'builtin' ? 'builtin' as const : 'agent' as const,
+    nodeId,
+    path: [...(options.subAgentPath ?? []), nodeId],
+  };
+  const startedAt = Date.now();
+  options.onToolCallEvent?.({ ...base, status: 'started' });
+
+  try {
+    const result = toolDef.type === 'builtin'
+      ? await executeBuiltinTool(toolDef.name, args, options)
+      : await executeSubAgent(toolDef.agentId!, args, options, nodeId, toolDef.name);
+
+    const resultError = typeof result === 'object' && result !== null && 'error' in result
+      ? String((result as { error: unknown }).error)
+      : undefined;
+    options.onToolCallEvent?.({
+      ...base,
+      status: resultError ? 'failed' : 'completed',
+      ...(resultError ? { error: resultError } : {}),
+      durationMs: Date.now() - startedAt,
+    });
+    return result;
+  }
+  catch (error) {
+    options.onToolCallEvent?.({
+      ...base,
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error),
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 }
 
 /**

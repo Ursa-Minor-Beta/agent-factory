@@ -3,8 +3,6 @@ import type { ChatMessage, ExecutionOptions } from '../base.js';
 import type { ToolDefinition } from '../../tools/index.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import { extractImagesFromText } from '../../../utils/file-extractor.js';
-import { executeBuiltinTool } from './builtin-tools/index.js';
-import { executeSubAgent } from './sub-agent.js';
 import type { LLMNodeData, ProviderCallResult, ExecutedToolCall } from './types.js';
 import {
   DEFAULT_OPENAI_MODEL,
@@ -13,7 +11,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { buildToolErrorSummary, resolveTools, executeClientTool } from './utils.js';
+import { buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
 
 type ToolCallResult = {
@@ -58,11 +56,9 @@ async function executeSingleToolCall(
   }
 
   try {
-    const result = toolDef.type === 'builtin'
-      ? await executeBuiltinTool(toolName, toolArgs, options)
-      : toolDef.type === 'client'
-        ? await executeClientTool(toolCall.id, toolName, toolArgs, options)
-        : await executeSubAgent(toolDef.agentId!, toolArgs, options, nodeId, toolName);
+    const result = toolDef.type === 'client'
+      ? await executeClientTool(toolCall.id, toolName, toolArgs, options)
+      : await executeServerTool(toolCall.id, toolDef, toolArgs, options, nodeId);
 
     return { toolCallId: toolCall.id, name: toolName, result, isError: false };
   }
@@ -272,7 +268,7 @@ export async function callOpenAI(
       for (const toolCall of toolCalls) {
         const callResult = await executeSingleToolCall(toolCall, toolMap, options, nodeId);
         const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
-        executedToolCalls.push({ name: callResult.name, input: toolArgs, result: callResult.result });
+        executedToolCalls.push({ id: toolCall.id, name: callResult.name, input: toolArgs, result: callResult.result });
         messages.push({
           role: 'tool',
           tool_call_id: callResult.toolCallId,
@@ -290,7 +286,7 @@ export async function callOpenAI(
         const toolCall = toolCalls[i]!;
         const callResult = callResults[i]!;
         const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
-        executedToolCalls.push({ name: callResult.name, input: toolArgs, result: callResult.result });
+        executedToolCalls.push({ id: toolCall.id, name: callResult.name, input: toolArgs, result: callResult.result });
         messages.push({
           role: 'tool',
           tool_call_id: callResult.toolCallId,

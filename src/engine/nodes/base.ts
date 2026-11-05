@@ -47,6 +47,18 @@ export interface ClientToolCall {
   args: Record<string, unknown>;
 }
 
+/** Lifecycle event of a server-executed LLM tool call (builtin / agent) */
+export interface ToolCallEvent {
+  toolCallId: string;
+  name: string;
+  toolType: 'builtin' | 'agent';
+  nodeId: string;
+  path: string[]; // [...subAgentPath, nodeId] - empty subAgentPath for the top-level agent
+  status: 'started' | 'completed' | 'failed';
+  error?: string; // Only on 'failed'
+  durationMs?: number; // Only on 'completed' / 'failed'
+}
+
 export interface ExecutionOptions {
   providers: ProviderConfig;
   workflowInput: Record<string, unknown>;
@@ -78,6 +90,8 @@ export interface ExecutionOptions {
   // Forwards node events of nested sub-agent runs up to the top-level run
   onSubAgentNodeEvent?: (event: SubAgentNodeEvent) => void;
   subAgentPath?: string[]; // Path to the current sub-agent: [callerNodeId, agentName, ...]
+  // Forwards server tool call events (top-level and nested sub-agents) up to the top-level run
+  onToolCallEvent?: (event: ToolCallEvent) => void;
   // Client tools - top-level run only, never passed to sub-agents
   clientTools?: ClientToolDefinition[];
   requestClientTool?: (call: ClientToolCall) => Promise<unknown>; // Resolves with the client's result

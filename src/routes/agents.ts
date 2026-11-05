@@ -10,7 +10,7 @@ import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js'
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { getNodeStatusText } from '../engine/nodes/definitions.js';
-import type { SubAgentNodeEvent, ClientToolCall } from '../engine/nodes/base.js';
+import type { SubAgentNodeEvent, ClientToolCall, ToolCallEvent } from '../engine/nodes/base.js';
 import type { ClientToolDefinition, ToolParameters } from '../engine/tools/types.js';
 import { AgentExecutionError } from '../utils/errors.js';
 import {
@@ -1068,7 +1068,8 @@ export async function agentRoutes(app: FastifyInstance) {
     type RunEventHandler = (e: { runId: string; error?: string }) => void;
     type SubAgentEventHandler = (e: { runId: string; event: SubAgentNodeEvent }) => void;
     type ClientToolCallHandler = (e: { runId: string; call: ClientToolCall }) => void;
-    const listeners: Array<{ event: string; handler: NodeEventHandler | RunEventHandler | SubAgentEventHandler | ClientToolCallHandler }> = [];
+    type ToolCallHandler = (e: { runId: string; event: ToolCallEvent }) => void;
+    const listeners: Array<{ event: string; handler: NodeEventHandler | RunEventHandler | SubAgentEventHandler | ClientToolCallHandler | ToolCallHandler }> = [];
     let cleanedUp = false;
     let activeRunId: string | undefined;
 
@@ -1150,6 +1151,10 @@ export async function agentRoutes(app: FastifyInstance) {
       const onClientToolCall: ClientToolCallHandler = (e) => {
         if (e.runId === runId) sendEvent('client-tool-call', { runId, ...e.call });
       };
+      const onToolCall: ToolCallHandler = ({ runId: rootRunId, event }) => {
+        if (rootRunId !== runId) return;
+        sendEvent('tool-call', { ...event, path: formatSubAgentPath(event.path) });
+      };
 
       // Wait for run to complete
       const onComplete: RunEventHandler = (e) => {
@@ -1208,6 +1213,7 @@ export async function agentRoutes(app: FastifyInstance) {
       container.runManager.on('node-skipped', onNodeSkipped);
       container.runManager.on('subagent-node', onSubAgentNode);
       container.runManager.on('client-tool-call', onClientToolCall);
+      container.runManager.on('tool-call', onToolCall);
       container.runManager.on('run-completed', onComplete);
       container.runManager.on('run-failed', onFail);
       container.runManager.on('run-cancelled', onCancel);
@@ -1219,6 +1225,7 @@ export async function agentRoutes(app: FastifyInstance) {
         { event: 'node-skipped', handler: onNodeSkipped },
         { event: 'subagent-node', handler: onSubAgentNode },
         { event: 'client-tool-call', handler: onClientToolCall },
+        { event: 'tool-call', handler: onToolCall },
         { event: 'run-completed', handler: onComplete },
         { event: 'run-failed', handler: onFail },
         { event: 'run-cancelled', handler: onCancel }

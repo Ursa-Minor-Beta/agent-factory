@@ -67,6 +67,7 @@ export async function executeSubAgent(
       maxNotesLength: options.maxNotesLength,
       onSubAgentNodeEvent: options.onSubAgentNodeEvent,
       subAgentPath: [...(options.subAgentPath ?? []), nodeId, targetAgent.name],
+      onToolCallEvent: options.onToolCallEvent,
       parentRunId: options.currentRunId,
       triggeredBy: { triggerType: 'tool_call', nodeId, toolName },
     }
