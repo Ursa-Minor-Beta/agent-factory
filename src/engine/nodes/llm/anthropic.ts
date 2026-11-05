@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ChatMessage, ExecutionOptions } from '../base.js';
+import type { ChatMessage, ExecutionOptions, ResolvedProvider } from '../base.js';
 import type { ToolDefinition } from '../../tools/index.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import { extractImagesFromText } from '../../../utils/file-extractor.js';
@@ -143,20 +143,16 @@ function extractToolUses(content: Anthropic.ContentBlock[]): Anthropic.ToolUseBl
  */
 export async function callAnthropic(
   data: LLMNodeData,
+  provider: ResolvedProvider,
   systemPrompt: string | undefined,
   userPrompt: string,
   conversationHistory: ChatMessage[],
   options: ExecutionOptions,
   nodeId: string
 ): Promise<ProviderCallResult> {
-  const apiKey = options.providers.anthropic?.apiKey;
-  if (!apiKey) {
-    throw new NodeExecutionError('Anthropic API provider not configured', {});
-  }
-
   const client = new Anthropic({
-    apiKey,
-    baseURL: options.providers.anthropic?.baseUrl,
+    apiKey: provider.apiKey,
+    baseURL: provider.baseUrl,
   });
 
   // Resolve builtin tools to get their full definitions (with parameters)

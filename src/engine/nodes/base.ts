@@ -1,4 +1,5 @@
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
+import type { LlmProtocol } from '../../domain/entities/ProviderConfig.js';
 import type { ExecutionContext } from '../context.js';
 import type { IAgentRepository } from '../../domain/interfaces/repositories/IAgentRepository.js';
 import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRepository.js';
@@ -13,12 +14,17 @@ export interface NodeExecutionResult {
   files?: string[]; // File references in format "{{inner:id}}"
 }
 
-export interface ProviderConfig {
+export interface ResolvedProvider {
+  protocol: LlmProtocol;
+  apiKey?: string;
+  baseUrl?: string;
   // `configId`/`name` identify the stored provider config (for run tracking)
-  openai?: { apiKey: string; baseUrl?: string; configId?: string; name?: string };
-  anthropic?: { apiKey: string; baseUrl?: string; configId?: string; name?: string };
-  ollama?: { baseUrl: string; configId?: string; name?: string };
+  configId?: string;
+  name?: string;
 }
+
+/** Resolved LLM providers keyed by provider type (e.g. "openai", "deepseek") */
+export type ProviderConfig = Partial<Record<string, ResolvedProvider>>;
 
 // Chat message format for session context
 export interface ChatMessage {

@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import type { ChatMessage, ExecutionOptions } from '../base.js';
+import type { ChatMessage, ExecutionOptions, ResolvedProvider } from '../base.js';
 import type { ToolDefinition } from '../../tools/index.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import { extractImagesFromText } from '../../../utils/file-extractor.js';
@@ -152,20 +152,17 @@ async function makeApiCall(params: ApiCallParams): Promise<OpenAI.Chat.Completio
  */
 export async function callOpenAI(
   data: LLMNodeData,
+  provider: ResolvedProvider,
   systemPrompt: string | undefined,
   userPrompt: string,
   conversationHistory: ChatMessage[],
   options: ExecutionOptions,
   nodeId: string
 ): Promise<ProviderCallResult> {
-  const apiKey = options.providers.openai?.apiKey;
-  if (!apiKey) {
-    throw new NodeExecutionError('OpenAI API provider not configured', {});
-  }
-
+  // Keyless OpenAI-compatible endpoints (local vLLM, LM Studio) still need a non-empty key for the SDK
   const client = new OpenAI({
-    apiKey,
-    baseURL: options.providers.openai?.baseUrl,
+    apiKey: provider.apiKey || 'not-needed',
+    baseURL: provider.baseUrl,
   });
 
   const messages = buildInitialMessages(systemPrompt, conversationHistory, userPrompt);
@@ -230,7 +227,9 @@ export async function callOpenAI(
     // OpenAI-specific: cached and reasoning tokens
     const promptDetails = completion.usage?.prompt_tokens_details as { cached_tokens?: number } | undefined;
     const completionDetails = completion.usage?.completion_tokens_details as { reasoning_tokens?: number } | undefined;
-    totalUsage.cachedTokens += promptDetails?.cached_tokens ?? 0;
+    // DeepSeek reports cache hits as a top-level field instead of prompt_tokens_details
+    const deepseekUsage = completion.usage as { prompt_cache_hit_tokens?: number } | undefined;
+    totalUsage.cachedTokens += promptDetails?.cached_tokens ?? deepseekUsage?.prompt_cache_hit_tokens ?? 0;
     totalUsage.reasoningTokens += completionDetails?.reasoning_tokens ?? 0;
 
     const choice = completion.choices[0];

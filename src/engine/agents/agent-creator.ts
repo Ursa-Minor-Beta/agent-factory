@@ -12,6 +12,7 @@ import { SESSION_NOTES_TOOLS } from '../tools/session-notes.js';
 import { COLLECTION_TOOLS } from '../tools/collection.js';
 import { MEMORY_TOOLS } from '../tools/memory.js';
 import { MEMORY_FIELD_TYPES } from '../../domain/entities/Memory.js';
+import { LLM_PROVIDER_TYPES } from '../../domain/entities/ProviderConfig.js';
 
 const NODE_DOCS = generateNodeDocsForPrompt();
 const SUPPORTED_NODE_TYPES = NODE_DEFINITIONS.map((n) => n.type).join(', ');
@@ -73,7 +74,11 @@ Anthropic models:
 
 Ollama (provider \`ollama\`, self-hosted): only use a model name the user explicitly provides (e.g., \`llama3.2\`).
 
-Supported providers are only: \`openai\`, \`anthropic\`, \`ollama\`.
+DeepSeek (provider \`deepseek\`): \`deepseek-chat\` (general, supports tools), \`deepseek-reasoner\` (reasoning).
+
+Other OpenAI-compatible providers (\`openrouter\`, \`groq\`, \`mistral\`, \`xai\`, \`together\`, \`openai-compatible\`): only use a model name the user explicitly provides.
+
+Supported providers are only: ${LLM_PROVIDER_TYPES.map((p) => `\`${p}\``).join(', ')}. Only use a provider the user has configured.
 
 ## Common Patterns
 
