@@ -2,10 +2,12 @@ import type { IRunRepository, RunQueryOptions, RunQueryResult, RunSummaryQueryRe
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type { IUserVariableRepository } from '../domain/interfaces/repositories/IUserVariableRepository.js';
 import type { Run } from '../domain/entities/Run.js';
 import type { RunManager } from '../engine/worker/index.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
+import { UserVariableService } from './user-variable.service.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
 export interface CancelResult {
@@ -16,16 +18,19 @@ export interface CancelResult {
 export class RunService {
   private providerConfigService: ProviderConfigService;
   private userSecretService: UserSecretService;
+  private userVariableService: UserVariableService;
 
   constructor(
     private runRepo: IRunRepository,
     private agentRepo: IAgentRepository,
     private runManager: RunManager,
     providerConfigRepo: IProviderConfigRepository,
-    userSecretRepo: IUserSecretRepository
+    userSecretRepo: IUserSecretRepository,
+    userVariableRepo: IUserVariableRepository
   ) {
     this.providerConfigService = new ProviderConfigService(providerConfigRepo);
     this.userSecretService = new UserSecretService(userSecretRepo);
+    this.userVariableService = new UserVariableService(userVariableRepo);
   }
 
   async run(
@@ -46,6 +51,7 @@ export class RunService {
 
     // Pre-resolve all user secrets for {{secret:KEY}} interpolation (workspace-scoped takes precedence)
     const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId, agent.workspaceId);
+    const resolvedVariables = await this.userVariableService.buildVariablesMap(userId, agent.workspaceId);
 
     // Create run record
     let run = await this.runRepo.create({
@@ -64,6 +70,7 @@ export class RunService {
       userId,
       providers,
       resolvedSecrets,
+      resolvedVariables,
     });
 
     // Fetch final run state from DB

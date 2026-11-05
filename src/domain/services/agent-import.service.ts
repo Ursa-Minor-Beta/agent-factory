@@ -22,6 +22,8 @@ export interface ImportOptions {
 export interface ImportWarnings {
   /** Secrets required by the agent (user needs to configure) */
   missingSecrets: string[];
+  /** User variables required by the agent (user needs to configure) */
+  missingVariables: string[];
   /** Provider types required (user needs to configure) */
   missingProviders: string[];
   /** Collections required by the agent (user needs to create) */
@@ -99,6 +101,7 @@ export async function importAgent(
   const pkg = data as AgentExport;
   const warnings: ImportWarnings = {
     missingSecrets: pkg.secrets.map((s) => s.name),
+    missingVariables: (pkg.variables ?? []).map((v) => v.name),
     missingProviders: [...pkg.providers],
     missingCollections: [...pkg.collections],
   };

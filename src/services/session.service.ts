@@ -7,6 +7,7 @@ import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentR
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type { IUserVariableRepository } from '../domain/interfaces/repositories/IUserVariableRepository.js';
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
 import type { Agent } from '../domain/entities/Agent.js';
 import type { Message } from '../domain/entities/Message.js';
@@ -15,6 +16,7 @@ import type { ProviderConfig } from '../engine/nodes/base.js';
 import type { RunManager } from '../engine/worker/index.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
+import { UserVariableService } from './user-variable.service.js';
 import { NotFoundError, ForbiddenError, AgentExecutionError } from '../utils/errors.js';
 
 /**
@@ -103,6 +105,7 @@ setInterval(() => {
 export class SessionService {
   private providerConfigService: ProviderConfigService;
   private userSecretService: UserSecretService;
+  private userVariableService: UserVariableService;
 
   constructor(
     private sessionRepo: ISessionRepository,
@@ -111,10 +114,12 @@ export class SessionService {
     private runRepo: IRunRepository,
     private runManager: RunManager,
     providerConfigRepo: IProviderConfigRepository,
-    userSecretRepo: IUserSecretRepository
+    userSecretRepo: IUserSecretRepository,
+    userVariableRepo: IUserVariableRepository
   ) {
     this.providerConfigService = new ProviderConfigService(providerConfigRepo);
     this.userSecretService = new UserSecretService(userSecretRepo);
+    this.userVariableService = new UserVariableService(userVariableRepo);
   }
 
   /**
@@ -153,6 +158,7 @@ export class SessionService {
 
     // Pre-resolve all user secrets for {{secret:KEY}} interpolation (agent's workspace takes precedence)
     const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId, agent.workspaceId);
+    const resolvedVariables = await this.userVariableService.buildVariablesMap(userId, agent.workspaceId);
 
     // Create run record
     let run = await this.runRepo.create({
@@ -179,6 +185,7 @@ export class SessionService {
       userId,
       providers,
       resolvedSecrets,
+      resolvedVariables,
       sessionContext,
       maxParallelNodes: options.maxParallelNodes,
     });
@@ -286,6 +293,7 @@ export class SessionService {
 
     // Create and start run (don't wait, use workspace-scoped secrets)
     const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId, agent.workspaceId);
+    const resolvedVariables = await this.userVariableService.buildVariablesMap(userId, agent.workspaceId);
     let run = await this.runRepo.create({
       agentId: agent.id,
       userId,
@@ -304,6 +312,7 @@ export class SessionService {
       userId,
       providers,
       resolvedSecrets,
+      resolvedVariables,
       sessionContext,
       maxParallelNodes: options.maxParallelNodes,
     });

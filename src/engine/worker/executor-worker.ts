@@ -98,6 +98,7 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
       {
         providers: config.providers,
         resolvedSecrets: config.resolvedSecrets,
+        resolvedVariables: config.resolvedVariables,
         sessionContext,
         maxParallelNodes: config.maxParallelNodes,
       }

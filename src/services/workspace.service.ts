@@ -1,6 +1,7 @@
 import type { IWorkspaceRepository } from '../domain/interfaces/repositories/IWorkspaceRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
+import type { IUserVariableRepository } from '../domain/interfaces/repositories/IUserVariableRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
@@ -18,6 +19,7 @@ export interface WorkspaceServiceDependencies {
   workspaceRepo: IWorkspaceRepository;
   agentRepo: IAgentRepository;
   userSecretRepo: IUserSecretRepository;
+  userVariableRepo: IUserVariableRepository;
   providerConfigRepo: IProviderConfigRepository;
   memorySchemaRepo: IMemorySchemaRepository;
   memoryStoreRepo: IMemoryStoreRepository;
@@ -27,6 +29,7 @@ export class WorkspaceService {
   private workspaceRepo: IWorkspaceRepository;
   private agentRepo: IAgentRepository;
   private userSecretRepo: IUserSecretRepository;
+  private userVariableRepo: IUserVariableRepository;
   private providerConfigRepo: IProviderConfigRepository;
   private memorySchemaRepo: IMemorySchemaRepository;
   private memoryStoreRepo: IMemoryStoreRepository;
@@ -35,6 +38,7 @@ export class WorkspaceService {
     this.workspaceRepo = deps.workspaceRepo;
     this.agentRepo = deps.agentRepo;
     this.userSecretRepo = deps.userSecretRepo;
+    this.userVariableRepo = deps.userVariableRepo;
     this.providerConfigRepo = deps.providerConfigRepo;
     this.memorySchemaRepo = deps.memorySchemaRepo;
     this.memoryStoreRepo = deps.memoryStoreRepo;
@@ -104,6 +108,7 @@ export class WorkspaceService {
       this.agentRepo.delete({ workspaceId }),
       ...schemas.map((schema) => this.memoryStoreRepo.deleteBySchemaId(schema.id)),
       this.userSecretRepo.delete({ workspaceId }),
+      this.userVariableRepo.delete({ workspaceId }),
       this.providerConfigRepo.delete({ workspaceId }),
       this.memorySchemaRepo.delete({ workspaceId }),
     ]);
@@ -127,7 +132,13 @@ export class WorkspaceService {
   async getByIdWithCounts(
     userId: string,
     workspaceId: string
-  ): Promise<Workspace & { agentCount: number; secretCount: number; providerCount: number; collectionCount: number }> {
+  ): Promise<Workspace & {
+    agentCount: number;
+    secretCount: number;
+    variableCount: number;
+    providerCount: number;
+    collectionCount: number;
+  }> {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
       throw new NotFoundError('Workspace');
@@ -136,9 +147,10 @@ export class WorkspaceService {
       throw new ForbiddenError('Access denied');
     }
 
-    const [agentCount, secretCount, providerCount, collectionCount] = await Promise.all([
+    const [agentCount, secretCount, variableCount, providerCount, collectionCount] = await Promise.all([
       this.workspaceRepo.countAgentsInWorkspace(workspaceId),
       this.userSecretRepo.count(userId, workspaceId),
+      this.userVariableRepo.count(userId, workspaceId),
       this.providerConfigRepo.count(userId, workspaceId),
       this.memorySchemaRepo.count(userId, workspaceId),
     ]);
@@ -147,6 +159,7 @@ export class WorkspaceService {
       ...workspace,
       agentCount,
       secretCount,
+      variableCount,
       providerCount,
       collectionCount,
     };

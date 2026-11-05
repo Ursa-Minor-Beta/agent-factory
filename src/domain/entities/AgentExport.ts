@@ -43,6 +43,13 @@ export interface RequiredSecret {
 }
 
 /**
+ * Required user variable metadata (no values exported)
+ */
+export interface RequiredVariable {
+  name: string;
+}
+
+/**
  * Complete agent export package
  */
 export interface AgentExport {
@@ -69,6 +76,9 @@ export interface AgentExport {
   /** Secret names required (user must provide values on import) */
   secrets: RequiredSecret[];
 
+  /** User variable names required (optional for packages exported before variables existed) */
+  variables?: RequiredVariable[];
+
   /** Provider types required */
   providers: ProviderType[];
 }
@@ -81,6 +91,8 @@ export interface ExportAnalysis {
   collectionNames: Set<string>;
   /** Secret names referenced */
   secretNames: Set<string>;
+  /** User variable names referenced */
+  variableNames: Set<string>;
   /** Provider types used */
   providerTypes: Set<ProviderType>;
 }

@@ -43,6 +43,7 @@ const workspaceWithCountsSchema = {
     updatedAt: { type: 'string', format: 'date-time' },
     agentCount: { type: 'number' },
     secretCount: { type: 'number' },
+    variableCount: { type: 'number' },
     providerCount: { type: 'number' },
     collectionCount: { type: 'number' },
   },
@@ -53,6 +54,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     workspaceRepo: container.workspaceRepository,
     agentRepo: container.agentRepository,
     userSecretRepo: container.userSecretRepository,
+    userVariableRepo: container.userVariableRepository,
     providerConfigRepo: container.providerConfigRepository,
     memorySchemaRepo: container.memorySchemaRepository,
     memoryStoreRepo: container.memoryStoreRepository,
@@ -222,7 +224,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     {
       onRequest: [requireAuth],
       schema: {
-        description: 'Delete workspace and all its contents (agents, secrets, providers, memory)',
+        description: 'Delete workspace and all its contents (agents, secrets, variables, providers, memory)',
         tags: ['workspaces'],
         params: {
           type: 'object',

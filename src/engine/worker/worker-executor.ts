@@ -21,6 +21,7 @@ import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/in
 import type { SubAgentNodeEvent } from '../nodes/base.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
+import { substituteVariables } from '../nodes/interpolate.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -88,6 +89,7 @@ export interface SessionContext {
 export interface WorkerExecutorOptions {
   providers: ProviderConfig;
   resolvedSecrets?: Record<string, string>;
+  resolvedVariables?: Record<string, string>;
   /** Session context for chat-based execution */
   sessionContext?: SessionContext;
   /** Max workflow nodes executed in parallel */
@@ -191,6 +193,7 @@ export class WorkerExecutor {
       workspaceId: agent.workspaceId, // For workspace-scoped resources
       currentRunId: runId, // For parent-child run linking
       resolvedSecrets: options.resolvedSecrets,
+      resolvedVariables: options.resolvedVariables,
       callStack: new Set([agent.id]), // Initialize call stack with current agent
       sessionId: options.sessionContext?.sessionId,
       messages: options.sessionContext?.messages,
@@ -202,8 +205,13 @@ export class WorkerExecutor {
 
     // Returns error message if the node failed, null otherwise
     const runNode = async (nodeId: string): Promise<string | null> => {
-      const node = agent.nodes.find((n) => n.id === nodeId);
-      if (!node) return null;
+      const rawNode = agent.nodes.find((n) => n.id === nodeId);
+      if (!rawNode) return null;
+
+      // Substitute {{var:KEY}} user variables in node inputs
+      const node = options.resolvedVariables
+        ? { ...rawNode, data: substituteVariables(rawNode.data, options.resolvedVariables) }
+        : rawNode;
 
       if (node.type !== 'output') {
         // Check if this node should be skipped due to branch control

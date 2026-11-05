@@ -19,7 +19,8 @@ ${COMMON_NODE_FIELDS.map((f) => `- ${f.name}: ${f.description}`).join('\n')}
 
 Data flow uses templates:
 - {{node:nodeId.path}} - Reference another node's output (e.g., {{node:llm-1.response}}, {{node:input-1.message}})
-- {{secret:KEY}} - Reference a secret`,
+- {{secret:KEY}} - Reference a secret
+- {{var:KEY}} - Reference a user variable (plain text, any node input)`,
   parameters: {
     type: 'object',
     properties: {

@@ -11,6 +11,32 @@ export const NODE_PATTERN = /\{\{node:([^.}]+)(?:\.([^}]+))?\}\}/g;
  */
 export const SECRET_PATTERN = /\{\{secret:(\w+)\}\}/g;
 
+/**
+ * Regex pattern to find user variable references: {{var:KEY_NAME}}
+ */
+export const VARIABLE_PATTERN = /\{\{var:(\w+)\}\}/g;
+
+/**
+ * Recursively replace {{var:KEY}} in all string values (unknown keys are left as-is).
+ * Applied to every node's data by the executor, so it works in any node input.
+ */
+export function substituteVariables<T>(value: T, variables: Record<string, string>): T {
+  if (typeof value === 'string') {
+    return value.replace(VARIABLE_PATTERN, (match, key: string) => variables[key] ?? match) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => substituteVariables(item, variables)) as T;
+  }
+  if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = substituteVariables(v, variables);
+    }
+    return result as T;
+  }
+  return value;
+}
+
 
 /**
  * Get a nested value from an object using dot notation path

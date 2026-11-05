@@ -177,8 +177,8 @@ function topologicalSortAgents(agents: Map<string, Agent>, mainAgentId: string):
  * Analyze all agents for export metadata using stringify + regex
  */
 function analyzeAgents(agents: Map<string, Agent>, analysis: ExportAnalysis): void {
-  /** Combined pattern for export analysis: secrets, providers, collections */
-  const EXPORT_PATTERN = /\{\{secret:(\w+)\}\}|"provider":"([^"]+)"|"collection":"([^"]+)"/g;
+  /** Combined pattern for export analysis: secrets, providers, collections, variables */
+  const EXPORT_PATTERN = /\{\{secret:(\w+)\}\}|"provider":"([^"]+)"|"collection":"([^"]+)"|\{\{var:(\w+)\}\}/g;
 
   for (const agent of agents.values()) {
     const agentStr = JSON.stringify(agent.nodes);
@@ -192,6 +192,9 @@ function analyzeAgents(agents: Map<string, Agent>, analysis: ExportAnalysis): vo
       } 
       else if (match[3]) {
         analysis.collectionNames.add(match[3]);
+      }
+      else if (match[4]) {
+        analysis.variableNames.add(match[4]);
       }
     }
   }
@@ -265,6 +268,7 @@ export async function exportAgent(
   const analysis: ExportAnalysis = {
     collectionNames: new Set<string>(),
     secretNames: new Set<string>(),
+    variableNames: new Set<string>(),
     providerTypes: new Set<ProviderType>(),
   };
 
@@ -305,6 +309,7 @@ export async function exportAgent(
     dependencies,
     collections,
     secrets,
+    variables: Array.from(analysis.variableNames).map((name) => ({ name })),
     providers: Array.from(analysis.providerTypes),
   };
 }
@@ -328,6 +333,7 @@ export function validateExportPackage(data: unknown): data is AgentExport {
   if (!Array.isArray(pkg.collections)) return false;
   if (!Array.isArray(pkg.secrets)) return false;
   if (!Array.isArray(pkg.providers)) return false;
+  if (pkg.variables !== undefined && !Array.isArray(pkg.variables)) return false;
 
   // Validate workspace
   const ws = pkg.workspace as Record<string, unknown>;

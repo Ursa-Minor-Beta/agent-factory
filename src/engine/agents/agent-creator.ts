@@ -47,6 +47,7 @@ Data flows between nodes using templates in node data. Use \`{{node:nodeId.path}
 Available template patterns:
 - \`{{node:nodeId.path}}\` - Reference another node's output (e.g., \`{{node:http-1.response.json}}\`, \`{{node:input.message}}\`)
 - \`{{secret:KEY}}\` - Reference a secret (e.g., \`{{secret:API_KEY}}\`)
+- \`{{var:KEY}}\` - Reference a user variable, usable in any node input (e.g., \`{{var:BASE_URL}}\`)
 
 ## Workflow Guidelines
 
