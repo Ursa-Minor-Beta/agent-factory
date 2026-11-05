@@ -149,6 +149,16 @@ Branch node details:
   - \`<branchName>\`: The input value if that branch is active, null otherwise
 - Nodes not listed in any branch are skipped if any of their \`{{node:...}}\` dependencies were skipped, unless another dependency comes from the active path (merge node).
 
+### JS Node Input
+When a JS node needs more than one value, pass them as a JSON object and destructure in code. Values keep their types (arrays/objects stay structured, strings are quoted for you), so no manual parsing is needed:
+\`\`\`json
+{ "id": "js-2", "type": "js", "data": {
+  "input": "{ \\"date\\": {{node:js-1.output.date}}, \\"records\\": {{node:memory-search-1.records}} }",
+  "code": "const { date, records } = input;\\nreturn { period: date.slice(0, 7), count: records.length };"
+} }
+\`\`\`
+NEVER join values with a delimiter (\`"{{node:a.x}}|{{node:b.y}}"\`) and split them apart with \`String(input).indexOf('|')\` — it stringifies objects/arrays and breaks when the values contain the delimiter.
+
 ### Calling a Sub-Agent as a Workflow Step
 Use an agent node when another agent must always run at a fixed point. Fill the target agent's input schema via \`inputs\`:
 \`\`\`json
