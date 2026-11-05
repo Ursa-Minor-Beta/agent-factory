@@ -1,5 +1,6 @@
 import { config } from '../../../config/index.js';
 import type { NodeDefinitionRaw } from '../definition.types.js';
+import { LLM_PROVIDER_TYPES } from '../../../domain/entities/ProviderConfig.js';
 import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
@@ -19,8 +20,8 @@ export const LLM_NODE_DEFINITION: NodeDefinitionRaw = {
       name: 'provider',
       type: 'enum',
       required: true,
-      description: 'LLM provider to use.',
-      values: ['openai', 'anthropic', 'ollama'],
+      description: 'LLM provider to use (must be configured in provider settings).',
+      values: [...LLM_PROVIDER_TYPES],
     },
     {
       name: 'model',

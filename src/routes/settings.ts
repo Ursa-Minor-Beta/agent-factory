@@ -2,7 +2,14 @@ import { FastifyInstance } from 'fastify';
 import { ProviderConfigService } from '../services/provider-config.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
-import { PROVIDER_TYPES, type ProviderType } from '../domain/entities/ProviderConfig.js';
+import {
+  PROVIDER_TYPES,
+  LLM_PROTOCOLS,
+  LLM_PROVIDER_PRESETS,
+  LLM_PROVIDER_TYPES,
+  type ProviderType,
+  type LlmProviderPreset,
+} from '../domain/entities/ProviderConfig.js';
 
 // Schemas
 const errorSchema = {
@@ -24,7 +31,7 @@ const providerConfigSchema = {
   properties: {
     id: { type: 'string' },
     userId: { type: 'string' },
-    provider: { type: 'string', enum: PROVIDER_TYPES, description: 'Provider type: openai | anthropic | ollama | ...' },
+    provider: { type: 'string', enum: PROVIDER_TYPES, description: 'Provider type (LLM preset key or github); see GET /api/providers/presets' },
     name: { type: 'string' },
     isDefault: { type: 'boolean' },
     config: {
@@ -52,6 +59,64 @@ export async function settingsRoutes(app: FastifyInstance) {
   const providerConfigService = new ProviderConfigService(
     container.providerConfigRepository
   );
+
+  // Get provider presets for the provider form: LLM presets (protocol + default endpoint) and integrations
+  app.get('/api/providers/presets', {
+    schema: {
+      tags: ['providers'],
+      summary: 'Get available provider presets (LLM and integrations)',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  provider: { type: 'string' },
+                  kind: { type: 'string', enum: ['llm', 'integration'] },
+                  label: { type: 'string' },
+                  protocol: { type: 'string', enum: LLM_PROTOCOLS, nullable: true, description: 'LLM wire protocol; null for integrations' },
+                  defaultBaseUrl: { type: 'string', nullable: true },
+                  requiresApiKey: { type: 'boolean' },
+                  requiresBaseUrl: { type: 'boolean' },
+                },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async () => {
+    const llmPresets = LLM_PROVIDER_TYPES.map((provider) => {
+      const preset: LlmProviderPreset = LLM_PROVIDER_PRESETS[provider];
+      return {
+        provider,
+        kind: 'llm',
+        label: preset.label,
+        protocol: preset.protocol,
+        defaultBaseUrl: preset.defaultBaseUrl ?? null,
+        requiresApiKey: preset.requiresApiKey,
+        requiresBaseUrl: preset.requiresBaseUrl ?? false,
+      };
+    });
+    // GitHub token (stored in config.apiKey) used for git sync
+    const github = {
+      provider: 'github',
+      kind: 'integration',
+      label: 'GitHub',
+      protocol: null,
+      defaultBaseUrl: null,
+      requiresApiKey: true,
+      requiresBaseUrl: false,
+    };
+    return { success: true, data: [...llmPresets, github] };
+  });
 
   // Get all provider configs
   app.get('/api/providers', {
@@ -175,14 +240,14 @@ export async function settingsRoutes(app: FastifyInstance) {
         type: 'object',
         required: ['provider', 'name'],
         properties: {
-          provider: { type: 'string', enum: PROVIDER_TYPES, description: 'Provider type: openai | anthropic | ollama' },
+          provider: { type: 'string', enum: PROVIDER_TYPES, description: 'Provider type (LLM preset key or github); see GET /api/providers/presets' },
           name: { type: 'string', minLength: 1, description: 'Display name (e.g., "Production OpenAI")' },
           isDefault: { type: 'boolean', default: false },
           config: {
             type: 'object',
             properties: {
-              apiKey: { type: 'string', description: 'API key (for openai, anthropic)' },
-              baseUrl: { type: 'string', description: 'Base URL (for ollama)' },
+              apiKey: { type: 'string', description: 'API key (required for most hosted LLM providers)' },
+              baseUrl: { type: 'string', description: 'Base URL; overrides the preset default (required for openai-compatible)' },
             },
           },
           workspaceId: {

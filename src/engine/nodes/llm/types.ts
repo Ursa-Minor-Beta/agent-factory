@@ -1,11 +1,14 @@
 import type { ToolDefinition } from '../../tools/index.js';
 import type { ToolExecutionMode } from './constants.js';
+import type { LlmProviderType } from '../../../domain/entities/ProviderConfig.js';
+import type { ChatMessage, ExecutionOptions, ResolvedProvider } from '../base.js';
 
 /**
  * LLM node configuration data
  */
 export interface LLMNodeData {
-  provider: 'openai' | 'anthropic' | 'ollama';
+  /** Provider type key (e.g. "openai", "deepseek") - resolved to a protocol at runtime */
+  provider: LLMProvider;
   model: string;
   systemPrompt?: string;
   userPrompt?: string;
@@ -35,14 +38,25 @@ export interface TokenUsage {
 /**
  * Provider type for usage tracking
  */
-export type LLMProvider = 'openai' | 'anthropic' | 'ollama';
+export type LLMProvider = LlmProviderType;
 
 /**
  * Cumulative usage per provider (stored at Run level)
  */
-export type RunUsage = {
-  [K in LLMProvider]?: TokenUsage;
-};
+export type RunUsage = Partial<Record<LLMProvider, TokenUsage>>;
+
+/**
+ * Protocol adapter - one implementation per wire protocol
+ */
+export type ProviderAdapter = (
+  data: LLMNodeData,
+  provider: ResolvedProvider,
+  systemPrompt: string | undefined,
+  userPrompt: string,
+  conversationHistory: ChatMessage[],
+  options: ExecutionOptions,
+  nodeId: string
+) => Promise<ProviderCallResult>;
 
 /**
  * Executed tool call record

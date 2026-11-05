@@ -7,7 +7,9 @@ import type {
   ProviderType,
   CreateProviderConfigDTO,
   UpdateProviderConfigDTO,
+  LlmProviderPreset,
 } from '../domain/entities/ProviderConfig.js';
+import { LLM_PROVIDER_PRESETS, isLlmProviderType } from '../domain/entities/ProviderConfig.js';
 import type { ProviderConfig as ExecutionProviderConfig } from '../engine/nodes/base.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
@@ -101,35 +103,21 @@ export class ProviderConfigService {
     for (const providerConfig of allConfigs) {
       if (!providerConfig.isDefault) continue;
 
-      switch (providerConfig.provider) {
-      case 'openai':
-        if (providerConfig.config.apiKey) {
-          config.openai = {
-            apiKey: providerConfig.config.apiKey,
-            baseUrl: providerConfig.config.baseUrl,
-            configId: providerConfig.id,
-            name: providerConfig.name,
-          };
-        }
-        break;
-      case 'anthropic':
-        if (providerConfig.config.apiKey) {
-          config.anthropic = {
-            apiKey: providerConfig.config.apiKey,
-            baseUrl: providerConfig.config.baseUrl,
-            configId: providerConfig.id,
-            name: providerConfig.name,
-          };
-        }
-        break;
-      case 'ollama':
-        config.ollama = {
-          baseUrl: providerConfig.config.baseUrl ?? 'http://localhost:11434',
-          configId: providerConfig.id,
-          name: providerConfig.name,
-        };
-        break;
-      }
+      if (!isLlmProviderType(providerConfig.provider)) continue;
+
+      const preset: LlmProviderPreset = LLM_PROVIDER_PRESETS[providerConfig.provider];
+      const { apiKey } = providerConfig.config;
+      const baseUrl = providerConfig.config.baseUrl || preset.defaultBaseUrl;
+      if (preset.requiresApiKey && !apiKey) continue;
+      if (preset.requiresBaseUrl && !baseUrl) continue;
+
+      config[providerConfig.provider] = {
+        protocol: preset.protocol,
+        apiKey,
+        baseUrl,
+        configId: providerConfig.id,
+        name: providerConfig.name,
+      };
     }
 
     return config;

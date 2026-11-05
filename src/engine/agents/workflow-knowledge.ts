@@ -5,6 +5,7 @@
 
 import { generateNodeDocsForPrompt, NODE_DEFINITIONS } from '../nodes/definitions.js';
 import { MEMORY_FIELD_TYPES } from '../../domain/entities/Memory.js';
+import { LLM_PROVIDER_TYPES } from '../../domain/entities/ProviderConfig.js';
 
 const NODE_DOCS = generateNodeDocsForPrompt();
 const SUPPORTED_NODE_TYPES = NODE_DEFINITIONS.map((n) => n.type).join(', ');
@@ -44,21 +45,26 @@ Available template patterns:
 **CRITICAL**: Only use these exact model names. Do NOT invent model names like "gpt-4.1".
 
 OpenAI models:
-- \`gpt-4o\` - Best quality, recommended default
-- \`gpt-4o-mini\` - Faster, cheaper, good for simple tasks
-- \`gpt-4-turbo\` - Previous generation
-- \`o1\` - Reasoning model (no streaming)
-- \`o1-mini\` - Smaller reasoning model
-- \`o3-mini\` - Latest small reasoning model
+- \`gpt-6.1-sol\` - Latest flagship, recommended default
+- \`gpt-6.1-terra\` - Newest GPT-6.1 family model
+- \`gpt-6-astra\` - Previous flagship
+- \`gpt-5.6-sol\` - Previous generation, discounted pricing
+- \`gpt-5.6-terra\` - Previous generation, mid-tier
+- \`gpt-5.6-luna\` - Previous generation, lighter option
 
 Anthropic models:
-- \`claude-sonnet-4-20250514\` - Best quality
-- \`claude-3-5-sonnet-20241022\` - Previous generation
-- \`claude-3-5-haiku-20241022\` - Faster, cheaper
+- \`claude-fable-5-1\` - Most capable (Mythos tier)
+- \`claude-opus-5-5\` - Best quality for complex tasks
+- \`claude-sonnet-5-5\` - Balanced speed and quality
+- \`claude-haiku-5-5\` - Fastest, cheapest
 
 Ollama (provider \`ollama\`, self-hosted): only use a model name the user explicitly provides (e.g., \`llama3.2\`).
 
-Supported providers are only: \`openai\`, \`anthropic\`, \`ollama\`.
+DeepSeek (provider \`deepseek\`): \`deepseek-chat\` (general, supports tools), \`deepseek-reasoner\` (reasoning).
+
+Other OpenAI-compatible providers (\`openrouter\`, \`groq\`, \`mistral\`, \`xai\`, \`together\`, \`openai-compatible\`): only use a model name the user explicitly provides.
+
+Supported providers are only: ${LLM_PROVIDER_TYPES.map((p) => `\`${p}\``).join(', ')}. Only use a provider the user has configured.
 
 ## Common Patterns
 

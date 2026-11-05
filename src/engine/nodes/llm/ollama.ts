@@ -1,4 +1,4 @@
-import type { ChatMessage, ExecutionOptions } from '../base.js';
+import type { ChatMessage, ResolvedProvider } from '../base.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import type { LLMNodeData, ProviderCallResult } from './types.js';
 import {
@@ -12,12 +12,12 @@ import {
  */
 export async function callOllama(
   data: LLMNodeData,
+  provider: ResolvedProvider,
   systemPrompt: string | undefined,
   userPrompt: string,
-  conversationHistory: ChatMessage[],
-  options: ExecutionOptions
+  conversationHistory: ChatMessage[]
 ): Promise<ProviderCallResult> {
-  const baseUrl = options.providers.ollama?.baseUrl;
+  const baseUrl = provider.baseUrl;
   if (!baseUrl) {
     throw new NodeExecutionError('Ollama base URL not configured', {});
   }

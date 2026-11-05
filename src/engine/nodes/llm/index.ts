@@ -5,9 +5,18 @@ import { interpolateAll } from '../interpolate.js';
 import { callOpenAI } from './openai.js';
 import { callAnthropic } from './anthropic.js';
 import { callOllama } from './ollama.js';
-import type { LLMNodeData } from './types.js';
+import type { LLMNodeData, ProviderAdapter } from './types.js';
 import { DEFAULT_MAX_MESSAGES } from './constants.js';
 import { extractAndStoreFiles, resolveTempRefsToBase64 } from '../file-helper.js';
+import { NodeExecutionError } from '../../../utils/errors.js';
+import { isLlmProviderType, type LlmProtocol } from '../../../domain/entities/ProviderConfig.js';
+
+/** One adapter per wire protocol; providers (deepseek, groq, ...) map onto these via presets */
+const PROTOCOL_ADAPTERS: Record<LlmProtocol, ProviderAdapter> = {
+  openai: callOpenAI,
+  anthropic: callAnthropic,
+  ollama: callOllama,
+};
 
 /**
  * LLM node - Call language model APIs using official SDKs
@@ -88,20 +97,16 @@ Extract facts and call the update_session_notes tool.`;
       !!options.sessionId
     );
 
-    let result;
-    switch (data.provider) {
-    case 'openai':
-      result = await callOpenAI(data, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);
-      break;
-    case 'anthropic':
-      result = await callAnthropic(data, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);
-      break;
-    case 'ollama':
-      result = await callOllama(data, finalSystemPrompt, userPrompt, conversationHistory, options);
-      break;
-    default:
-      throw new Error(`Unknown LLM provider: ${data.provider}`);
+    if (!isLlmProviderType(data.provider)) {
+      throw new NodeExecutionError(`Unknown LLM provider: ${data.provider}`, {});
     }
+    const provider = options.providers[data.provider];
+    if (!provider) {
+      throw new NodeExecutionError(`LLM provider "${data.provider}" is not configured`, {});
+    }
+
+    const adapter = PROTOCOL_ADAPTERS[provider.protocol];
+    const result = await adapter(data, provider, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);
 
     const outputs: Record<string, unknown> = {
       response: result.response,
