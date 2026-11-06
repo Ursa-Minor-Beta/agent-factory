@@ -162,14 +162,15 @@ NEVER join values with a delimiter (\`"{{node:a.x}}|{{node:b.y}}"\`) and split t
 ### Calling a Sub-Agent as a Workflow Step
 Use an agent node when another agent must always run at a fixed point. Fill the target agent's input schema via \`inputs\`:
 \`\`\`json
-{ "id": "agent-1", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": { "query": "{{node:input.message}}" } } }
+{ "id": "web-fetch-baas", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": { "query": "{{node:input.message}}" } } }
 \`\`\`
-The sub-agent's result is available as \`{{node:agent-1.output.<field>}}\`.
+Name the node id after the target agent's name: lowercase, non-alphanumeric characters replaced with \`-\` (e.g. "Web fetch (baas)" → \`web-fetch-baas\`). Add a suffix (\`-2\`) if the id is already taken.
+The sub-agent's result is available as \`{{node:web-fetch-baas.output.<field>}}\`.
 
 **Batch mode**: \`inputs\` can also be an array of input objects, or a template resolving to one. The agent then runs once per item, sequentially, and \`output\` becomes an array of results in item order:
 \`\`\`json
-{ "id": "agent-2", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": [ { "query": "first" }, { "query": "second" } ] } }
-{ "id": "agent-3", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": "{{node:js-1.items}}" } }
+{ "id": "web-fetch-baas", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": [ { "query": "first" }, { "query": "second" } ] } }
+{ "id": "web-fetch-baas", "type": "agent", "data": { "agentId": "<target-agent-id>", "inputs": "{{node:js-1.items}}" } }
 \`\`\`
 Here \`js-1\` must output \`items\` as an array of objects matching the sub-agent's input schema. Read results with \`{{node:agent-3.output}}\` (an array).
 
