@@ -9,6 +9,7 @@ import type { ProviderConfig } from '../nodes/index.js';
 // Re-export for convenience
 export type { ProviderConfig };
 import type { WorkerMessage, WorkerExecutionConfig, SessionContext } from './messages.js';
+import type { ClientToolDefinition } from '../tools/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -31,12 +32,16 @@ export interface StartRunOptions {
   sessionContext?: SessionContext;
   /** Max workflow nodes executed in parallel */
   maxParallelNodes?: number;
+  /** Tools executed by the client (UI); results are posted back via submitClientToolResult */
+  clientTools?: ClientToolDefinition[];
 }
 
 interface ActiveRun {
   process: ChildProcess;
   runId: string;
   startedAt: Date;
+  /** Client tool calls sent to the UI and not answered yet */
+  pendingClientToolCalls: Set<string>;
   killTimer?: NodeJS.Timeout;
   completionPromise?: {
     resolve: (result: RunCompletionResult) => void;
@@ -99,6 +104,7 @@ export class RunManager extends EventEmitter {
       process: child,
       runId,
       startedAt: new Date(),
+      pendingClientToolCalls: new Set(),
     };
     this.activeRuns.set(runId, activeRun);
 
@@ -139,6 +145,7 @@ export class RunManager extends EventEmitter {
       resolvedVariables: options.resolvedVariables,
       sessionContext: options.sessionContext,
       maxParallelNodes: options.maxParallelNodes,
+      clientTools: options.clientTools,
     };
 
     child.send({ type: 'start', config });
@@ -242,6 +249,19 @@ export class RunManager extends EventEmitter {
   }
 
   /**
+   * Deliver a client tool result to the worker waiting on it.
+   * Returns false if the run is not active or the call is not pending (late/duplicate/unknown).
+   */
+  submitClientToolResult(runId: string, toolCallId: string, result: unknown): boolean {
+    const activeRun = this.activeRuns.get(runId);
+    if (!activeRun?.pendingClientToolCalls.delete(toolCallId)) {
+      return false;
+    }
+    activeRun.process.send({ type: 'client-tool-result', toolCallId, result });
+    return true;
+  }
+
+  /**
    * Check if a run is currently active
    */
   isRunActive(runId: string): boolean {
@@ -311,6 +331,15 @@ export class RunManager extends EventEmitter {
 
     case 'subagent-node':
       this.emit('subagent-node', { runId, event: msg.event });
+      break;
+
+    case 'client-tool-call':
+      this.activeRuns.get(runId)?.pendingClientToolCalls.add(msg.call.toolCallId);
+      this.emit('client-tool-call', { runId, call: msg.call });
+      break;
+
+    case 'tool-call':
+      this.emit('tool-call', { runId, event: msg.event });
       break;
 
     case 'completed':

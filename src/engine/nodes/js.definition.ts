@@ -72,7 +72,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
       id: 'js-5',
       type: 'js',
       data: {
-        input: { a: '{{node:llm-1.response}}', b: '{{node:llm-2.response}}' },
+        input: { "a": '{{node:llm-1.response}}', "b": '{{node:llm-2.response}}' },
         code: 'output = { resultA: input.a.toUpperCase(), resultB: input.b.toUpperCase() };',
       },
     },

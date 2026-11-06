@@ -18,10 +18,12 @@ import { ExecutionContext } from '../context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from '../graph.js';
 import { runNodesConcurrently } from '../scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
-import type { SubAgentNodeEvent } from '../nodes/base.js';
+import type { SubAgentNodeEvent, ClientToolCall, ToolCallEvent } from '../nodes/base.js';
+import type { ClientToolDefinition } from '../tools/types.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
 import { substituteVariables } from '../nodes/interpolate.js';
+import { resolveWorkspaceId } from '../workspace-scope.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -73,6 +75,8 @@ export interface WorkerExecutorCallbacks {
   onNodeSkipped: (nodeId: string, nodeType: string) => void;
   /** Called on node events of nested sub-agent runs */
   onSubAgentNodeEvent?: (event: SubAgentNodeEvent) => void;
+  /** Called on server tool call events (top-level and nested sub-agents) */
+  onToolCallEvent?: (event: ToolCallEvent) => void;
 }
 
 export interface SessionContext {
@@ -94,6 +98,9 @@ export interface WorkerExecutorOptions {
   sessionContext?: SessionContext;
   /** Max workflow nodes executed in parallel */
   maxParallelNodes?: number;
+  /** Tools executed by the client (UI) - top-level run only */
+  clientTools?: ClientToolDefinition[];
+  requestClientTool?: (call: ClientToolCall) => Promise<unknown>;
 }
 
 export interface WorkerExecutionResult {
@@ -190,7 +197,7 @@ export class WorkerExecutor {
       memorySchemaRepo: this.memorySchemaRepo,
       memoryStoreRepo: this.memoryStoreRepo,
       userId,
-      workspaceId: agent.workspaceId, // For workspace-scoped resources
+      workspaceId: await resolveWorkspaceId(agent, input, userId, this.agentRepo), // For workspace-scoped resources
       currentRunId: runId, // For parent-child run linking
       resolvedSecrets: options.resolvedSecrets,
       resolvedVariables: options.resolvedVariables,
@@ -201,6 +208,9 @@ export class WorkerExecutor {
       onSessionNotesUpdate: options.sessionContext?.onNotesUpdate,
       maxNotesLength: options.sessionContext?.maxNotesLength,
       onSubAgentNodeEvent: this.callbacks.onSubAgentNodeEvent,
+      onToolCallEvent: this.callbacks.onToolCallEvent,
+      clientTools: options.clientTools,
+      requestClientTool: options.requestClientTool,
     };
 
     // Returns error message if the node failed, null otherwise

@@ -6,6 +6,7 @@ import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
 import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
 import { CHAT_AGENT } from '../engine/agents/chat.js';
+import { AGENT_BUILDER } from '../engine/agents/agent-builder.js';
 
 export class SeedService {
   constructor(
@@ -19,22 +20,17 @@ export class SeedService {
   }
 
   /**
-   * Find by systemName or create system agent
+   * Find by systemName or create system agent (new ones are global, existing keep their workspace)
    */
   private async findOrCreateSystemAgent(
     adminId: string,
     systemName: string,
     name: string,
     description: string,
-    nodes: WorkflowNode[],
-    workspaceId?: string
+    nodes: WorkflowNode[]
   ): Promise<string> {
     const existing = await this.agentRepo.findBySystemName(systemName);
     if (existing) {
-      // Update workspace if provided
-      if (workspaceId && existing.workspaceId !== workspaceId) {
-        await this.agentRepo.update(existing.id, { workspaceId });
-      }
       return existing.id;
     }
     const agent = await this.agentRepo.createSystemAgent({
@@ -43,7 +39,6 @@ export class SeedService {
       description,
       nodes,
       systemName,
-      workspaceId,
     });
     return agent.id;
   }
@@ -91,11 +86,12 @@ export class SeedService {
     }
 
     // Seed workspaces first
-    const { startId } = await this.seedWorkspaces();
+    await this.seedWorkspaces();
 
-    // System agents → Start workspace
-    await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes, startId);
-    await this.findOrCreateSystemAgent(admin.id, 'chat-agent', CHAT_AGENT.name, CHAT_AGENT.description, CHAT_AGENT.nodes, startId);
+    // System agents → global (no workspace)
+    await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes);
+    await this.findOrCreateSystemAgent(admin.id, 'chat-agent', CHAT_AGENT.name, CHAT_AGENT.description, CHAT_AGENT.nodes);
+    await this.findOrCreateSystemAgent(admin.id, 'agent-builder', AGENT_BUILDER.name, AGENT_BUILDER.description, AGENT_BUILDER.nodes);
 
     return { created: [] };
   }
@@ -110,22 +106,24 @@ export class SeedService {
     const created: string[] = [];
 
     // Seed workspaces first
-    const { startId } = await this.seedWorkspaces();
+    await this.seedWorkspaces();
 
-    // Update system agents (by systemName) → Start workspace
+    // Update system agents (by systemName); keep existing workspace, new ones → global
     const systemAgents = [
       { systemName: 'agent-creator', name: AGENT_CREATOR.name, desc: AGENT_CREATOR.description, nodes: AGENT_CREATOR.nodes },
       { systemName: 'chat-agent', name: CHAT_AGENT.name, desc: CHAT_AGENT.description, nodes: CHAT_AGENT.nodes },
+      { systemName: 'agent-builder', name: AGENT_BUILDER.name, desc: AGENT_BUILDER.description, nodes: AGENT_BUILDER.nodes },
     ];
 
     for (const { systemName, name, desc, nodes } of systemAgents) {
       const existing = await this.agentRepo.findBySystemName(systemName);
       if (existing) {
-        await this.agentRepo.update(existing.id, { name, description: desc, nodes, workspaceId: startId });
+        const mergedNodes = this.keepLlmSettings(nodes, existing.nodes);
+        await this.agentRepo.update(existing.id, { name, description: desc, nodes: mergedNodes });
         updated.push(name);
       }
       else {
-        await this.agentRepo.createSystemAgent({ userId: admin.id, name, description: desc, nodes, systemName, workspaceId: startId });
+        await this.agentRepo.createSystemAgent({ userId: admin.id, name, description: desc, nodes, systemName });
         created.push(name);
       }
     }
@@ -133,7 +131,27 @@ export class SeedService {
     return { updated, created };
   }
 
-  async getAllAgentIds(): Promise<{ name: string; id: string; systemName?: string }[]> {
+  /**
+   * Preserve provider/model chosen by the admin on existing LLM nodes (matched by node id)
+   */
+  private keepLlmSettings(nodes: WorkflowNode[], existingNodes: WorkflowNode[]): WorkflowNode[] {
+    const existingById = new Map(existingNodes.map((n) => [n.id, n]));
+    return nodes.map((node) => {
+      const prev = existingById.get(node.id);
+      if (node.type !== 'llm' || prev?.type !== 'llm') return node;
+      const { provider, model } = prev.data as { provider?: unknown; model?: unknown };
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          ...(provider !== undefined && { provider }),
+          ...(model !== undefined && { model }),
+        },
+      };
+    });
+  }
+
+  async getAllAgentIds():Promise<{ name: string; id: string; systemName?: string }[]> {
     const systemAgents = await this.agentRepo.findAllSystemAgents();
     const admin = await this.getAdminUser();
     const result: { name: string; id: string; systemName?: string }[] = [];

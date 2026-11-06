@@ -13,7 +13,7 @@ export interface ToolParameters {
  * Base tool definition for LLM function calling
  */
 export interface ToolDefinition {
-  type: 'agent' | 'builtin';
+  type: 'agent' | 'builtin' | 'client';
   agentId?: string; // Required for agent tools
   name: string;
   description: string;
@@ -33,4 +33,14 @@ export interface BuiltinToolDefinition extends Omit<ToolDefinition, 'type' | 'ag
 export interface AgentToolDefinition extends Omit<ToolDefinition, 'type' | 'agentId'> {
   type: 'agent';
   agentId: string;
+}
+
+/**
+ * Client tool definition - defined and executed by the caller (e.g. the UI editor).
+ * Sent per request, never stored on the agent. The run waits for the client to post the result.
+ */
+export interface ClientToolDefinition extends Omit<ToolDefinition, 'type' | 'agentId'> {
+  type: 'client';
+  /** LLM node ids that get this tool. Omitted = every LLM node of the agent */
+  nodeIds?: string[];
 }

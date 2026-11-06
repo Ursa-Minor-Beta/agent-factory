@@ -10,10 +10,13 @@ import type { IUserSecretRepository } from '../domain/interfaces/repositories/IU
 import type { IUserVariableRepository } from '../domain/interfaces/repositories/IUserVariableRepository.js';
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
 import type { Agent } from '../domain/entities/Agent.js';
-import type { Message } from '../domain/entities/Message.js';
+import type { Message, ToolCall } from '../domain/entities/Message.js';
+import type { Run } from '../domain/entities/Run.js';
+import type { ExecutedToolCall } from '../engine/nodes/llm/types.js';
 import { resolveRunOutput } from '../utils/node-ref.js';
 import type { ProviderConfig } from '../engine/nodes/base.js';
 import type { RunManager } from '../engine/worker/index.js';
+import type { ClientToolDefinition } from '../engine/tools/types.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
 import { UserVariableService } from './user-variable.service.js';
@@ -50,6 +53,8 @@ export interface ChatOptions {
   maxNotesLength?: number;
   /** Max workflow nodes executed in parallel (default: ENGINE_DEFAULT_PARALLEL_NODES) */
   maxParallelNodes?: number;
+  /** Tools executed by the client (UI) - streaming only */
+  clientTools?: ClientToolDefinition[];
 }
 
 export interface ChatResult {
@@ -232,6 +237,7 @@ export class SessionService {
         runId: run.id,
         role: 'assistant',
         content: responseText,
+        toolCalls: this.collectToolCalls(finalRun),
         files: fileRefs.length > 0 ? fileRefs : undefined,
       });
     }
@@ -315,6 +321,7 @@ export class SessionService {
       resolvedVariables,
       sessionContext,
       maxParallelNodes: options.maxParallelNodes,
+      clientTools: options.clientTools,
     });
 
     // Return context with finalize function
@@ -362,6 +369,7 @@ export class SessionService {
             runId: run.id,
             role: 'assistant',
             content: responseText,
+            toolCalls: this.collectToolCalls(finalRun),
             files: fileRefs.length > 0 ? fileRefs : undefined,
           });
         }
@@ -642,6 +650,23 @@ export class SessionService {
       messagesHistory,
       sessionNotes,
     };
+  }
+
+  /**
+   * Collect tool calls made by the run's top-level LLM nodes, in execution order.
+   * Sub-agent internals are not included - an agent tool shows up as a single call.
+   */
+  private collectToolCalls(run: Run): ToolCall[] | undefined {
+    const toolCalls = Object.values(run.nodeStates ?? {})
+      .filter((state) => state.nodeType === 'llm')
+      .sort((a, b) => (a.startedAt?.getTime() ?? 0) - (b.startedAt?.getTime() ?? 0))
+      .flatMap((state) => ((state.output as { toolCalls?: ExecutedToolCall[] } | null)?.toolCalls ?? []))
+      .map((tc) => ({
+        id: tc.id,
+        name: tc.name,
+        status: typeof tc.result === 'object' && tc.result !== null && 'error' in tc.result ? 'failed' as const : 'completed' as const,
+      }));
+    return toolCalls.length > 0 ? toolCalls : undefined;
   }
 
   /**

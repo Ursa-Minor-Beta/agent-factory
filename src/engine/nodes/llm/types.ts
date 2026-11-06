@@ -62,6 +62,7 @@ export type ProviderAdapter = (
  * Executed tool call record
  */
 export interface ExecutedToolCall {
+  id: string;
   name: string;
   input: Record<string, unknown>;
   result: unknown;

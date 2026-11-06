@@ -10,11 +10,13 @@ import { NODE_TYPES, type AgentQueryOptions } from '../domain/entities/Agent.js'
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import { validateWorkflow } from '../engine/graph.js';
 import { getNodeStatusText } from '../engine/nodes/definitions.js';
-import type { SubAgentNodeEvent } from '../engine/nodes/base.js';
+import type { SubAgentNodeEvent, ClientToolCall, ToolCallEvent } from '../engine/nodes/base.js';
+import type { ClientToolDefinition, ToolParameters } from '../engine/tools/types.js';
 import { AgentExecutionError } from '../utils/errors.js';
 import {
   CHAT_AGENT,
   AGENT_CREATOR,
+  AGENT_BUILDER,
 } from '../engine/agents/index.js';
 import { isOriginAllowed } from '../utils/cors.js';
 import * as agentExportService from '../domain/services/agent-export.service.js';
@@ -313,6 +315,7 @@ export async function agentRoutes(app: FastifyInstance) {
       data: [
         CHAT_AGENT,
         AGENT_CREATOR,
+        AGENT_BUILDER,
       ],
     });
   });
@@ -1003,6 +1006,20 @@ export async function agentRoutes(app: FastifyInstance) {
           sessionId: { type: 'string' },
           incognito: { type: 'boolean', default: false },
           maxParallelNodes: { type: 'integer', minimum: 1, maximum: 20, default: config.engine.defaultParallelNodes, description: 'Max workflow nodes executed in parallel (1 = sequential)' },
+          clientTools: {
+            type: 'array',
+            description: 'Tools executed by the client. Calls arrive as "client-tool-call" SSE events; answer via POST /api/runs/:id/tool-results. Added to the LLM nodes listed in nodeIds, or to every LLM node of this agent if omitted (never to sub-agents).',
+            items: {
+              type: 'object',
+              required: ['name', 'description', 'parameters'],
+              properties: {
+                name: { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,64}$' },
+                description: { type: 'string' },
+                parameters: { type: 'object', additionalProperties: true },
+                nodeIds: { type: 'array', items: { type: 'string' }, description: 'LLM node ids that get this tool. Omit for all LLM nodes' },
+              },
+            },
+          },
         },
       },
     },
@@ -1010,12 +1027,21 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id: agentId } = request.params as { id: string };
-    const { input, sessionId, incognito, maxParallelNodes } = request.body as {
+    const { input, sessionId, incognito, maxParallelNodes, clientTools: rawClientTools } = request.body as {
       input: Record<string, unknown>;
       sessionId?: string;
       incognito?: boolean;
       maxParallelNodes?: number;
+      clientTools?: Array<{ name: string; description: string; parameters: ToolParameters; nodeIds?: string[] }>;
     };
+    // Force type: client tools can never be turned into builtin/agent tools by the caller
+    const clientTools: ClientToolDefinition[] | undefined = rawClientTools?.map((t) => ({
+      type: 'client',
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+      nodeIds: t.nodeIds,
+    }));
 
     // Set SSE headers with CORS
     const requestOrigin = request.headers.origin;
@@ -1057,8 +1083,11 @@ export async function agentRoutes(app: FastifyInstance) {
     type NodeEventHandler = (e: { runId: string; nodeId: string; nodeType: string }) => void;
     type RunEventHandler = (e: { runId: string; error?: string }) => void;
     type SubAgentEventHandler = (e: { runId: string; event: SubAgentNodeEvent }) => void;
-    const listeners: Array<{ event: string; handler: NodeEventHandler | RunEventHandler | SubAgentEventHandler }> = [];
+    type ClientToolCallHandler = (e: { runId: string; call: ClientToolCall }) => void;
+    type ToolCallHandler = (e: { runId: string; event: ToolCallEvent }) => void;
+    const listeners: Array<{ event: string; handler: NodeEventHandler | RunEventHandler | SubAgentEventHandler | ClientToolCallHandler | ToolCallHandler }> = [];
     let cleanedUp = false;
+    let activeRunId: string | undefined;
 
     const cleanupAll = () => {
       if (cleanedUp) return;
@@ -1071,13 +1100,24 @@ export async function agentRoutes(app: FastifyInstance) {
     // Set up close handler early to ensure cleanup on disconnect
     request.raw.on('close', cleanupAll);
 
+    // Response 'close' fires on client disconnect (or after normal end, when cleanup already ran)
+    reply.raw.on('close', () => {
+      cleanupAll();
+      // Nobody can answer client tool calls anymore - stop the run instead of waiting for timeouts
+      if (activeRunId && clientTools?.length && container.runManager.isRunActive(activeRunId)) {
+        container.runManager.cancelRun(activeRunId).catch(() => {});
+      }
+    });
+
     try {
       // Start chat (returns immediately with runId)
       const ctx = await sessionService.chatStream(userId, agentId, input, {
         sessionId,
         incognito,
         maxParallelNodes,
+        clientTools,
       });
+      activeRunId = ctx.init.runId;
 
       // Send init event with runId
       sendEvent('init', ctx.init);
@@ -1123,6 +1163,13 @@ export async function agentRoutes(app: FastifyInstance) {
           statusText: getStatusText(event.nodeType, event.status),
           ...(event.error ? { error: event.error } : {}),
         });
+      };
+      const onClientToolCall: ClientToolCallHandler = (e) => {
+        if (e.runId === runId) sendEvent('client-tool-call', { runId, ...e.call });
+      };
+      const onToolCall: ToolCallHandler = ({ runId: rootRunId, event }) => {
+        if (rootRunId !== runId) return;
+        sendEvent('tool-call', { ...event, path: formatSubAgentPath(event.path) });
       };
 
       // Wait for run to complete
@@ -1181,6 +1228,8 @@ export async function agentRoutes(app: FastifyInstance) {
       container.runManager.on('node-failed', onNodeFailed);
       container.runManager.on('node-skipped', onNodeSkipped);
       container.runManager.on('subagent-node', onSubAgentNode);
+      container.runManager.on('client-tool-call', onClientToolCall);
+      container.runManager.on('tool-call', onToolCall);
       container.runManager.on('run-completed', onComplete);
       container.runManager.on('run-failed', onFail);
       container.runManager.on('run-cancelled', onCancel);
@@ -1191,6 +1240,8 @@ export async function agentRoutes(app: FastifyInstance) {
         { event: 'node-failed', handler: onNodeFailed },
         { event: 'node-skipped', handler: onNodeSkipped },
         { event: 'subagent-node', handler: onSubAgentNode },
+        { event: 'client-tool-call', handler: onClientToolCall },
+        { event: 'tool-call', handler: onToolCall },
         { event: 'run-completed', handler: onComplete },
         { event: 'run-failed', handler: onFail },
         { event: 'run-cancelled', handler: onCancel }

@@ -90,6 +90,35 @@ export const handleGetAgent: ToolHandler = async (args, options) => {
 };
 
 /**
+ * Handle list_agents tool
+ */
+export const handleListAgents: ToolHandler = async (args, options) => {
+  if (!options.agentRepo) {
+    throw new Error('list_agents tool requires agentRepo in options');
+  }
+  if (!options.userId) {
+    throw new Error('list_agents tool requires userId in options');
+  }
+
+  const name = args.name ? String(args.name) : undefined;
+  const limit = Math.min(Math.max(Number(args.limit ?? 50) || 50, 1), 200);
+  const workspaceId = args.workspaceId ? String(args.workspaceId) : undefined;
+
+  const { agents } = await options.agentRepo.findByUserId(options.userId, {
+    name,
+    limit,
+    workspaceId,
+    sortBy: 'updatedAt',
+    sortOrder: 'desc',
+  });
+
+  return {
+    success: true,
+    agents: agents.map((a) => ({ id: a.id, name: a.name, description: a.description, workspaceId: a.workspaceId ?? null })),
+  };
+};
+
+/**
  * Handle update_agent tool
  */
 export const handleUpdateAgent: ToolHandler = async (args, options) => {

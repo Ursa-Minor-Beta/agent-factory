@@ -10,6 +10,7 @@ import type { SubAgentNodeEvent } from './nodes/base.js';
 import { NodeExecutionError } from '../utils/errors.js';
 import { stripBase64ForStorage } from '../utils/file-extractor.js';
 import { substituteVariables } from './nodes/interpolate.js';
+import { resolveWorkspaceId } from './workspace-scope.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -198,7 +199,7 @@ export class WorkflowExecutor {
       fileRepo: options.fileRepo ?? this.fileRepo,
       callStack: options.callStack,
       userId: options.userId ?? userId,
-      workspaceId: agent.workspaceId, // For workspace-scoped resources
+      workspaceId: await resolveWorkspaceId(agent, input, options.userId ?? userId, options.agentRepo), // For workspace-scoped resources
       currentRunId: runId,
       sessionId: options.sessionId,
       messages: options.messages,
@@ -209,6 +210,7 @@ export class WorkflowExecutor {
       resolvedVariables: options.resolvedVariables,
       onSubAgentNodeEvent: options.onSubAgentNodeEvent,
       subAgentPath: options.subAgentPath,
+      onToolCallEvent: options.onToolCallEvent,
     };
 
     const emitNodeEvent = (nodeId: string, nodeType: string, status: SubAgentNodeEvent['status'], error?: string) => {

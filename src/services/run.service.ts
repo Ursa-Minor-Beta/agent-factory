@@ -110,6 +110,16 @@ export class RunService {
     return { run: updatedRun, cancelledChildRunIds };
   }
 
+  /**
+   * Deliver a client (UI) tool result to the run waiting on it.
+   * Returns false if the run is not active or the tool call is not pending.
+   */
+  async submitClientToolResult(userId: string, runId: string, toolCallId: string, result: unknown): Promise<boolean> {
+    // Verify ownership
+    await this.getById(userId, runId);
+    return this.runManager.submitClientToolResult(runId, toolCallId, result);
+  }
+
   async getById(userId: string, runId: string): Promise<Run> {
     const run = await this.runRepo.findById(runId);
     if (!run) {

@@ -40,24 +40,6 @@ export const LLM_NODE_DEFINITION: NodeDefinitionRaw = {
       description: 'User prompt. Supports {{node:id.path}} template syntax.',
     },
     {
-      name: 'temperature',
-      type: 'number',
-      description: 'Sampling temperature (0-2).',
-      default: DEFAULT_TEMPERATURE,
-    },
-    {
-      name: 'maxTokens',
-      type: 'number',
-      description: 'Maximum tokens in response.',
-      default: DEFAULT_MAX_TOKENS,
-    },
-    {
-      name: 'maxMessages',
-      type: 'number',
-      description: 'Maximum conversation history messages to include.',
-      default: DEFAULT_MAX_MESSAGES,
-    },
-    {
       name: 'tools',
       type: 'object',
       description: 'Array of tool definitions for function calling.',
@@ -74,6 +56,24 @@ export const LLM_NODE_DEFINITION: NodeDefinitionRaw = {
       description: 'How to execute multiple tool calls: parallel (all at once) or sequential (one by one).',
       values: ['parallel', 'sequential'],
       default: DEFAULT_TOOL_EXECUTION_MODE,
+    },
+    {
+      name: 'temperature',
+      type: 'number',
+      description: 'Sampling temperature (0-2).',
+      default: DEFAULT_TEMPERATURE,
+    },
+    {
+      name: 'maxTokens',
+      type: 'number',
+      description: 'Maximum tokens in response.',
+      default: DEFAULT_MAX_TOKENS,
+    },
+    {
+      name: 'maxMessages',
+      type: 'number',
+      description: 'Maximum conversation history messages to include.',
+      default: DEFAULT_MAX_MESSAGES,
     },
   ],
   features: [

@@ -2,7 +2,7 @@ import type { NodeDefinitionRaw } from './definition.types.js';
 
 export const BRANCH_NODE_DEFINITION: NodeDefinitionRaw = {
   type: 'branch',
-  description: 'Multi-way conditional branching with execution control. Only nodes in the active branch execute.',
+  description: 'Multi-way conditional branching with execution control. Only the active branch path executes.',
   statusText: 'Evaluating condition...',
   inputs: ['input'],
   outputs: ['activeBranch', '*'],
@@ -16,7 +16,7 @@ export const BRANCH_NODE_DEFINITION: NodeDefinitionRaw = {
       name: 'branches',
       type: 'object',
       required: true,
-      description: 'Array of branch definitions. Each has: name (string), condition (expression), nodes (array of node IDs to execute if active).',
+      description: 'Array of branch definitions. Each has: name (string), condition (expression), nodes (IDs of the first nodes of this branch, executed when it is active).',
     },
     {
       name: 'persistedFields',
@@ -27,7 +27,7 @@ export const BRANCH_NODE_DEFINITION: NodeDefinitionRaw = {
   ],
   features: [
     'Evaluates branches in order, activates first matching condition',
-    'Only nodes in active branch execute - others are skipped',
+    'List only the first node(s) of each branch in nodes - nodes of inactive branches are skipped, and nodes after them are skipped too',
     'Nodes not listed in any branch are skipped if ANY {{node:...}} dependency was skipped, unless another dependency comes from an active branch path (merge node)',
     'Each branch outputs input value if active, null if inactive',
     'Outputs activeBranch name for reference',
@@ -44,17 +44,17 @@ export const BRANCH_NODE_DEFINITION: NodeDefinitionRaw = {
           {
             name: 'high',
             condition: 'input >= 90',
-            nodes: ['llm-high', 'format-high'],
+            nodes: ['llm-high'],
           },
           {
             name: 'pass',
             condition: 'input >= 60',
-            nodes: ['llm-pass', 'format-pass'],
+            nodes: ['llm-pass'],
           },
           {
             name: 'fail',
             condition: 'true',
-            nodes: ['llm-fail', 'format-fail'],
+            nodes: ['llm-fail'],
           },
         ],
       },
@@ -75,7 +75,7 @@ export const BRANCH_NODE_DEFINITION: NodeDefinitionRaw = {
           {
             name: 'error',
             condition: 'true',
-            nodes: ['handle-error', 'log-error'],
+            nodes: ['handle-error'],
           },
         ],
       },

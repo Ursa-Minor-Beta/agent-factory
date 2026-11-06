@@ -47,8 +47,7 @@ const messageSchema = {
         properties: {
           id: { type: 'string' },
           name: { type: 'string' },
-          arguments: {},
-          result: {},
+          status: { type: 'string', enum: ['completed', 'failed'] },
         },
       },
       nullable: true,

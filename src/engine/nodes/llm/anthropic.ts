@@ -3,8 +3,6 @@ import type { ChatMessage, ExecutionOptions, ResolvedProvider } from '../base.js
 import type { ToolDefinition } from '../../tools/index.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import { extractImagesFromText } from '../../../utils/file-extractor.js';
-import { executeBuiltinTool } from './builtin-tools/index.js';
-import { executeSubAgent } from './sub-agent.js';
 import type { LLMNodeData, ProviderCallResult, ExecutedToolCall } from './types.js';
 import {
   DEFAULT_ANTHROPIC_MODEL,
@@ -12,7 +10,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { buildToolErrorSummary, resolveTools } from './utils.js';
+import { buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
 
 type ToolCallResult = {
@@ -41,9 +39,9 @@ async function executeSingleToolCall(
   }
 
   try {
-    const result = toolDef.type === 'builtin'
-      ? await executeBuiltinTool(toolUse.name, toolUse.input as Record<string, unknown>, options)
-      : await executeSubAgent(toolDef.agentId!, toolUse.input as Record<string, unknown>, options, nodeId, toolUse.name);
+    const result = toolDef.type === 'client'
+      ? await executeClientTool(toolUse.id, toolUse.name, toolUse.input as Record<string, unknown>, options)
+      : await executeServerTool(toolUse.id, toolDef, toolUse.input as Record<string, unknown>, options, nodeId);
 
     return { toolUseId: toolUse.id, name: toolUse.name, result };
   }
@@ -156,7 +154,7 @@ export async function callAnthropic(
   });
 
   // Resolve builtin tools to get their full definitions (with parameters)
-  const resolvedTools = resolveTools(data.tools);
+  const resolvedTools = resolveTools(data.tools, options.clientTools, nodeId);
 
   // Convert tools to Anthropic format
   const anthropicTools: Anthropic.Tool[] | undefined = resolvedTools?.map((tool) => ({
@@ -238,7 +236,7 @@ export async function callAnthropic(
       // Execute tools one by one
       for (const toolUse of toolUses) {
         const callResult = await executeSingleToolCall(toolUse, toolMap, options, nodeId);
-        executedToolCalls.push({ name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
+        executedToolCalls.push({ id: toolUse.id, name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
         toolResults.push({
           type: 'tool_result',
           tool_use_id: callResult.toolUseId,
@@ -255,7 +253,7 @@ export async function callAnthropic(
       for (let i = 0; i < toolUses.length; i++) {
         const toolUse = toolUses[i]!;
         const callResult = callResults[i]!;
-        executedToolCalls.push({ name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
+        executedToolCalls.push({ id: toolUse.id, name: callResult.name, input: toolUse.input as Record<string, unknown>, result: callResult.result });
         toolResults.push({
           type: 'tool_result',
           tool_use_id: callResult.toolUseId,
