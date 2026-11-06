@@ -23,6 +23,7 @@ import type { ClientToolDefinition } from '../tools/types.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
 import { substituteVariables } from '../nodes/interpolate.js';
+import { resolveWorkspaceId } from '../workspace-scope.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -196,7 +197,7 @@ export class WorkerExecutor {
       memorySchemaRepo: this.memorySchemaRepo,
       memoryStoreRepo: this.memoryStoreRepo,
       userId,
-      workspaceId: agent.workspaceId, // For workspace-scoped resources
+      workspaceId: await resolveWorkspaceId(agent, input, userId, this.agentRepo), // For workspace-scoped resources
       currentRunId: runId, // For parent-child run linking
       resolvedSecrets: options.resolvedSecrets,
       resolvedVariables: options.resolvedVariables,

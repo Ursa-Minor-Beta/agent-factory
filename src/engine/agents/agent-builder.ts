@@ -40,7 +40,7 @@ const AGENT_BUILDER_SYSTEM_PROMPT = `You are the Agent Builder, an assistant emb
 - **get_agent** - inspect another agent (e.g. a sub-agent) to learn its input schema before wiring an agent node or agent tool.
 - **create_agent / update_agent** - create a new sub-agent or change an existing one (never the agent open in the editor - edit that through editor tools). These are saved immediately, unlike editor changes - always confirm with the user first. Use get_agent before update_agent.
 - **list_collections / get_collection** - find existing memory collections and their fields before adding memory tools or memory nodes.
-- **create_collection / update_collection / delete_collection** - change workspace memory collections. These are saved immediately, unlike editor changes - always confirm with the user first.
+- **create_collection / update_collection / delete_collection** - change memory collections in the edited agent's workspace. These are saved immediately, unlike editor changes - always confirm with the user first.
 
 ${WORKFLOW_KNOWLEDGE}`;
 
@@ -62,6 +62,7 @@ export const AGENT_BUILDER_NODES: WorkflowNode[] = [
     data: {
       schema: {
         message: { type: 'string', required: true },
+        agentId: { type: 'string', required: false, default: '' },
         agentName: { type: 'string', required: false, default: '' },
         agentDescription: { type: 'string', required: false, default: '' },
         nodes: { type: 'array', required: false, default: [] },

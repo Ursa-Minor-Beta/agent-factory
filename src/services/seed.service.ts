@@ -20,22 +20,17 @@ export class SeedService {
   }
 
   /**
-   * Find by systemName or create system agent
+   * Find by systemName or create system agent (new ones are global, existing keep their workspace)
    */
   private async findOrCreateSystemAgent(
     adminId: string,
     systemName: string,
     name: string,
     description: string,
-    nodes: WorkflowNode[],
-    workspaceId?: string
+    nodes: WorkflowNode[]
   ): Promise<string> {
     const existing = await this.agentRepo.findBySystemName(systemName);
     if (existing) {
-      // Update workspace if provided
-      if (workspaceId && existing.workspaceId !== workspaceId) {
-        await this.agentRepo.update(existing.id, { workspaceId });
-      }
       return existing.id;
     }
     const agent = await this.agentRepo.createSystemAgent({
@@ -44,7 +39,6 @@ export class SeedService {
       description,
       nodes,
       systemName,
-      workspaceId,
     });
     return agent.id;
   }
@@ -92,12 +86,12 @@ export class SeedService {
     }
 
     // Seed workspaces first
-    const { startId } = await this.seedWorkspaces();
+    await this.seedWorkspaces();
 
-    // System agents → Start workspace
-    await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes, startId);
-    await this.findOrCreateSystemAgent(admin.id, 'chat-agent', CHAT_AGENT.name, CHAT_AGENT.description, CHAT_AGENT.nodes, startId);
-    await this.findOrCreateSystemAgent(admin.id, 'agent-builder', AGENT_BUILDER.name, AGENT_BUILDER.description, AGENT_BUILDER.nodes, startId);
+    // System agents → global (no workspace)
+    await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes);
+    await this.findOrCreateSystemAgent(admin.id, 'chat-agent', CHAT_AGENT.name, CHAT_AGENT.description, CHAT_AGENT.nodes);
+    await this.findOrCreateSystemAgent(admin.id, 'agent-builder', AGENT_BUILDER.name, AGENT_BUILDER.description, AGENT_BUILDER.nodes);
 
     return { created: [] };
   }
@@ -112,9 +106,9 @@ export class SeedService {
     const created: string[] = [];
 
     // Seed workspaces first
-    const { startId } = await this.seedWorkspaces();
+    await this.seedWorkspaces();
 
-    // Update system agents (by systemName) → Start workspace
+    // Update system agents (by systemName); keep existing workspace, new ones → global
     const systemAgents = [
       { systemName: 'agent-creator', name: AGENT_CREATOR.name, desc: AGENT_CREATOR.description, nodes: AGENT_CREATOR.nodes },
       { systemName: 'chat-agent', name: CHAT_AGENT.name, desc: CHAT_AGENT.description, nodes: CHAT_AGENT.nodes },
@@ -125,11 +119,11 @@ export class SeedService {
       const existing = await this.agentRepo.findBySystemName(systemName);
       if (existing) {
         const mergedNodes = this.keepLlmSettings(nodes, existing.nodes);
-        await this.agentRepo.update(existing.id, { name, description: desc, nodes: mergedNodes, workspaceId: startId });
+        await this.agentRepo.update(existing.id, { name, description: desc, nodes: mergedNodes });
         updated.push(name);
       }
       else {
-        await this.agentRepo.createSystemAgent({ userId: admin.id, name, description: desc, nodes, systemName, workspaceId: startId });
+        await this.agentRepo.createSystemAgent({ userId: admin.id, name, description: desc, nodes, systemName });
         created.push(name);
       }
     }
