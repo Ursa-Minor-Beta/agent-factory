@@ -14,6 +14,7 @@ export type {
 // Export built-in tools
 export { CREATE_AGENT_TOOL } from './create-agent.js';
 export { GET_AGENT_TOOL } from './get-agent.js';
+export { LIST_AGENTS_TOOL } from './list-agents.js';
 export { UPDATE_AGENT_TOOL } from './update-agent.js';
 export {
   UPDATE_SESSION_NOTES_TOOL,
@@ -40,6 +41,7 @@ export {
 
 import { CREATE_AGENT_TOOL } from './create-agent.js';
 import { GET_AGENT_TOOL } from './get-agent.js';
+import { LIST_AGENTS_TOOL } from './list-agents.js';
 import { UPDATE_AGENT_TOOL } from './update-agent.js';
 import {
   UPDATE_SESSION_NOTES_TOOL,
@@ -66,6 +68,7 @@ import type { BuiltinToolDefinition } from './types.js';
 export const BUILTIN_TOOLS: Record<string, BuiltinToolDefinition> = {
   create_agent: CREATE_AGENT_TOOL,
   get_agent: GET_AGENT_TOOL,
+  list_agents: LIST_AGENTS_TOOL,
   update_agent: UPDATE_AGENT_TOOL,
   update_session_notes: UPDATE_SESSION_NOTES_TOOL,
   append_session_notes: APPEND_SESSION_NOTES_TOOL,

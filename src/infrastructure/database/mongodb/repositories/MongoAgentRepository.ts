@@ -214,6 +214,7 @@ export class MongoAgentRepository implements IAgentRepository {
       {
         $project: {
           nodes: 0,
+          editorData: 0
         },
       },
       {

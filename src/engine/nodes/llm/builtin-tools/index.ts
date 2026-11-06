@@ -10,6 +10,7 @@ import type { ToolHandler } from './types.js';
 import {
   handleCreateAgent,
   handleGetAgent,
+  handleListAgents,
   handleUpdateAgent,
 } from './agents.js';
 
@@ -40,6 +41,7 @@ const builtinToolHandlers: Record<string, ToolHandler> = {
   // Agent tools
   create_agent: handleCreateAgent,
   get_agent: handleGetAgent,
+  list_agents: handleListAgents,
   update_agent: handleUpdateAgent,
 
   // Session notes tools
