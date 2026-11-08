@@ -131,7 +131,7 @@ The chat UI renders HTML in a sandboxed iframe (scripts allowed, no same-origin 
       "type": "js",
       "data": {
         "input": "{{node:http-1.response}}",
-        "code": "const rows = input.data; const max = Math.max(...rows.map(r => r.value)); const bars = rows.map((r, i) => '<rect x=\\"' + (i * 50 + 10) + '\\" y=\\"' + (200 - r.value / max * 180) + '\\" width=\\"40\\" height=\\"' + (r.value / max * 180) + '\\" fill=\\"#4f46e5\\"/><text x=\\"' + (i * 50 + 30) + '\\" y=\\"215\\" font-size=\\"11\\" text-anchor=\\"middle\\">' + r.label + '</text>').join(''); return '<!doctype html><html><body style=\\"font-family:system-ui;margin:16px;background:#fff;color:#111\\"><h3>Stats</h3><svg width=\\"' + (rows.length * 50 + 20) + '\\" height=\\"230\\">' + bars + '</svg></body></html>';"
+        "code": "const rows = input.data;\\nconst max = Math.max(...rows.map((r) => r.value));\\n\\nconst bars = rows.map((r, i) => {\\n  const x = i * 50 + 10;\\n  const h = (r.value / max) * 180;\\n  return (\\n    '<rect x=\\"' + x + '\\" y=\\"' + (200 - h) + '\\" width=\\"40\\" height=\\"' + h + '\\" fill=\\"#4f46e5\\"/>' +\\n    '<text x=\\"' + (x + 20) + '\\" y=\\"215\\" font-size=\\"11\\" text-anchor=\\"middle\\">' + r.label + '</text>'\\n  );\\n}).join('');\\n\\nreturn (\\n  '<!doctype html><html>' +\\n  '<body style=\\"font-family:system-ui;margin:16px;background:#fff;color:#111\\">' +\\n  '<h3>Stats</h3>' +\\n  '<svg width=\\"' + (rows.length * 50 + 20) + '\\" height=\\"230\\">' + bars + '</svg>' +\\n  '</body></html>'\\n);"
       }
     },
     { "id": "output", "type": "output", "data": { "result": "{{node:js-1.output}}" } }
@@ -209,6 +209,9 @@ Branch node details:
   - \`activeBranch\`: Name of the matched branch
   - \`<branchName>\`: The input value if that branch is active, null otherwise
 - Nodes not listed in any branch are skipped if any of their \`{{node:...}}\` dependencies were skipped, unless another dependency comes from the active path (merge node).
+
+### JS Node Code Style
+Write \`code\` as readable, multi-line JavaScript — never cram it onto one line. Use \`\\n\` for line breaks inside the JSON string, one statement per line, braces for blocks (\`if\`, loops, multi-statement arrow functions), 2-space indentation, and blank lines between logical steps. Split long string concatenations across lines.
 
 ### JS Node Input
 When a JS node needs more than one value, pass them as a JSON object and destructure in code. Values keep their types (arrays/objects stay structured, strings are quoted for you), so no manual parsing is needed:
