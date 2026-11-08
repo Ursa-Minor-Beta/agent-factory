@@ -115,7 +115,7 @@ On startup, the server creates:
 
 | Type | Description |
 |------|-------------|
-| `input` | Workflow entry point with schema |
+| `input` | Workflow entry point with schema (field types: `string`, `number`, `boolean`, `enum` with predefined `options`) |
 | `output` | Workflow exit point |
 | `llm` | LLM call (OpenAI, Anthropic, Ollama) |
 | `http` | HTTP/API requests with SSE streaming support |

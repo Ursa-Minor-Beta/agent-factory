@@ -18,12 +18,17 @@ export class InputNode extends BaseNode {
     const outputs: Record<string, unknown> = {};
 
     // Get schema from node data to know which fields to extract
-    const schema = (node.data.schema as Record<string, { type?: string; required?: boolean; default?: unknown }>) ?? {};
+    const schema = (node.data.schema as Record<string, { type?: string; required?: boolean; default?: unknown; options?: string[] }>) ?? {};
 
     for (const [fieldName, fieldDef] of Object.entries(schema)) {
       const inputValue = options.workflowInput[fieldName];
       // Use default value if input is undefined and default is defined
-      outputs[fieldName] = inputValue !== undefined ? inputValue : fieldDef?.default;
+      const value = inputValue !== undefined ? inputValue : fieldDef?.default;
+      // Enum fields only accept one of their predefined options
+      if (fieldDef?.type === 'enum' && value !== undefined && !(fieldDef.options ?? []).includes(value as string)) {
+        throw new Error(`Invalid value for input "${fieldName}": expected one of ${(fieldDef.options ?? []).join(', ')}`);
+      }
+      outputs[fieldName] = value;
     }
 
     // Also pass the entire input as 'value' for simple workflows

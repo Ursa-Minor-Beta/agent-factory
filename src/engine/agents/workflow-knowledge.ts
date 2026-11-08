@@ -80,6 +80,67 @@ Supported providers are only: ${LLM_PROVIDER_TYPES.map((p) => `\`${p}\``).join('
 }
 \`\`\`
 
+### Predefined Requests (Enum Input)
+For simple agents with a fixed set of requests, use an \`enum\` input field. The user picks one of \`options\` from a dropdown instead of typing; the value is a string and must be one of the options.
+\`\`\`json
+{
+  "nodes": [
+    { "id": "input", "type": "input", "data": { "schema": { "request": { "type": "enum", "options": ["Summarize today", "List open tasks", "Weekly report"], "default": "Summarize today" } } } },
+    { "id": "llm-1", "type": "llm", "data": { "provider": "openai", "model": "gpt-4o", "userPrompt": "{{node:input.request}}" } },
+    { "id": "output", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
+  ]
+}
+\`\`\`
+
+### HTML / Graphic Output
+The chat UI renders HTML in a sandboxed iframe (scripts allowed, no same-origin access) when the output **starts with** \`<!doctype html>\` or \`<html\` (case-insensitive, leading whitespace ignored). Otherwise, the **first** \`\`\`html code block (fence followed by a newline, content starting with \`<!doctype\` or \`<html\`) gets a "Render HTML" button. Use this for charts, dashboards, cards and reports. Rules:
+- Output a complete self-contained document; inline CSS/JS, or load libraries from a CDN (e.g. \`https://cdn.jsdelivr.net/npm/chart.js@4.4.1\`)
+- For direct rendering the output must be the HTML alone - any text before \`<!doctype html>\` makes it plain markdown
+- Set an explicit \`body\` background and text color (the frame is transparent over a dark UI)
+- Make the layout responsive (the frame is about half the screen wide, fixed height ~70vh, scrolls inside)
+- Don't use cookies, localStorage (it throws), the parent page or authenticated API requests
+
+**LLM-generated chart** - the LLM writes the page from data:
+\`\`\`json
+{
+  "nodes": [
+    { "id": "input", "type": "input", "data": { "schema": { "message": { "type": "string" } } } },
+    {
+      "id": "llm-1",
+      "type": "llm",
+      "data": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "systemPrompt": "Answer ONLY with a complete HTML document starting with <!doctype html>. No markdown, no code fences, no text outside the HTML. Visualize data with Chart.js from https://cdn.jsdelivr.net/npm/chart.js@4.4.1 . Use a clean card layout, system fonts, responsive width, and set an explicit body background and text color.",
+        "userPrompt": "{{node:input.message}}"
+      }
+    },
+    { "id": "output", "type": "output", "data": { "response": "{{node:llm-1.response}}" } }
+  ]
+}
+\`\`\`
+
+**Deterministic chart from data** - a JS node builds an SVG bar chart (no LLM, exact numbers):
+\`\`\`json
+{
+  "nodes": [
+    { "id": "input", "type": "input", "data": { "schema": { "query": { "type": "string" } } } },
+    { "id": "http-1", "type": "http", "data": { "url": "https://api.example.com/stats?q={{node:input.query}}" } },
+    {
+      "id": "js-1",
+      "type": "js",
+      "data": {
+        "input": "{{node:http-1.response}}",
+        "code": "const rows = input.data; const max = Math.max(...rows.map(r => r.value)); const bars = rows.map((r, i) => '<rect x=\\"' + (i * 50 + 10) + '\\" y=\\"' + (200 - r.value / max * 180) + '\\" width=\\"40\\" height=\\"' + (r.value / max * 180) + '\\" fill=\\"#4f46e5\\"/><text x=\\"' + (i * 50 + 30) + '\\" y=\\"215\\" font-size=\\"11\\" text-anchor=\\"middle\\">' + r.label + '</text>').join(''); return '<!doctype html><html><body style=\\"font-family:system-ui;margin:16px;background:#fff;color:#111\\"><h3>Stats</h3><svg width=\\"' + (rows.length * 50 + 20) + '\\" height=\\"230\\">' + bars + '</svg></body></html>';"
+      }
+    },
+    { "id": "output", "type": "output", "data": { "result": "{{node:js-1.output}}" } }
+  ]
+}
+\`\`\`
+
+To mix text and a visual in one reply, have the LLM write the explanation followed by a \`\`\`html block containing a full \`<!doctype html>\` document.
+
 ### API Integration Agent
 \`\`\`json
 {

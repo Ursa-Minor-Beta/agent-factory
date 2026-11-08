@@ -38,7 +38,7 @@ export class MongoSessionRepository implements ISessionRepository {
 
     const docs = await SessionModel.aggregate([
       { $match: match },
-      { $sort: { createdAt: -1 } },
+      { $sort: { updatedAt: -1 } },
       { $skip: options?.offset ?? 0 },
       { $limit: options?.limit ?? 50 },
       {

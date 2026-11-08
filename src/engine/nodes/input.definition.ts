@@ -11,7 +11,8 @@ export const INPUT_NODE_DEFINITION: NodeDefinitionRaw = {
       name: 'schema',
       type: 'object',
       required: true,
-      description: 'Input field definitions. Keys are field names, values define type, required, and default.',
+      description:
+        'Input field definitions. Keys are field names, values define type (string, number, boolean, enum), required, and default. Enum fields also define options (string[]) and are shown as a dropdown.',
     },
   ],
   examples: [
@@ -36,6 +37,17 @@ export const INPUT_NODE_DEFINITION: NodeDefinitionRaw = {
           query: { type: 'string', required: true },
           maxResults: { type: 'number', required: false, default: 10 },
           includeMetadata: { type: 'boolean', required: false, default: false },
+        },
+      },
+    },
+    {
+      name: 'Predefined requests (enum)',
+      description: 'Dropdown of predefined values for simple agents',
+      id: 'input-3',
+      type: 'input',
+      data: {
+        schema: {
+          request: { type: 'enum', options: ['Summarize today', 'List open tasks', 'Weekly report'], required: true },
         },
       },
     },
