@@ -11,7 +11,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
   options: [
     {
       name: 'input',
-      type: 'string',
+      type: 'object',
       description: 'Template for input value. Supports {{node:id.path}} syntax.',
     },
     {
