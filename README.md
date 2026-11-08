@@ -12,7 +12,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 
 - **Node Graph Workflows** - Define agents as connected nodes
 - **Composable Agents** - Agents can call other agents as sub-workflows or llm-tools
-- **Multi-Provider LLM** - OpenAI, Anthropic, Ollama
+- **Multi-Provider LLM** - Anthropic, OpenAI, Ollama, DeepSeek, Groq, Mistral, OpenRouter, Together AI, xAI, plus any OpenAI-compatible endpoint (vLLM, LM Studio, LiteLLM, ...) via custom `baseUrl`
 - **Agent Creator** - System agent that builds custom agents through conversation
 - **Memory System** - Persistent storage with collections, schemas, and CRUD operations
 - **Builtin Tools** - LLM function calling for agents, memory, collections, and session notes
@@ -23,7 +23,8 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Multi-User** - JWT auth + API keys
 - **Workspaces** - Organize agents, secrets, collections, and providers into isolated workspaces
 - **Streaming Chat** - Real-time streaming status
-- **Encrypted Secrets** - Provider API keys encrypted at rest (AES-256-GCM)
+- **Encrypted Secrets** - Provider API keys and secrets encrypted at rest (AES-256-GCM), referenced in nodes as `{{secret:KEY}}`
+- **Variables** - Plain-text, user-defined values (global or per workspace) usable in any node input as `{{var:KEY}}`
 - **File Storage** - Built-in file storage for agent artifacts
 - **Export/Import** - Export agents to JSON, import from file
 - **GitHub Sync** - Link agents to GitHub repos with push/pull support
@@ -130,7 +131,7 @@ Get full node documentation: `GET /api/nodes`
 
 ## Workspace Scoping
 
-Workspaces provide isolation for organizing resources. Secrets, collections (memory schemas), and provider configurations can be scoped to a workspace or kept global.
+Workspaces provide isolation for organizing resources. Secrets, variables, collections (memory schemas), and provider configurations can be scoped to a workspace or kept global.
 
 ### Scope Resolution
 

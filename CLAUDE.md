@@ -116,3 +116,7 @@ builtin-tools/
 ```
 
 Each domain file exports its handlers, and `index.ts` combines them into a unified registry.
+
+## Documentation
+
+When adding or changing a user-facing feature (new node type, builtin tool, provider, interpolation syntax, scoped resource, etc.), update the `README.md` Features section (and related sections like Workspace Scoping / Node Types) in the same change.

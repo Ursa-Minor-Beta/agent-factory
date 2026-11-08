@@ -215,7 +215,8 @@ export async function agentRoutes(app: FastifyInstance) {
       id: query.id,
       name: query.name,
       description: query.description,
-      workspaceId: query.workspaceId !== undefined ? query.workspaceId : undefined,
+      // 'null' = agents not assigned to any workspace (same convention as secrets/variables)
+      workspaceId: query.workspaceId === 'null' ? null : query.workspaceId,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       skip: query.skip,
