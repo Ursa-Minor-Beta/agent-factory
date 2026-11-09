@@ -243,7 +243,7 @@ return {
 When a JS node needs more than one value, pass them as a JSON object and destructure in code. Values keep their types (arrays/objects stay structured, strings are quoted for you), so no manual parsing is needed:
 \`\`\`json
 { "id": "js-2", "type": "js", "data": {
-  "input": "{ \\"date\\": {{node:js-1.output.date}}, \\"records\\": {{node:memory-search-1.records}} }",
+  "input": { "date": "{{node:js-1.output.date}}", "records": "{{node:memory-search-1.records}}" },
   "code": "const { date, records } = input;\\nreturn { period: date.slice(0, 7), count: records.length };"
 } }
 \`\`\`
