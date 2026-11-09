@@ -227,6 +227,17 @@ const curStatus = stored.application && stored.application.status
                       ? stored.application.status
                       : 'draft';
 \`\`\`
+Write object literals with more than one property as one property per line, including nested objects:
+\`\`\`js
+return {
+  keywords: top,
+  update: {
+    person: String(input.person || ''),
+    keywords: top,
+    keywordsHash: check.hash || ''
+  }
+};
+\`\`\`
 
 ### JS Node Input
 When a JS node needs more than one value, pass them as a JSON object and destructure in code. Values keep their types (arrays/objects stay structured, strings are quoted for you), so no manual parsing is needed:
