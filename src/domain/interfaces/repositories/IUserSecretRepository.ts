@@ -7,6 +7,8 @@ import type {
 export interface UserSecretQueryOptions {
   /** Filter by workspace: undefined = all, null = global only, "<id>" = workspace only */
   workspaceId?: string | null;
+  sortBy?: 'name' | 'createdAt' | 'updatedAt';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface IUserSecretRepository {

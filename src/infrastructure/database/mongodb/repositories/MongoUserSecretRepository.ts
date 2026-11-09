@@ -55,8 +55,12 @@ export class MongoUserSecretRepository implements IUserSecretRepository {
     }
     // If workspaceId is undefined, return all (no filter)
 
+    const sortField = options?.sortBy ?? 'updatedAt';
+    const sortDirection = options?.sortOrder === 'asc' ? 1 : -1;
+
     const docs = await UserSecretModel.aggregate<UserSecretWithWorkspace>([
       { $match: matchStage },
+      { $sort: { [sortField]: sortDirection, _id: sortDirection } },
       {
         $lookup: {
           from: 'workspaces',

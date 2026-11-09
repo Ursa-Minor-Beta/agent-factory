@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { UserSecretService } from '../services/user-secret.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
+import type { UserSecretQueryOptions } from '../domain/interfaces/repositories/IUserSecretRepository.js';
 
 // Mask secret value for responses (only show first 4 chars)
 function maskValue(value: string): string {
@@ -54,6 +55,8 @@ export async function secretRoutes(app: FastifyInstance) {
             type: 'string',
             description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
           },
+          sortBy: { type: 'string', enum: ['name', 'createdAt', 'updatedAt'], default: 'updatedAt' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
         },
       },
       response: {
@@ -70,9 +73,16 @@ export async function secretRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const query = request.query as { workspaceId?: string };
+    const query = request.query as {
+      workspaceId?: string;
+      sortBy?: 'name' | 'createdAt' | 'updatedAt';
+      sortOrder?: 'asc' | 'desc';
+    };
 
-    const options: { workspaceId?: string | null } = {};
+    const options: UserSecretQueryOptions = {
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+    };
     if (query.workspaceId === 'null') {
       options.workspaceId = null;
     }
