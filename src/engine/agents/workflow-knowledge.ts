@@ -212,6 +212,21 @@ Branch node details:
 
 ### JS Node Code Style
 Write \`code\` as readable, multi-line JavaScript — never cram it onto one line. Use \`\\n\` for line breaks inside the JSON string, one statement per line, braces for blocks (\`if\`, loops, multi-statement arrow functions), 2-space indentation, and blank lines between logical steps. Split long string concatenations across lines.
+Put \`else\` / \`else if\` / \`catch\` / \`finally\` on a new line after the closing brace — never \`} else {\` on one line:
+\`\`\`js
+if (r.analysed) {
+  lines.push('Match ' + r.score);
+}
+else if (r.reason === 'noresume') {
+  lines.push('Not scored: no stored resume');
+}
+\`\`\`
+Break ternaries with a non-trivial condition across lines, with \`?\` and \`:\` each starting an indented line:
+\`\`\`js
+const curStatus = stored.application && stored.application.status
+                      ? stored.application.status
+                      : 'draft';
+\`\`\`
 
 ### JS Node Input
 When a JS node needs more than one value, pass them as a JSON object and destructure in code. Values keep their types (arrays/objects stay structured, strings are quoted for you), so no manual parsing is needed:
