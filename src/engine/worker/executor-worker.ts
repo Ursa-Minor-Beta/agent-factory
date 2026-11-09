@@ -14,6 +14,10 @@ import { MongoMessageRepository } from '../../infrastructure/database/mongodb/re
 import { MongoSessionRepository } from '../../infrastructure/database/mongodb/repositories/MongoSessionRepository.js';
 import { MongoMemorySchemaRepository } from '../../infrastructure/database/mongodb/repositories/MongoMemorySchemaRepository.js';
 import { MongoMemoryStoreRepository } from '../../infrastructure/database/mongodb/repositories/MongoMemoryStoreRepository.js';
+import { MongoUserSecretRepository } from '../../infrastructure/database/mongodb/repositories/MongoUserSecretRepository.js';
+import { MongoUserVariableRepository } from '../../infrastructure/database/mongodb/repositories/MongoUserVariableRepository.js';
+import { UserSecretService } from '../../services/user-secret.service.js';
+import { UserVariableService } from '../../services/user-variable.service.js';
 
 let shouldStop = false;
 let currentExecutor: WorkerExecutor | null = null;
@@ -83,6 +87,8 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
     const sessionRepo = new MongoSessionRepository();
     const memorySchemaRepo = new MongoMemorySchemaRepository();
     const memoryStoreRepo = new MongoMemoryStoreRepository();
+    const userSecretService = new UserSecretService(new MongoUserSecretRepository());
+    const userVariableService = new UserVariableService(new MongoUserVariableRepository());
 
     // Create executor with callbacks
     currentExecutor = new WorkerExecutor(runRepo, fileRepo, agentRepo, messageRepo, memorySchemaRepo, memoryStoreRepo, {
@@ -128,6 +134,11 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
         providers: config.providers,
         resolvedSecrets: config.resolvedSecrets,
         resolvedVariables: config.resolvedVariables,
+        // Sub-agents in another workspace get that workspace's secrets/variables (workspace-scoped takes precedence)
+        resolveScope: async (userId, workspaceId) => ({
+          secrets: await userSecretService.buildSecretsMap(userId, workspaceId),
+          variables: await userVariableService.buildVariablesMap(userId, workspaceId),
+        }),
         sessionContext,
         maxParallelNodes: config.maxParallelNodes,
         clientTools: config.clientTools,

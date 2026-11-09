@@ -114,6 +114,8 @@ export class AgentNode extends BaseNode {
           userId: options.userId,
           resolvedSecrets: options.resolvedSecrets,
           resolvedVariables: options.resolvedVariables,
+          scopeWorkspaceId: options.scopeWorkspaceId,
+          resolveScope: options.resolveScope,
           sessionId: options.sessionId,
           messages: options.messages,
           sessionNotes: options.sessionNotes,

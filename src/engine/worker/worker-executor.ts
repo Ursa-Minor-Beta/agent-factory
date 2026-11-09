@@ -18,7 +18,7 @@ import { ExecutionContext } from '../context.js';
 import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from '../graph.js';
 import { runNodesConcurrently } from '../scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
-import type { SubAgentNodeEvent, ClientToolCall, ToolCallEvent } from '../nodes/base.js';
+import type { SubAgentNodeEvent, ClientToolCall, ToolCallEvent, ResolvedScope } from '../nodes/base.js';
 import type { ClientToolDefinition } from '../tools/types.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
@@ -94,6 +94,8 @@ export interface WorkerExecutorOptions {
   providers: ProviderConfig;
   resolvedSecrets?: Record<string, string>;
   resolvedVariables?: Record<string, string>;
+  /** Rebuilds secrets/variables for sub-agents in another workspace */
+  resolveScope?: (userId: string, workspaceId?: string) => Promise<ResolvedScope>;
   /** Session context for chat-based execution */
   sessionContext?: SessionContext;
   /** Max workflow nodes executed in parallel */
@@ -201,6 +203,8 @@ export class WorkerExecutor {
       currentRunId: runId, // For parent-child run linking
       resolvedSecrets: options.resolvedSecrets,
       resolvedVariables: options.resolvedVariables,
+      scopeWorkspaceId: agent.workspaceId, // Services pre-resolve secrets/variables for agent.workspaceId
+      resolveScope: options.resolveScope,
       callStack: new Set([agent.id]), // Initialize call stack with current agent
       sessionId: options.sessionContext?.sessionId,
       messages: options.sessionContext?.messages,

@@ -187,6 +187,15 @@ export class WorkflowExecutor {
     const context = new ExecutionContext();
     const executionOrder = topologicalSort(agent.nodes);
 
+    // Each agent runs with its own workspace secrets/variables (or global), not the caller's
+    let resolvedSecrets = options.resolvedSecrets;
+    let resolvedVariables = options.resolvedVariables;
+    if (options.resolveScope && agent.workspaceId !== options.scopeWorkspaceId) {
+      const scope = await options.resolveScope(options.userId ?? userId, agent.workspaceId);
+      resolvedSecrets = scope.secrets;
+      resolvedVariables = scope.variables;
+    }
+
     // Build full execution options
     const execOptions: ExecutionOptions = {
       providers: options.providers,
@@ -206,8 +215,10 @@ export class WorkflowExecutor {
       sessionNotes: options.sessionNotes,
       onSessionNotesUpdate: options.onSessionNotesUpdate,
       maxNotesLength: options.maxNotesLength,
-      resolvedSecrets: options.resolvedSecrets,
-      resolvedVariables: options.resolvedVariables,
+      resolvedSecrets,
+      resolvedVariables,
+      scopeWorkspaceId: agent.workspaceId,
+      resolveScope: options.resolveScope,
       onSubAgentNodeEvent: options.onSubAgentNodeEvent,
       subAgentPath: options.subAgentPath,
       onToolCallEvent: options.onToolCallEvent,
@@ -233,8 +244,8 @@ export class WorkflowExecutor {
       if (!rawNode) return null;
 
       // Substitute {{var:KEY}} user variables in node inputs
-      const node = options.resolvedVariables
-        ? { ...rawNode, data: substituteVariables(rawNode.data, options.resolvedVariables) }
+      const node = resolvedVariables
+        ? { ...rawNode, data: substituteVariables(rawNode.data, resolvedVariables) }
         : rawNode;
 
       if (node.type !== 'output') {

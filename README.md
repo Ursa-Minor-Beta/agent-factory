@@ -141,6 +141,8 @@ When an agent runs, it has access to:
 
 If the same name exists in both scopes, **workspace takes precedence** over global.
 
+Sub-agents (Agent node or agent tool calls) always run with **their own** workspace scope, not the caller's: an agent in workspace A calling an agent in workspace B gets B's secrets, variables and collections (plus global). Agents without a workspace get global resources only.
+
 
 ## Scripts
 

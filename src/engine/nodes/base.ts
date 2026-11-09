@@ -65,6 +65,11 @@ export interface ToolCallEvent {
   durationMs?: number; // Only on 'completed' / 'failed'
 }
 
+export interface ResolvedScope {
+  secrets: Record<string, string>;
+  variables: Record<string, string>;
+}
+
 export interface ExecutionOptions {
   providers: ProviderConfig;
   workflowInput: Record<string, unknown>;
@@ -82,6 +87,10 @@ export interface ExecutionOptions {
   resolvedSecrets?: Record<string, string>;
   // Pre-resolved user variables for {{var:KEY}} substitution in any node input
   resolvedVariables?: Record<string, string>;
+  // Workspace that resolvedSecrets/resolvedVariables were built for (undefined = global)
+  scopeWorkspaceId?: string;
+  // Rebuilds secrets/variables for a sub-agent whose workspace differs from the caller's
+  resolveScope?: (userId: string, workspaceId?: string) => Promise<ResolvedScope>;
   // Session context (separate from user input)
   messages?: ChatMessage[]; // For incognito sessions - conversation history
   // Session notes (scratchpad) - persists important context across conversation
