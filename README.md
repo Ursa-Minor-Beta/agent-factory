@@ -23,7 +23,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Multi-User** - JWT auth + API keys
 - **Workspaces** - Organize agents, secrets, collections, and providers into isolated workspaces
 - **Streaming Chat** - Real-time streaming status
-- **Agent Schedules** - Run agents automatically: `cron` (5-field + `@daily`/`@weekly`/..., timezone-aware, optional `startAt`/`endAt`/`maxRuns`), `once` at a date, or fixed `interval`
+- **Agent Schedules** - Run agents automatically: `cron` (5-field, or 6-field with leading seconds at least 10s apart, + `@daily`/`@weekly`/..., timezone-aware, optional `startAt`/`endAt`/`maxRuns`), `once` at a date, or fixed `interval`
   - `sessionMode: "session"` keeps all runs in one chat session (visible in chat UI; recreated if deleted, or continue an existing `sessionId`), `"incognito"` stores only the run
   - Overlap policy (`skip`/`allow`), auto-disable via `stopAfterFailures`, run-now, and upcoming-runs preview
   - Scheduled runs are tagged `triggeredBy.triggerType = "schedule"` and filterable in `/api/executions?scheduleId=...`

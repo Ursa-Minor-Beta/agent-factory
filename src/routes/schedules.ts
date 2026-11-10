@@ -30,7 +30,7 @@ const triggerSchema = {
   description: 'cron: { expression, startAt?, endAt?, maxRuns? } | once: { at } | interval: { everyMs, anchorAt?, endAt?, maxRuns? }',
   properties: {
     type: { type: 'string', enum: [...SCHEDULE_TRIGGER_TYPES] },
-    expression: { type: 'string', description: 'cron: 5-field expression or @daily/@weekly/@monthly/@yearly/@hourly' },
+    expression: { type: 'string', description: 'cron: 5-field expression, 6-field with leading seconds (>= 10s apart), or @daily/@weekly/@monthly/@yearly/@hourly' },
     startAt: { type: 'string', format: 'date-time', description: 'cron: do not fire before' },
     at: { type: 'string', format: 'date-time', description: 'once: run time' },
     everyMs: { type: 'integer', minimum: 60000, description: 'interval: period in milliseconds' },

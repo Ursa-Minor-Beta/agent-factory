@@ -1,8 +1,11 @@
 import type { ScheduleTrigger } from '../entities/AgentSchedule.js';
-import { parseCron, nextCronTime, isValidTimezone } from '../../utils/cron.js';
+import { parseCron, nextCronTime, isValidTimezone, minSecondsGap } from '../../utils/cron.js';
 
 /** Smallest allowed interval between runs */
 export const MIN_INTERVAL_MS = 60 * 1000;
+
+/** Smallest allowed gap between cron runs when a seconds field is used */
+export const MIN_CRON_SECONDS_GAP = 10;
 
 function isValidDate(value: unknown): value is Date {
   return value instanceof Date && !isNaN(value.getTime());
@@ -29,7 +32,9 @@ export function validateScheduleTrigger(trigger: ScheduleTrigger, timezone: stri
       return '"startAt" / "endAt" must be valid dates';
     }
     try {
-      parseCron(trigger.expression);
+      if (minSecondsGap(parseCron(trigger.expression)) < MIN_CRON_SECONDS_GAP) {
+        return `Cron seconds must be at least ${MIN_CRON_SECONDS_GAP}s apart`;
+      }
     }
     catch (error) {
       return error instanceof Error ? error.message : 'Invalid cron expression';
