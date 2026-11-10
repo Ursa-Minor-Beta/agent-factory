@@ -182,6 +182,8 @@ export class ScheduleRunner {
         sessionId,
         incognito: schedule.sessionMode === 'incognito',
         ephemeral: true,
+        // Only used when a new session is created
+        title: schedule.name,
         triggeredBy: { triggerType: 'schedule', scheduleId: schedule.id, scheduledFor },
       });
 
