@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import type { RunStatus, NodeState, RunTrigger } from '../../../../domain/entities/Run.js';
+import { RUN_TRIGGER_TYPES } from '../../../../domain/entities/Run.js';
 import type { RunUsage } from '../../../../engine/nodes/llm/types.js';
 import { NODE_TYPES } from '../../../../domain/entities/Agent.js';
 
@@ -104,10 +105,13 @@ const runSchema = new Schema<RunDocument>(
       // 'type' field renamed to avoid Mongoose keyword conflict
       triggerType: {
         type: String,
-        enum: ['agent_node', 'tool_call'],
+        enum: RUN_TRIGGER_TYPES,
       },
       nodeId: { type: String },
       toolName: { type: String },
+      sessionId: { type: String },
+      scheduleId: { type: String },
+      scheduledFor: { type: Date },
     },
     // Cumulative LLM usage by provider
     usage: {
@@ -124,5 +128,6 @@ runSchema.index({ agentId: 1, startedAt: -1 });
 runSchema.index({ userId: 1, startedAt: -1 });
 runSchema.index({ status: 1 });
 runSchema.index({ parentRunId: 1, startedAt: -1 });
+runSchema.index({ 'triggeredBy.scheduleId': 1, startedAt: -1 }, { sparse: true });
 
 export const RunModel = mongoose.model<RunDocument>('Run', runSchema);

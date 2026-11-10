@@ -35,13 +35,21 @@ export interface NodeState {
   completedAt: Date | null;
 }
 
-export type RunTriggerType = 'agent_node' | 'tool_call';
+/**
+ * What started a run.
+ * Child runs: 'agent_node' | 'tool_call' (always paired with parentRunId).
+ * Root runs: 'chat' | 'api' | 'schedule'. Runs created before this field existed have no trigger.
+ */
+export type RunTrigger =
+  | { triggerType: 'agent_node'; nodeId: string }
+  | { triggerType: 'tool_call'; nodeId: string; toolName?: string }
+  | { triggerType: 'chat'; sessionId?: string }
+  | { triggerType: 'api' }
+  | { triggerType: 'schedule'; scheduleId: string; scheduledFor: Date };
 
-export interface RunTrigger {
-  triggerType: RunTriggerType;
-  nodeId: string;
-  toolName?: string; // For tool_call type
-}
+export type RunTriggerType = RunTrigger['triggerType'];
+
+export const RUN_TRIGGER_TYPES = ['agent_node', 'tool_call', 'chat', 'api', 'schedule'] as const satisfies readonly RunTriggerType[];
 
 export interface Run {
   id: string;

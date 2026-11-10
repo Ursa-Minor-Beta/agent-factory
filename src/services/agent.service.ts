@@ -2,6 +2,7 @@ import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentR
 import type { IAgentVersionRepository } from '../domain/interfaces/repositories/IAgentVersionRepository.js';
 import type { ISessionRepository } from '../domain/interfaces/repositories/ISessionRepository.js';
 import type { IMessageRepository } from '../domain/interfaces/repositories/IMessageRepository.js';
+import type { IAgentScheduleRepository } from '../domain/interfaces/repositories/IAgentScheduleRepository.js';
 import type {
   Agent,
   CreateAgentDTO,
@@ -18,7 +19,8 @@ export class AgentService {
     private agentRepo: IAgentRepository,
     private versionRepo: IAgentVersionRepository,
     private sessionRepo: ISessionRepository,
-    private messageRepo: IMessageRepository
+    private messageRepo: IMessageRepository,
+    private scheduleRepo?: IAgentScheduleRepository
   ) {}
 
   async create(userId: string, data: Omit<CreateAgentDTO, 'userId'>): Promise<Agent> {
@@ -78,6 +80,11 @@ export class AgentService {
         await this.messageRepo.deleteBy({ sessionId: sessions.map((s) => s.id) });
       }
       await this.sessionRepo.deleteBy({ agentId });
+    }
+
+    // Delete schedules for this agent
+    if (this.scheduleRepo) {
+      await this.scheduleRepo.delete({ agentId });
     }
 
     // Delete all versions

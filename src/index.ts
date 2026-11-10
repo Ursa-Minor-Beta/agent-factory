@@ -21,6 +21,7 @@ import { fileRoutes } from './routes/files.js';
 import { memoryRoutes } from './routes/memory.js';
 import { workspaceRoutes } from './routes/workspaces.js';
 import { githubRoutes } from './routes/github.js';
+import { scheduleRoutes } from './routes/schedules.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 import { isOriginAllowed } from './utils/cors.js';
@@ -57,6 +58,7 @@ async function bootstrap() {
         { name: 'providers', description: 'LLM provider configurations' },
         { name: 'secrets', description: 'Encrypted user secrets for HTTP nodes' },
         { name: 'variables', description: 'Plain-text user variables for any node input' },
+        { name: 'schedules', description: 'Run agents on a schedule (cron, once, interval)' },
         { name: 'files', description: 'Build-in file storage for message attachments' },
         { name: 'memory', description: 'Agent long-term memory collections and records' },
       ],
@@ -180,6 +182,7 @@ async function bootstrap() {
   await app.register(toolRoutes);
   await app.register(memoryRoutes);
   await app.register(githubRoutes);
+  await app.register(scheduleRoutes);
 
   try {
     // Connect to MongoDB
@@ -216,12 +219,18 @@ async function bootstrap() {
 
     app.log.info(`Docs available at http://${config.server.host}:${config.server.port}/docs`);
 
+    container.scheduleRunner.start();
+    app.log.info('Agent scheduler started');
+
     // Graceful shutdown handlers
     const shutdown = async (signal: string) => {
       app.log.info(`Received ${signal}, shutting down gracefully...`);
 
       // Stop accepting new requests
       await app.close();
+
+      // Stop firing scheduled runs
+      container.scheduleRunner.stop();
 
       // Cancel all running agent executions
       app.log.info('Stopping active agent runs...');

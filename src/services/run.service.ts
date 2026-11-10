@@ -3,7 +3,7 @@ import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentR
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
 import type { IUserVariableRepository } from '../domain/interfaces/repositories/IUserVariableRepository.js';
-import type { Run } from '../domain/entities/Run.js';
+import type { Run, RunTrigger } from '../domain/entities/Run.js';
 import type { RunManager } from '../engine/worker/index.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
@@ -36,7 +36,8 @@ export class RunService {
   async run(
     userId: string,
     agentId: string,
-    input: Record<string, unknown>
+    input: Record<string, unknown>,
+    triggeredBy: RunTrigger = { triggerType: 'api' }
   ): Promise<Run> {
     const agent = await this.agentRepo.findById(agentId);
     if (!agent) {
@@ -58,6 +59,7 @@ export class RunService {
       agentId: agent.id,
       userId,
       input,
+      triggeredBy,
     });
 
     // Update status to running

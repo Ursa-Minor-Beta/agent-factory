@@ -23,6 +23,10 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Multi-User** - JWT auth + API keys
 - **Workspaces** - Organize agents, secrets, collections, and providers into isolated workspaces
 - **Streaming Chat** - Real-time streaming status
+- **Agent Schedules** - Run agents automatically: `cron` (5-field + `@daily`/`@weekly`/..., timezone-aware, optional `startAt`/`endAt`/`maxRuns`), `once` at a date, or fixed `interval`
+  - `sessionMode: "session"` keeps all runs in one chat session (visible in chat UI; recreated if deleted, or continue an existing `sessionId`), `"incognito"` stores only the run
+  - Overlap policy (`skip`/`allow`), auto-disable via `stopAfterFailures`, run-now, and upcoming-runs preview
+  - Scheduled runs are tagged `triggeredBy.triggerType = "schedule"` and filterable in `/api/executions?scheduleId=...`
 - **Encrypted Secrets** - Provider API keys and secrets encrypted at rest (AES-256-GCM), referenced in nodes as `{{secret:KEY}}`
 - **Variables** - Plain-text, user-defined values (global or per workspace) usable in any node input as `{{var:KEY}}`
 - **File Storage** - Built-in file storage for agent artifacts
@@ -65,6 +69,10 @@ AGENT_MAX_SNAPSHOTS=50  # Maximum snapshots per agent (default: 50)
 # Workflow Engine (optional)
 ENGINE_DEFAULT_PARALLEL_NODES=2  # Default max nodes run in parallel per run, 1 = sequential (default: 2)
 LLM_CLIENT_TOOL_TIMEOUT_MS=60000  # How long a run waits for the UI to answer a client tool call (default: 60000)
+
+# Agent Scheduler (optional)
+SCHEDULER_POLL_INTERVAL_MS=15000    # Max delay between checks for due schedules (default: 15000)
+SCHEDULER_MAX_CONCURRENT_RUNS=3     # Max scheduled runs executing at the same time (default: 3)
 ```
 
 ## Quick Start
@@ -233,6 +241,34 @@ curl -X POST http://localhost:3000/api/agents/agent-creator/chat \
   -H "X-API-Key: af_live_..." \
   -H "Content-Type: application/json" \
   -d '{"message": "Add error handling", "sessionId": "<sessionId>"}'
+```
+
+### Schedule an Agent
+
+```bash
+# Every weekday at 09:00 Berlin time, continuing one chat session
+curl -X POST http://localhost:3000/api/schedules \
+  -H "X-API-Key: af_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "<agentId>",
+    "name": "Morning digest",
+    "trigger": { "type": "cron", "expression": "0 9 * * mon-fri" },
+    "timezone": "Europe/Berlin",
+    "input": { "message": "Summarize yesterday" },
+    "sessionMode": "session",
+    "stopAfterFailures": 5
+  }'
+
+# Other triggers
+#   { "type": "once", "at": "2026-12-24T10:00:00Z" }
+#   { "type": "interval", "everyMs": 5400000, "anchorAt": "2026-11-10T08:00:00Z" }
+
+# Preview next run times, run now, list scheduled runs
+curl -X POST http://localhost:3000/api/schedules/preview -H "X-API-Key: af_live_..." -H "Content-Type: application/json" \
+  -d '{"trigger": {"type": "cron", "expression": "0 0 1 * *"}, "timezone": "UTC", "count": 3}'
+curl -X POST http://localhost:3000/api/schedules/<id>/run -H "X-API-Key: af_live_..."
+curl "http://localhost:3000/api/executions?scheduleId=<id>" -H "X-API-Key: af_live_..."
 ```
 
 See http://localhost:3000/docs for full API documentation.
