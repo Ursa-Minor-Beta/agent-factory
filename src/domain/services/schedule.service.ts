@@ -2,7 +2,7 @@ import type { ScheduleTrigger } from '../entities/AgentSchedule.js';
 import { parseCron, nextCronTime, isValidTimezone, minSecondsGap } from '../../utils/cron.js';
 
 /** Smallest allowed interval between runs */
-export const MIN_INTERVAL_MS = 60 * 1000;
+export const MIN_INTERVAL_MS = 10 * 1000;
 
 /** Smallest allowed gap between cron runs when a seconds field is used */
 export const MIN_CRON_SECONDS_GAP = 10;
