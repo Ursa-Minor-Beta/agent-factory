@@ -13,6 +13,7 @@ import { MongoFileRepository } from '../infrastructure/database/mongodb/reposito
 import { MongoMemorySchemaRepository } from '../infrastructure/database/mongodb/repositories/MongoMemorySchemaRepository.js';
 import { MongoMemoryStoreRepository } from '../infrastructure/database/mongodb/repositories/MongoMemoryStoreRepository.js';
 import { MongoGitHubSyncRepository } from '../infrastructure/database/mongodb/repositories/MongoGitHubSyncRepository.js';
+import { MongoWebhookRepository } from '../infrastructure/database/mongodb/repositories/MongoWebhookRepository.js';
 import { RunManager } from '../engine/worker/index.js';
 import { config } from './index.js';
 
@@ -31,6 +32,7 @@ import type { IFileRepository } from '../domain/interfaces/repositories/IFileRep
 import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import type { IGitHubSyncRepository } from '../domain/interfaces/repositories/IGitHubSyncRepository.js';
+import type { IWebhookRepository } from '../domain/interfaces/repositories/IWebhookRepository.js';
 
 export interface Container {
   userRepository: IUserRepository;
@@ -48,6 +50,7 @@ export interface Container {
   memorySchemaRepository: IMemorySchemaRepository;
   memoryStoreRepository: IMemoryStoreRepository;
   gitHubSyncRepository: IGitHubSyncRepository;
+  webhookRepository: IWebhookRepository;
   runManager: RunManager;
 }
 
@@ -87,5 +90,6 @@ export const container: Container = {
   memorySchemaRepository: new MongoMemorySchemaRepository(),
   memoryStoreRepository: new MongoMemoryStoreRepository(),
   gitHubSyncRepository: new MongoGitHubSyncRepository(),
+  webhookRepository: new MongoWebhookRepository(),
   runManager,
 };

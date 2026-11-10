@@ -35,12 +35,13 @@ export interface NodeState {
   completedAt: Date | null;
 }
 
-export type RunTriggerType = 'agent_node' | 'tool_call';
+export type RunTriggerType = 'agent_node' | 'tool_call' | 'webhook';
 
 export interface RunTrigger {
   triggerType: RunTriggerType;
-  nodeId: string;
+  nodeId?: string; // For agent_node / tool_call types
   toolName?: string; // For tool_call type
+  webhookId?: string; // For webhook type
 }
 
 export interface Run {

@@ -21,6 +21,7 @@ import { fileRoutes } from './routes/files.js';
 import { memoryRoutes } from './routes/memory.js';
 import { workspaceRoutes } from './routes/workspaces.js';
 import { githubRoutes } from './routes/github.js';
+import { webhookRoutes } from './routes/webhooks.js';
 import { SeedService } from './services/seed.service.js';
 import { container } from './config/container.js';
 import { isOriginAllowed } from './utils/cors.js';
@@ -59,6 +60,7 @@ async function bootstrap() {
         { name: 'variables', description: 'Plain-text user variables for any node input' },
         { name: 'files', description: 'Build-in file storage for message attachments' },
         { name: 'memory', description: 'Agent long-term memory collections and records' },
+        { name: 'webhooks', description: 'Public URLs that trigger agent runs' },
       ],
       components: {
         securitySchemes: {
@@ -180,6 +182,7 @@ async function bootstrap() {
   await app.register(toolRoutes);
   await app.register(memoryRoutes);
   await app.register(githubRoutes);
+  await app.register(webhookRoutes);
 
   try {
     // Connect to MongoDB

@@ -1,4 +1,3 @@
-import { Worker } from 'node:worker_threads';
 import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
@@ -6,23 +5,12 @@ import { config } from '../../config/index.js';
 import { interpolateDeep, NODE_PATTERN, resolveNodeRef } from './interpolate.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { extractAndStoreFiles } from './file-helper.js';
+import { runInSandbox, SandboxError, SANDBOX_AVAILABLE_GLOBALS, type SandboxLogEntry } from '../../utils/sandbox.js';
 
 type JsPersistedField = 'input';
 
 /** A node ref that is the entire content of a JSON string literal: "{{node:id.path}}" */
 const QUOTED_NODE_PATTERN = /"\{\{node:([^.}"]+)(?:\.([^}"]+))?\}\}"/g;
-
-interface JsLogEntry {
-  level: 'log' | 'warn' | 'error';
-  message: string;
-}
-
-/** Error from worker execution, carrying console output captured before the failure */
-class JsWorkerError extends Error {
-  constructor(message: string, readonly logs: JsLogEntry[] = []) {
-    super(message);
-  }
-}
 
 /**
  * Check whether a position in a JSON-ish template is inside a "..." string literal
@@ -47,96 +35,7 @@ interface JsNodeData {
 /**
  * Available globals in JS node sandbox (for documentation)
  */
-export const JS_NODE_AVAILABLE_GLOBALS = [
-  'JSON',
-  'Math',
-  'Date',
-  'Number',
-  'String',
-  'Boolean',
-  'Array',
-  'Object',
-  'Map',
-  'Set',
-  'RegExp',
-  'Error',
-  'TypeError',
-  'RangeError',
-  'SyntaxError',
-  'parseInt',
-  'parseFloat',
-  'isNaN',
-  'isFinite',
-  'encodeURI',
-  'decodeURI',
-  'encodeURIComponent',
-  'decodeURIComponent',
-  'console',
-] as const;
-
-/** Sandbox entries for worker script (globals that map directly) */
-const SANDBOX_DIRECT_GLOBALS = JS_NODE_AVAILABLE_GLOBALS.filter((g) => g !== 'console');
-
-/** Limits for captured console output persisted in run state */
-const MAX_LOG_ENTRIES = 100;
-const MAX_LOG_LENGTH = 2000;
-
-/** Generate sandbox object entries for worker script */
-const sandboxEntries = [
-  ...SANDBOX_DIRECT_GLOBALS,
-  'console: { log: capture(\'log\'), warn: capture(\'warn\'), error: capture(\'error\') }',
-]
-  .map((entry) => `  ${entry}`)
-  .join(',\n');
-
-/**
- * Worker script that runs user code in isolation
- */
-const workerScript = `
-const { parentPort, workerData } = require('node:worker_threads');
-const vm = require('node:vm');
-
-const { code, input } = workerData;
-
-const logs = [];
-const formatArg = (arg) => {
-  if (typeof arg === 'string') return arg;
-  try { return JSON.stringify(arg) ?? String(arg); } catch { return String(arg); }
-};
-const capture = (level) => (...args) => {
-  if (logs.length >= ${MAX_LOG_ENTRIES}) return;
-  const message = args.map(formatArg).join(' ');
-  logs.push({ level, message: message.length > ${MAX_LOG_LENGTH} ? message.slice(0, ${MAX_LOG_LENGTH}) + '...' : message });
-};
-
-const sandbox = {
-  input,
-  output: undefined,
-${sandboxEntries},
-};
-
-const ctx = vm.createContext(sandbox);
-
-const wrappedCode = \`
-  (function() {
-    \${code}
-    return output;
-  })()
-\`;
-
-try {
-  const script = new vm.Script(wrappedCode);
-  let result = script.runInContext(ctx);
-  if (result === undefined) result = sandbox.output;
-  parentPort.postMessage({ success: true, result, logs });
-} catch (error) {
-  parentPort.postMessage({
-    success: false,
-    error: error instanceof Error ? error.message : String(error),
-    logs
-  });
-}
-`;
+export const JS_NODE_AVAILABLE_GLOBALS = SANDBOX_AVAILABLE_GLOBALS;
 
 /**
  * JS Transform node - Execute JavaScript code to transform data
@@ -161,7 +60,13 @@ export class JsNode extends BaseNode {
     const input = this.resolveInput(data, context);
 
     try {
-      const { result, logs } = await this.runInWorker(code, input, timeout, memoryMb);
+      const { result, logs } = await runInSandbox({
+        script: `(function() {\n${code}\nreturn output;\n})()`,
+        data: { input, output: undefined },
+        timeout,
+        memoryMb,
+        label: 'JS node',
+      });
       // Normalize undefined to null so {{node:id.output}} refs resolve downstream
       const output = result ?? null;
       const state = this.buildState(data, input, logs);
@@ -180,7 +85,7 @@ export class JsNode extends BaseNode {
       };
     } 
     catch (error) {
-      const logs = error instanceof JsWorkerError ? error.logs : [];
+      const logs = error instanceof SandboxError ? error.logs : [];
       throw new NodeExecutionError(
         error instanceof Error ? error.message : String(error),
         {},
@@ -235,7 +140,7 @@ export class JsNode extends BaseNode {
   private buildState(
     data: JsNodeData,
     input: unknown,
-    logs: JsLogEntry[]
+    logs: SandboxLogEntry[]
   ): Record<string, unknown> | undefined {
     if (!data.persistedFields?.length && logs.length === 0) return undefined;
 
@@ -251,60 +156,5 @@ export class JsNode extends BaseNode {
       }
     }
     return state;
-  }
-
-  private runInWorker(
-    code: string,
-    input: unknown,
-    timeout: number,
-    memoryMb: number
-  ): Promise<{ result: unknown; logs: JsLogEntry[] }> {
-    return new Promise((resolve, reject) => {
-      const worker = new Worker(workerScript, {
-        eval: true,
-        workerData: { code, input },
-        resourceLimits: {
-          maxOldGenerationSizeMb: memoryMb,
-          maxYoungGenerationSizeMb: memoryMb / 4,
-          stackSizeMb: 4,
-        },
-      });
-
-      const timer = setTimeout(() => {
-        worker.terminate();
-        reject(new Error(`JS node execution timed out after ${timeout}ms`));
-      }, timeout);
-
-      worker.on('message', (msg: { success: boolean; result?: unknown; error?: string; logs?: JsLogEntry[] }) => {
-        clearTimeout(timer);
-        worker.terminate();
-        const logs = msg.logs ?? [];
-        if (msg.success) {
-          resolve({ result: msg.result, logs });
-        }
-        else {
-          reject(new JsWorkerError(`JS node execution failed: ${msg.error}`, logs));
-        }
-      });
-
-      worker.on('error', (err) => {
-        clearTimeout(timer);
-        worker.terminate();
-        // Check for memory limit exceeded
-        if (err.message.includes('out of memory') || err.message.includes('heap')) {
-          reject(new Error(`JS node exceeded memory limit (${memoryMb}MB)`));
-        }
-        else {
-          reject(new Error(`JS node execution failed: ${err.message}`));
-        }
-      });
-
-      worker.on('exit', (exitCode) => {
-        clearTimeout(timer);
-        if (exitCode !== 0) {
-          reject(new Error(`JS node worker exited with code ${exitCode}`));
-        }
-      });
-    });
   }
 }

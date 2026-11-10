@@ -135,7 +135,8 @@ export async function agentRoutes(app: FastifyInstance) {
     container.agentRepository,
     container.agentVersionRepository,
     container.sessionRepository,
-    container.messageRepository
+    container.messageRepository,
+    container.webhookRepository
   );
   const sessionService = new SessionService(
     container.sessionRepository,

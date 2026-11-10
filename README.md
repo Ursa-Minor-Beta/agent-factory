@@ -27,6 +27,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Variables** - Plain-text, user-defined values (global or per workspace) usable in any node input as `{{var:KEY}}`
 - **File Storage** - Built-in file storage for agent artifacts
 - **Export/Import** - Export agents to JSON, import from file
+- **Webhooks** - Public URLs (`POST /hooks/:id/:token`) that start an agent run asynchronously; optional sandboxed JS handler for signature checks, filtering, input shaping and custom responses, with Slack / GitHub / Telegram templates
 - **GitHub Sync** - Link agents to GitHub repos with push/pull support
 - **Agent Snapshots** - Version history with restore capability
 - **Swagger Docs** - Full API documentation at `/docs`
@@ -65,6 +66,12 @@ AGENT_MAX_SNAPSHOTS=50  # Maximum snapshots per agent (default: 50)
 # Workflow Engine (optional)
 ENGINE_DEFAULT_PARALLEL_NODES=2  # Default max nodes run in parallel per run, 1 = sequential (default: 2)
 LLM_CLIENT_TOOL_TIMEOUT_MS=60000  # How long a run waits for the UI to answer a client tool call (default: 60000)
+WEBHOOK_PUBLIC_BASE_URL=https://api.example.com  # Base URL used to build webhook trigger URLs
+WEBHOOK_MAX_BODY_BYTES=1048576  # Max webhook request body size (default: 1 MB)
+WEBHOOK_RATE_LIMIT_PER_MINUTE=60  # Max triggers per webhook per minute (default: 60)
+WEBHOOK_HANDLER_TIMEOUT_MS=1000  # Custom webhook handler time limit (default: 1000)
+WEBHOOK_HANDLER_MEMORY_MB=32  # Custom webhook handler memory limit (default: 32)
+WEBHOOK_RUN_WAIT_TIMEOUT_MS=30000  # Max time `await ctx.run()` waits for the agent (default: 30000)
 ```
 
 ## Quick Start
@@ -218,6 +225,43 @@ curl -X POST http://localhost:3000/api/agents/:id/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Add error handling", "sessionId": "<sessionId>"}'
 ```
+
+### Trigger Agent via Webhook
+
+```bash
+# Create a webhook (response contains the public URL); "template" is optional: slack | github | telegram
+curl -X POST http://localhost:3000/api/webhooks \
+  -H "X-API-Key: af_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"agentId": "<agentId>", "name": "Slack bot", "template": "slack"}'
+
+# Call it from anywhere - returns 202 { runId } by default
+curl -X POST "<url>" -H "Content-Type: application/json" -d '{"event": "paid"}'
+```
+
+Without a handler the agent receives `{ body, headers, query }` (`Authorization`/`Cookie` headers are stripped).
+
+A **handler** is sandboxed JS that runs on every request before the agent:
+
+```js
+// request: { method, headers (lower-case), query, body (parsed JSON/form/text), rawBody }
+// ctx: { secrets, vars, hmacSha256(secret, data), safeEqual(a, b), now(), run(input), isDuplicate(key) }
+async function handle(request, { run, isDuplicate }) {
+  if (await isDuplicate(request.headers['x-delivery-id'])) return { status: 200 }; // seen within 10 min
+
+  run({ text: request.body.text });                 // fire-and-forget: run starts, handler continues
+
+  const r = await run({ text: request.body.text }); // wait: { runId, status, output, error }
+  return { status: 200, body: { answer: r.output?.response } };
+}
+// Return { status?, headers?, body? } or nothing: default is 202 { runId } if a run started, else 200.
+```
+
+Handler time limit excludes time spent waiting on `run()`; a wait longer than `WEBHOOK_RUN_WAIT_TIMEOUT_MS` returns `status: 'running'`. Max 10 runs per request.
+
+- `GET /api/webhooks/templates` - Slack, GitHub, Telegram handlers (signature check, URL verification/ping, bot/retry filtering) and the secrets they need
+- `POST /api/webhooks/:id/test` - dry-run the handler with `{ headers, query, body }`, returns `{ response, runs, logs, error }` (no runs are started)
+- `POST /api/webhooks/:id/rotate` - new URL token
 
 ### Chat with Agent Creator
 
