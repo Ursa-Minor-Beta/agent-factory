@@ -63,7 +63,7 @@ export const config = {
     /** Custom handler execution limits */
     handlerTimeoutMs: parseInt(process.env['WEBHOOK_HANDLER_TIMEOUT_MS'] ?? '1000', 10),
     handlerMemoryMb: parseInt(process.env['WEBHOOK_HANDLER_MEMORY_MB'] ?? '32', 10),
-    /** Max time `await ctx.run()` waits for a run before returning status 'running' */
+    /** Max time `await ctx.runAgent()` waits for a run before returning status 'running' */
     runWaitTimeoutMs: parseInt(process.env['WEBHOOK_RUN_WAIT_TIMEOUT_MS'] ?? '30000', 10),
   },
 } as const;

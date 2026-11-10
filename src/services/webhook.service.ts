@@ -31,7 +31,7 @@ export interface WebhookHandlerResponse {
   body?: unknown;
 }
 
-/** Result of `await ctx.run(input)` inside a handler */
+/** Result of `await ctx.runAgent(input)` inside a handler */
 export interface WebhookRunResult {
   runId: string;
   /** 'running' if the wait timed out */
@@ -54,7 +54,7 @@ export interface WebhookTestResult {
   error?: string;
 }
 
-/** Host side of ctx.run / ctx.isDuplicate - real for triggers, recording for dry runs */
+/** Host side of ctx.runAgent / ctx.isDuplicate - real for triggers, recording for dry runs */
 interface HandlerHost {
   startRun(input: Record<string, unknown>): Promise<string>;
   waitRun(runId: string): Promise<WebhookRunResult>;
@@ -78,14 +78,14 @@ function tokensEqual(a: string, b: string): boolean {
 
 /**
  * Script evaluated in the sandbox: builds ctx and calls the user's handle().
- * ctx.run() starts the run right away and returns a thenable - awaiting it waits for the result.
+ * ctx.runAgent() starts the run right away and returns a thenable - awaiting it waits for the result.
  */
 function buildHandlerScript(handler: string): string {
   return `(async () => {
 const __ctx = {
   secrets, vars, hmacSha256, safeEqual, now,
   isDuplicate: (key) => __isDuplicate(String(key)),
-  run: (input) => {
+  runAgent: (input) => {
     const started = __startRun(input);
     started.catch(() => {});
     let waited;
@@ -309,9 +309,9 @@ export class WebhookService {
         switch (method) {
         case '__startRun': {
           const input = args[0] ?? {};
-          if (!isPlainObject(input)) throw new Error('run(input): input must be an object');
+          if (!isPlainObject(input)) throw new Error('runAgent(input): input must be an object');
           if (++runCount > MAX_RUNS_PER_REQUEST) {
-            throw new Error(`run(): max ${MAX_RUNS_PER_REQUEST} runs per request`);
+            throw new Error(`runAgent(): max ${MAX_RUNS_PER_REQUEST} runs per request`);
           }
           return host.startRun(input);
         }

@@ -7,12 +7,32 @@ export interface WebhookTemplate {
   code: string;
 }
 
+const defaultHandler = `/**
+ * Default webhook handler - same behavior as a webhook without a handler
+ *
+ * Starts the agent with the raw request and responds 202 { runId } right away.
+ * Use it as a starting point to add auth, filtering or a custom input shape.
+ * See the "Custom" template for every available option.
+ *
+ * request: { method, headers (lower-case), query, body (parsed), rawBody }
+ * ctx.runAgent(input)  - starts an agent run; await it to get { runId, status, output, error }
+ * Return { status?, headers?, body? } or nothing (default: 202 { runId } if a run started)
+ */
+async function handle(request, { runAgent }) {
+  runAgent({
+    body: request.body,
+    headers: request.headers,
+    query: request.query,
+  });
+}
+`;
+
 const custom = `/**
  * Custom webhook handler - reference of everything available
  *
  * Runs on every request to this webhook URL, before any agent run.
  * Sandboxed JS: no network, no require/import. Time limit ~1s of own code
- * (time spent awaiting ctx.run / ctx.isDuplicate is not counted).
+ * (time spent awaiting ctx.runAgent / ctx.isDuplicate is not counted).
  *
  * ─── request ───────────────────────────────────────────────────────────────
  * request.method   string                  'POST'
@@ -34,7 +54,7 @@ const custom = `/**
  * ctx.isDuplicate(key)         -> Promise<boolean>
  *                                          true if the same key was seen by this webhook in the last
  *                                          10 minutes; the first call records it
- * ctx.run(input)               -> thenable starts an agent run immediately with the given input object
+ * ctx.runAgent(input)          -> thenable starts an agent run immediately with the given input object
  *                                          - not awaited: fire-and-forget, handler continues
  *                                          - awaited: resolves when the run finishes with
  *                                            { runId, status, output, error }
@@ -55,7 +75,7 @@ const custom = `/**
  * Use "Test" to dry-run the handler: runs are recorded but not started.
  */
 async function handle(request, ctx) {
-  const { secrets, vars, hmacSha256, safeEqual, now, isDuplicate, run } = ctx;
+  const { secrets, vars, hmacSha256, safeEqual, now, isDuplicate, runAgent } = ctx;
 
   // 1. Authenticate (pick one; the URL token already protects the endpoint)
   //    a) shared header token
@@ -83,11 +103,11 @@ async function handle(request, ctx) {
   };
 
   // 5a. Fire-and-forget: respond immediately (default 202 { runId })
-  run(input);
+  runAgent(input);
   return;
 
   // 5b. Or wait for the agent and return its output synchronously:
-  // const result = await run(input);
+  // const result = await runAgent(input);
   // if (result.status !== 'completed') {
   //   return { status: result.status === 'running' ? 202 : 500, body: { runId: result.runId, status: result.status, error: result.error } };
   // }
@@ -110,11 +130,11 @@ const slack = `/**
  * Slack expects a 200 within 3 seconds, so runs are started without await.
  *
  * request: { method, headers (lower-case), query, body (parsed), rawBody }
- * ctx.run(input)        - starts an agent run; await it to get { runId, status, output, error }
+ * ctx.runAgent(input)   - starts an agent run; await it to get { runId, status, output, error }
  * ctx.isDuplicate(key)  - true if the key was seen in the last 10 minutes (Slack may redeliver)
  * Return { status?, headers?, body? } - the HTTP response sent back to Slack
  */
-async function handle(request, { secrets, hmacSha256, safeEqual, now, run, isDuplicate }) {
+async function handle(request, { secrets, hmacSha256, safeEqual, now, runAgent, isDuplicate }) {
   const secret = secrets.SLACK_SIGNING_SECRET;
   if (!secret) throw new Error('Secret SLACK_SIGNING_SECRET is not set');
 
@@ -139,7 +159,7 @@ async function handle(request, { secrets, hmacSha256, safeEqual, now, run, isDup
   // The returned body is shown to the user immediately; the agent posts the real answer to responseUrl
   if (b.command) {
     if (await isDuplicate(b.trigger_id)) return { status: 200 };
-    run({
+    runAgent({
       kind: 'command', command: b.command, text: b.text,
       user: b.user_id, channel: b.channel_id, responseUrl: b.response_url,
     });
@@ -150,7 +170,7 @@ async function handle(request, { secrets, hmacSha256, safeEqual, now, run, isDup
   if (b.payload) {
     const p = b.payload;
     if (await isDuplicate(p.trigger_id)) return { status: 200 };
-    run({
+    runAgent({
       kind: 'interaction', type: p.type, user: p.user?.id, channel: p.channel?.id ?? null,
       responseUrl: p.response_url ?? null, payload: p,
     });
@@ -165,7 +185,7 @@ async function handle(request, { secrets, hmacSha256, safeEqual, now, run, isDup
     // Only react to these event types - extend as needed
     if (!['app_mention', 'message'].includes(e.type)) return { status: 200 };
     if (await isDuplicate(b.event_id)) return { status: 200 };
-    run({
+    runAgent({
       kind: 'event', type: e.type, text: e.text,
       // Reply in the thread: existing thread or start one under the message
       user: e.user, channel: e.channel, threadTs: e.thread_ts ?? e.ts,
@@ -190,11 +210,11 @@ const github = `/**
  * Useful headers: x-github-event (push, pull_request, issues, ...), x-github-delivery (unique id)
  *
  * request: { method, headers (lower-case), query, body (parsed), rawBody }
- * ctx.run(input)        - starts an agent run; await it to get { runId, status, output, error }
+ * ctx.runAgent(input)   - starts an agent run; await it to get { runId, status, output, error }
  * ctx.isDuplicate(key)  - true if the key was seen in the last 10 minutes (redeliveries)
  * Return { status?, headers?, body? } or nothing (default: 202 { runId } if a run started)
  */
-async function handle(request, { secrets, hmacSha256, safeEqual, run, isDuplicate }) {
+async function handle(request, { secrets, hmacSha256, safeEqual, runAgent, isDuplicate }) {
   const secret = secrets.GITHUB_WEBHOOK_SECRET;
   if (!secret) throw new Error('Secret GITHUB_WEBHOOK_SECRET is not set');
 
@@ -216,7 +236,7 @@ async function handle(request, { secrets, hmacSha256, safeEqual, run, isDuplicat
   // Form-encoded deliveries wrap the JSON in "payload"
   const p = request.body.payload ?? request.body;
   // Not awaited: GitHub times out after 10s, respond 202 { runId } right away
-  run({
+  runAgent({
     event,
     action: p.action ?? null,
     repository: p.repository?.full_name ?? null,
@@ -239,11 +259,11 @@ const telegram = `/**
  * Telegram retries until it gets a 2xx, so always answer quickly (runs are started without await).
  *
  * request: { method, headers (lower-case), query, body (parsed Update), rawBody }
- * ctx.run(input)        - starts an agent run; await it to get { runId, status, output, error }
+ * ctx.runAgent(input)   - starts an agent run; await it to get { runId, status, output, error }
  * ctx.isDuplicate(key)  - true if the key was seen in the last 10 minutes
  * Return { status?, headers?, body? } - the HTTP response sent back to Telegram
  */
-async function handle(request, { secrets, safeEqual, run, isDuplicate }) {
+async function handle(request, { secrets, safeEqual, runAgent, isDuplicate }) {
   const secret = secrets.TELEGRAM_WEBHOOK_SECRET;
   if (!secret) throw new Error('Secret TELEGRAM_WEBHOOK_SECRET is not set');
 
@@ -260,7 +280,7 @@ async function handle(request, { secrets, safeEqual, run, isDuplicate }) {
   // update_id is unique per update - protects against redelivery
   if (await isDuplicate(String(u.update_id))) return { status: 200 };
 
-  run({
+  runAgent({
     updateId: u.update_id,
     chatId: m.chat.id,
     messageId: m.message_id,
@@ -274,6 +294,13 @@ async function handle(request, { secrets, safeEqual, run, isDuplicate }) {
 `;
 
 export const WEBHOOK_TEMPLATES: WebhookTemplate[] = [
+  {
+    id: 'default',
+    name: 'Default',
+    description: 'Same as no handler: runs the agent with { body, headers, query } and responds 202 { runId }.',
+    requiredSecrets: [],
+    code: defaultHandler,
+  },
   {
     id: 'custom',
     name: 'Starter',

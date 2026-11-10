@@ -71,7 +71,7 @@ WEBHOOK_MAX_BODY_BYTES=1048576  # Max webhook request body size (default: 1 MB)
 WEBHOOK_RATE_LIMIT_PER_MINUTE=60  # Max triggers per webhook per minute (default: 60)
 WEBHOOK_HANDLER_TIMEOUT_MS=1000  # Custom webhook handler time limit (default: 1000)
 WEBHOOK_HANDLER_MEMORY_MB=32  # Custom webhook handler memory limit (default: 32)
-WEBHOOK_RUN_WAIT_TIMEOUT_MS=30000  # Max time `await ctx.run()` waits for the agent (default: 30000)
+WEBHOOK_RUN_WAIT_TIMEOUT_MS=30000  # Max time `await ctx.runAgent()` waits for the agent (default: 30000)
 ```
 
 ## Quick Start
@@ -245,19 +245,19 @@ A **handler** is sandboxed JS that runs on every request before the agent:
 
 ```js
 // request: { method, headers (lower-case), query, body (parsed JSON/form/text), rawBody }
-// ctx: { secrets, vars, hmacSha256(secret, data), safeEqual(a, b), now(), run(input), isDuplicate(key) }
-async function handle(request, { run, isDuplicate }) {
+// ctx: { secrets, vars, hmacSha256(secret, data), safeEqual(a, b), now(), runAgent(input), isDuplicate(key) }
+async function handle(request, { runAgent, isDuplicate }) {
   if (await isDuplicate(request.headers['x-delivery-id'])) return { status: 200 }; // seen within 10 min
 
-  run({ text: request.body.text });                 // fire-and-forget: run starts, handler continues
+  runAgent({ text: request.body.text });                 // fire-and-forget: run starts, handler continues
 
-  const r = await run({ text: request.body.text }); // wait: { runId, status, output, error }
+  const r = await runAgent({ text: request.body.text }); // wait: { runId, status, output, error }
   return { status: 200, body: { answer: r.output?.response } };
 }
 // Return { status?, headers?, body? } or nothing: default is 202 { runId } if a run started, else 200.
 ```
 
-Handler time limit excludes time spent waiting on `run()`; a wait longer than `WEBHOOK_RUN_WAIT_TIMEOUT_MS` returns `status: 'running'`. Max 10 runs per request.
+Handler time limit excludes time spent waiting on `runAgent()`; a wait longer than `WEBHOOK_RUN_WAIT_TIMEOUT_MS` returns `status: 'running'`. Max 10 runs per request.
 
 - `GET /api/webhooks/templates` - Slack, GitHub, Telegram handlers (signature check, URL verification/ping, bot/retry filtering) and the secrets they need
 - `POST /api/webhooks/:id/test` - dry-run the handler with `{ headers, query, body }`, returns `{ response, runs, logs, error }` (no runs are started)
