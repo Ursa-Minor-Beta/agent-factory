@@ -100,62 +100,6 @@ export async function runRoutes(app: FastifyInstance) {
     container.userVariableRepository
   );
 
-  // List runs for agent
-  app.get('/api/agents/:agentId/runs', {
-    schema: {
-      tags: ['runs'],
-      summary: 'List runs for an agent',
-      security: [{ bearerAuth: [] }, { apiKey: [] }],
-      params: {
-        type: 'object',
-        properties: {
-          agentId: { type: 'string' },
-        },
-      },
-      querystring: {
-        type: 'object',
-        properties: {
-          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
-        },
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean' },
-            data: {
-              type: 'object',
-              properties: {
-                runs: { type: 'array', items: runSummarySchema },
-                total: { type: 'integer' },
-              },
-            },
-          },
-        },
-        401: errorSchema,
-        403: errorSchema,
-        404: errorSchema,
-      },
-    },
-    preHandler: requireAuth,
-  }, async (request, reply) => {
-    const { userId } = request.user as { userId: string };
-    const { agentId } = request.params as { agentId: string };
-    const { limit } = request.query as { limit?: number };
-
-    // Use summary query for list view (excludes input, output, nodeStates)
-    const result = await runService.listAllSummary({
-      userId,
-      agentId,
-      limit,
-    });
-
-    return reply.send({
-      success: true,
-      data: result,
-    });
-  });
-
   // Get run by ID
   app.get('/api/runs/:id', {
     schema: {
