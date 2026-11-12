@@ -6,6 +6,7 @@ import type { IProviderConfigRepository } from '../domain/interfaces/repositorie
 import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import type { IAgentScheduleRepository } from '../domain/interfaces/repositories/IAgentScheduleRepository.js';
+import type { IWebhookRepository } from '../domain/interfaces/repositories/IWebhookRepository.js';
 import type {
   Workspace,
   CreateWorkspaceDTO,
@@ -25,6 +26,7 @@ export interface WorkspaceServiceDependencies {
   memorySchemaRepo: IMemorySchemaRepository;
   memoryStoreRepo: IMemoryStoreRepository;
   agentScheduleRepo: IAgentScheduleRepository;
+  webhookRepo: IWebhookRepository;
 }
 
 export class WorkspaceService {
@@ -36,6 +38,7 @@ export class WorkspaceService {
   private memorySchemaRepo: IMemorySchemaRepository;
   private memoryStoreRepo: IMemoryStoreRepository;
   private agentScheduleRepo: IAgentScheduleRepository;
+  private webhookRepo: IWebhookRepository;
 
   constructor(deps: WorkspaceServiceDependencies) {
     this.workspaceRepo = deps.workspaceRepo;
@@ -46,6 +49,7 @@ export class WorkspaceService {
     this.memorySchemaRepo = deps.memorySchemaRepo;
     this.memoryStoreRepo = deps.memoryStoreRepo;
     this.agentScheduleRepo = deps.agentScheduleRepo;
+    this.webhookRepo = deps.webhookRepo;
   }
 
   async create(userId: string, data: Omit<CreateWorkspaceDTO, 'userId'>): Promise<Workspace> {
@@ -144,6 +148,7 @@ export class WorkspaceService {
     providerCount: number;
     collectionCount: number;
     scheduleCount: number;
+    webhookCount: number;
   }> {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
@@ -153,13 +158,14 @@ export class WorkspaceService {
       throw new ForbiddenError('Access denied');
     }
 
-    const [agentCount, secretCount, variableCount, providerCount, collectionCount, scheduleCount] = await Promise.all([
+    const [agentCount, secretCount, variableCount, providerCount, collectionCount, scheduleCount, webhookCount] = await Promise.all([
       this.workspaceRepo.countAgentsInWorkspace(workspaceId),
       this.userSecretRepo.count(userId, workspaceId),
       this.userVariableRepo.count(userId, workspaceId),
       this.providerConfigRepo.count(userId, workspaceId),
       this.memorySchemaRepo.count(userId, workspaceId),
       this.agentScheduleRepo.count(userId, workspaceId),
+      this.webhookRepo.count(userId, workspaceId),
     ]);
 
     return {
@@ -170,6 +176,7 @@ export class WorkspaceService {
       providerCount,
       collectionCount,
       scheduleCount,
+      webhookCount,
     };
   }
 }

@@ -16,4 +16,8 @@ export interface IWebhookRepository {
    * @returns Number of deleted webhooks
    */
   delete(options: { id?: string; agentId?: string; userId?: string }): Promise<number>;
+  /**
+   * Count webhooks; workspaceId filters by agent workspace (null = agents outside workspaces)
+   */
+  count(userId: string, workspaceId?: string | null): Promise<number>;
 }

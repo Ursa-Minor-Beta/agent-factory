@@ -164,6 +164,10 @@ export async function webhookRoutes(app: FastifyInstance) {
         properties: {
           agentId: { type: 'string', description: 'Filter by agent' },
           workspaceId: { type: 'string', description: 'Filter by agent workspace ID, "null" for agents not in any workspace' },
+          name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
+          enabled: { type: 'boolean', description: 'Filter by enabled state' },
+          sortBy: { type: 'string', enum: ['name', 'createdAt', 'updatedAt', 'lastTriggeredAt'], default: 'createdAt' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
           skip: { type: 'integer', minimum: 0, default: 0 },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
         },
@@ -190,7 +194,16 @@ export async function webhookRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const query = request.query as { agentId?: string; workspaceId?: string; skip?: number; limit?: number };
+    const query = request.query as {
+      agentId?: string;
+      workspaceId?: string;
+      name?: string;
+      enabled?: boolean;
+      sortBy?: 'name' | 'createdAt' | 'updatedAt' | 'lastTriggeredAt';
+      sortOrder?: 'asc' | 'desc';
+      skip?: number;
+      limit?: number;
+    };
     const { webhooks, total } = await webhookService.list(userId, {
       ...query,
       // 'null' = agents not assigned to any workspace (same convention as agents/secrets/variables)

@@ -19,6 +19,11 @@ export interface WebhookQueryOptions {
   agentId?: string;
   /** Filter by agent's workspace: undefined = all, null = agents outside workspaces */
   workspaceId?: string | null;
+  /** Filter by name (contains, case-insensitive) */
+  name?: string;
+  enabled?: boolean;
+  sortBy?: 'name' | 'createdAt' | 'updatedAt' | 'lastTriggeredAt';
+  sortOrder?: 'asc' | 'desc';
   skip?: number;
   limit?: number;
 }

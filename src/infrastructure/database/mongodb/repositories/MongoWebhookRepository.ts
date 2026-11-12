@@ -9,6 +9,7 @@ import type {
   WebhookQueryOptions,
   WebhookListResult,
 } from '../../../../domain/entities/Webhook.js';
+import { escapeRegex } from '../../../../utils/regex.js';
 
 interface WebhookWithAgent extends WebhookDocument {
   agent?: { name: string }[];
@@ -50,11 +51,15 @@ export class MongoWebhookRepository implements IWebhookRepository {
         ? { $in: agentIds.filter((id) => id.toString() === options.agentId) }
         : { $in: agentIds };
     }
+    if (options.name) query.name = { $regex: escapeRegex(options.name), $options: 'i' };
+    if (options.enabled !== undefined) query.enabled = options.enabled;
+
+    const sortDirection = options.sortOrder === 'asc' ? 1 : -1;
 
     const [docs, total] = await Promise.all([
       WebhookModel.aggregate<WebhookWithAgent>([
         { $match: query },
-        { $sort: { createdAt: -1 } },
+        { $sort: { [options.sortBy ?? 'createdAt']: sortDirection, _id: sortDirection } },
         { $skip: options.skip ?? 0 },
         { $limit: options.limit ?? 50 },
         {
@@ -117,5 +122,18 @@ export class MongoWebhookRepository implements IWebhookRepository {
     }
     const result = await WebhookModel.deleteMany(query);
     return result.deletedCount;
+  }
+
+  async count(userId: string, workspaceId?: string | null): Promise<number> {
+    const query: Record<string, unknown> = { userId: new Types.ObjectId(userId) };
+    if (workspaceId !== undefined) {
+      // Webhooks inherit the workspace of their agent
+      const agentIds = await AgentModel.distinct('_id', {
+        userId: new Types.ObjectId(userId),
+        workspaceId: workspaceId === null ? null : new Types.ObjectId(workspaceId),
+      });
+      query.agentId = { $in: agentIds };
+    }
+    return WebhookModel.countDocuments(query);
   }
 }

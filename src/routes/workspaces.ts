@@ -47,6 +47,7 @@ const workspaceWithCountsSchema = {
     providerCount: { type: 'number' },
     collectionCount: { type: 'number' },
     scheduleCount: { type: 'number' },
+    webhookCount: { type: 'number' },
   },
 };
 
@@ -60,6 +61,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     memorySchemaRepo: container.memorySchemaRepository,
     memoryStoreRepo: container.memoryStoreRepository,
     agentScheduleRepo: container.agentScheduleRepository,
+    webhookRepo: container.webhookRepository,
   });
 
   // List workspaces
