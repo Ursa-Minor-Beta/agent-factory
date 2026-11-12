@@ -220,7 +220,7 @@ export async function deleteCollection(
   name: string,
   deps: CollectionServiceDependencies,
   options?: GetCollectionOptions
-): Promise<void> {
+): Promise<number> {
   if (!name) {
     throw new Error('Collection name is required');
   }
@@ -235,10 +235,19 @@ export async function deleteCollection(
     throw new Error(`Collection "${name}" not found`);
   }
 
+  if (!deps.memoryStoreRepo) {
+    throw new Error('memoryStoreRepo is required to delete a collection');
+  }
+
+  // Delete all records first so they are not orphaned
+  const deletedRecords = await deps.memoryStoreRepo.deleteBySchemaId(schema.id);
+
   const deleted = await deps.memorySchemaRepo.delete({ id: schema.id });
   if (deleted === 0) {
     throw new Error('Failed to delete collection');
   }
+
+  return deletedRecords;
 }
 
 /**

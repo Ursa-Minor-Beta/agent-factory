@@ -186,15 +186,16 @@ export const handleDeleteCollection: ToolHandler = async (args, options) => {
   const name = String(args.name ?? '');
 
   try {
-    await collectionService.deleteCollection(
+    const deletedRecords = await collectionService.deleteCollection(
       options.userId,
       name,
-      { memorySchemaRepo: options.memorySchemaRepo },
+      { memorySchemaRepo: options.memorySchemaRepo, memoryStoreRepo: options.memoryStoreRepo },
       { workspaceId: options.workspaceId }
     );
 
     return {
       success: true,
+      deletedRecords,
       message: `Collection "${name}" and all its records have been deleted`,
     };
   }
