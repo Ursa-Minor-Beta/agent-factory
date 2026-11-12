@@ -54,7 +54,7 @@ export interface AgentGraphNode {
   name: string;
   workspaceId?: string;
   workspaceName?: string;
-  /** Agent belongs to a different workspace than the requested one */
+  /** Agent is outside the requested scope (other workspace, or not owned by the user for the all-agents graph) */
   external: boolean;
   /** Referenced agent no longer exists or is not accessible */
   missing?: boolean;
@@ -83,33 +83,34 @@ export interface AgentGraph {
 }
 
 export interface AgentGraphDeps {
-  /** Agents in the workspace */
-  findWorkspaceAgents: () => Promise<AgentGraphItem[]>;
+  /** Agents in scope (workspace agents, or all user agents) */
+  findScopeAgents: () => Promise<AgentGraphItem[]>;
   /** Agents by id (any workspace) */
   findAgentsByIds: (ids: string[]) => Promise<AgentGraphItem[]>;
-  /** Agents (outside the workspace) that reference any of the given ids; omit to skip incoming callers */
+  /** Agents (outside the scope) that reference any of the given ids; omit to skip incoming callers */
   findCallers?: (targetIds: string[]) => Promise<AgentGraphItem[]>;
 }
 
 /**
- * Build the relation graph for a workspace, including cross-workspace callees
- * (and cross-workspace callers when deps.findCallers is provided)
+ * Build the relation graph for a set of in-scope agents, including out-of-scope callees
+ * (and out-of-scope callers when deps.findCallers is provided)
  */
-export async function buildWorkspaceGraph(workspaceId: string, deps: AgentGraphDeps): Promise<AgentGraph> {
-  const workspaceAgents = await deps.findWorkspaceAgents();
-  const workspaceIds = workspaceAgents.map((a) => a.id);
+export async function buildAgentGraph(deps: AgentGraphDeps): Promise<AgentGraph> {
+  const scopeAgents = await deps.findScopeAgents();
+  const scopeIds = scopeAgents.map((a) => a.id);
+  const scopeIdSet = new Set(scopeIds);
 
   const callers = deps.findCallers
-    ? (await deps.findCallers(workspaceIds)).filter((a) => a.workspaceId !== workspaceId)
+    ? (await deps.findCallers(scopeIds)).filter((a) => !scopeIdSet.has(a.id))
     : [];
 
   const known = new Map<string, AgentGraphItem>();
-  for (const agent of [...workspaceAgents, ...callers]) {
+  for (const agent of [...scopeAgents, ...callers]) {
     known.set(agent.id, agent);
   }
 
   const unresolvedTargets = new Set<string>();
-  for (const agent of workspaceAgents) {
+  for (const agent of scopeAgents) {
     for (const ref of agent.references ?? []) {
       if (ref.targetAgentId && !known.has(ref.targetAgentId)) {
         unresolvedTargets.add(ref.targetAgentId);
@@ -132,19 +133,18 @@ export async function buildWorkspaceGraph(workspaceId: string, deps: AgentGraphD
         name: agent.name,
         workspaceId: agent.workspaceId,
         workspaceName: agent.workspaceName,
-        external: agent.workspaceId !== workspaceId,
+        external: !scopeIdSet.has(id),
       }
       : { id, name: id, external: true, missing: true });
   };
 
   const edges: AgentGraphEdge[] = [];
   const builtins: AgentGraphBuiltin[] = [];
-  const workspaceIdSet = new Set(workspaceIds);
 
-  workspaceAgents.forEach((a) => addNode(a.id));
+  scopeAgents.forEach((a) => addNode(a.id));
 
-  for (const agent of [...workspaceAgents, ...callers]) {
-    const isCaller = !workspaceIdSet.has(agent.id);
+  for (const agent of [...scopeAgents, ...callers]) {
+    const isCaller = !scopeIdSet.has(agent.id);
     for (const ref of agent.references ?? []) {
       if (ref.kind === 'builtin-tool') {
         if (!isCaller && ref.toolName) {
@@ -152,8 +152,8 @@ export async function buildWorkspaceGraph(workspaceId: string, deps: AgentGraphD
         }
         continue;
       }
-      // External callers only contribute edges into this workspace
-      if (isCaller && !(ref.targetAgentId && workspaceIdSet.has(ref.targetAgentId))) {
+      // External callers only contribute edges into the scope
+      if (isCaller && !(ref.targetAgentId && scopeIdSet.has(ref.targetAgentId))) {
         continue;
       }
       addNode(agent.id);

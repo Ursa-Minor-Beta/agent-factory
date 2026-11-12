@@ -323,6 +323,65 @@ export async function agentRoutes(app: FastifyInstance) {
     });
   });
 
+  // Get agent relation graph across all user agents
+  app.get('/api/agents/graph', {
+    schema: {
+      tags: ['agents'],
+      summary: 'Get agent relation graph (agent nodes, agent tools, builtin tools) across all user agents, including referenced system agents',
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            nodes: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  workspaceId: { type: 'string', nullable: true },
+                  workspaceName: { type: 'string', nullable: true },
+                  external: { type: 'boolean' },
+                  missing: { type: 'boolean' },
+                },
+              },
+            },
+            edges: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  from: { type: 'string' },
+                  to: { type: 'string', nullable: true },
+                  kind: { type: 'string', enum: ['agent-node', 'agent-tool'] },
+                  nodeId: { type: 'string' },
+                  toolName: { type: 'string', nullable: true },
+                  dynamic: { type: 'boolean' },
+                },
+              },
+            },
+            builtins: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  agentId: { type: 'string' },
+                  nodeId: { type: 'string' },
+                  toolName: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    onRequest: [requireAuth],
+  }, async (request, reply) => {
+    const { userId } = request.user as AuthenticatedUser;
+    const graph = await agentService.getAgentGraph(userId);
+    return reply.send(graph);
+  });
+
   // Get agent by ID
   app.get('/api/agents/:id', {
     schema: {

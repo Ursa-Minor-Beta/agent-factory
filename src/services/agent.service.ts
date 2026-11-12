@@ -13,6 +13,7 @@ import type {
   AgentVersion,
   AgentVersionListResult,
 } from '../domain/entities/Agent.js';
+import { buildAgentGraph, type AgentGraph } from '../domain/services/agent-graph.service.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
 
 export class AgentService {
@@ -31,6 +32,13 @@ export class AgentService {
 
   async list(userId: string, options?: AgentQueryOptions): Promise<AgentListResult> {
     return this.agentRepo.findByUserId(userId, options);
+  }
+
+  async getAgentGraph(userId: string): Promise<AgentGraph> {
+    return buildAgentGraph({
+      findScopeAgents: () => this.agentRepo.findGraphItems({ userId }),
+      findAgentsByIds: (ids) => this.agentRepo.findGraphItems({ userId, ids }),
+    });
   }
 
   async getById(userId: string, agentId: string): Promise<Agent> {

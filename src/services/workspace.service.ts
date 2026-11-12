@@ -15,7 +15,7 @@ import type {
   WorkspaceListResult,
 } from '../domain/entities/Workspace.js';
 import { NotFoundError, ForbiddenError } from '../utils/errors.js';
-import { buildWorkspaceGraph, type AgentGraph } from '../domain/services/agent-graph.service.js';
+import { buildAgentGraph, type AgentGraph } from '../domain/services/agent-graph.service.js';
 
 export interface WorkspaceServiceDependencies {
   workspaceRepo: IWorkspaceRepository;
@@ -74,8 +74,8 @@ export class WorkspaceService {
   async getAgentGraph(userId: string, workspaceId: string, includeCallers = false): Promise<AgentGraph> {
     await this.getById(userId, workspaceId);
 
-    return buildWorkspaceGraph(workspaceId, {
-      findWorkspaceAgents: () => this.agentRepo.findGraphItems({ userId, workspaceId }),
+    return buildAgentGraph({
+      findScopeAgents: () => this.agentRepo.findGraphItems({ userId, workspaceId }),
       findAgentsByIds: (ids) => this.agentRepo.findGraphItems({ userId, ids }),
       findCallers: includeCallers
         ? (targetIds) => this.agentRepo.findGraphItems({ userId, referencedAgentIds: targetIds })
