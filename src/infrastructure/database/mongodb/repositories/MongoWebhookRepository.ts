@@ -99,9 +99,18 @@ export class MongoWebhookRepository implements IWebhookRepository {
   }
 
   async delete(options: { id?: string; agentId?: string }): Promise<number> {
+    if (!options.id && !options.agentId) {
+      throw new Error('WebhookRepository.delete requires id or agentId');
+    }
     const query: Record<string, unknown> = {};
-    if (options.id) query._id = options.id;
-    if (options.agentId) query.agentId = new Types.ObjectId(options.agentId);
+    if (options.id) {
+      if (!Types.ObjectId.isValid(options.id)) return 0;
+      query._id = new Types.ObjectId(options.id);
+    }
+    if (options.agentId) {
+      if (!Types.ObjectId.isValid(options.agentId)) return 0;
+      query.agentId = new Types.ObjectId(options.agentId);
+    }
     const result = await WebhookModel.deleteMany(query);
     return result.deletedCount;
   }
