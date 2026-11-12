@@ -7,6 +7,8 @@ import type {
 export interface UserSecretQueryOptions {
   /** Filter by workspace: undefined = all, null = global only, "<id>" = workspace only */
   workspaceId?: string | null;
+  /** Filter by name (contains, case-insensitive) */
+  name?: string;
   sortBy?: 'name' | 'createdAt' | 'updatedAt';
   sortOrder?: 'asc' | 'desc';
 }

@@ -11,6 +11,7 @@ import type {
   UpdateUserSecretDTO,
 } from '../../../../domain/entities/UserSecret.js';
 import { encrypt, decrypt } from '../../../../utils/crypto.js';
+import { escapeRegex } from '../../../../utils/regex.js';
 
 interface UserSecretWithWorkspace extends UserSecretDocument {
   workspace?: { name: string }[];
@@ -54,6 +55,10 @@ export class MongoUserSecretRepository implements IUserSecretRepository {
         : new Types.ObjectId(options.workspaceId);
     }
     // If workspaceId is undefined, return all (no filter)
+
+    if (options?.name) {
+      matchStage.name = { $regex: escapeRegex(options.name), $options: 'i' };
+    }
 
     const sortField = options?.sortBy ?? 'updatedAt';
     const sortDirection = options?.sortOrder === 'asc' ? 1 : -1;

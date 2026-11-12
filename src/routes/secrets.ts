@@ -55,6 +55,7 @@ export async function secretRoutes(app: FastifyInstance) {
             type: 'string',
             description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
           },
+          name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
           sortBy: { type: 'string', enum: ['name', 'createdAt', 'updatedAt'], default: 'updatedAt' },
           sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
         },
@@ -75,11 +76,13 @@ export async function secretRoutes(app: FastifyInstance) {
     const { userId } = request.user as { userId: string };
     const query = request.query as {
       workspaceId?: string;
+      name?: string;
       sortBy?: 'name' | 'createdAt' | 'updatedAt';
       sortOrder?: 'asc' | 'desc';
     };
 
     const options: UserSecretQueryOptions = {
+      name: query.name,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
     };
