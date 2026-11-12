@@ -39,6 +39,45 @@ export class RunService {
     input: Record<string, unknown>,
     triggeredBy: RunTrigger = { triggerType: 'api' }
   ): Promise<Run> {
+    const { run, options } = await this.prepare(userId, agentId, input);
+
+    // Execute in worker and wait for completion
+    await this.runManager.executeAndWait(run.id, options);
+
+    // Fetch final run state from DB
+    const finalRun = await this.runRepo.findById(run.id);
+    if (!finalRun) {
+      throw new Error('Run not found after execution');
+    }
+
+    return finalRun;
+  }
+
+  /**
+   * Start a run in a worker without waiting for it.
+   * `completion` resolves with the final run (never rejects) and can be awaited or ignored.
+   */
+  async start(
+    userId: string,
+    agentId: string,
+    input: Record<string, unknown>,
+    triggeredBy?: RunTrigger
+  ): Promise<{ run: Run; completion: Promise<Run | null> }> {
+    const { run, options } = await this.prepare(userId, agentId, input, triggeredBy);
+    const completion = this.runManager
+      .waitForCompletion(run.id)
+      .then(() => this.runRepo.findById(run.id))
+      .catch(() => null);
+    await this.runManager.startRun(run.id, options);
+    return { run, completion };
+  }
+
+  private async prepare(
+    userId: string,
+    agentId: string,
+    input: Record<string, unknown>,
+    triggeredBy?: RunTrigger
+  ) {
     const agent = await this.agentRepo.findById(agentId);
     if (!agent) {
       throw new NotFoundError('Agent');
@@ -65,23 +104,17 @@ export class RunService {
     // Update status to running
     run = (await this.runRepo.updateStatus(run.id, 'running'))!;
 
-    // Execute in worker and wait for completion
-    await this.runManager.executeAndWait(run.id, {
-      agent,
-      input,
-      userId,
-      providers,
-      resolvedSecrets,
-      resolvedVariables,
-    });
-
-    // Fetch final run state from DB
-    const finalRun = await this.runRepo.findById(run.id);
-    if (!finalRun) {
-      throw new Error('Run not found after execution');
-    }
-
-    return finalRun;
+    return {
+      run,
+      options: {
+        agent,
+        input,
+        userId,
+        providers,
+        resolvedSecrets,
+        resolvedVariables,
+      },
+    };
   }
 
   /**

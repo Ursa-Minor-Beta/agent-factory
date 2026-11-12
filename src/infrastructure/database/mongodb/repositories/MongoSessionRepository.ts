@@ -121,7 +121,14 @@ export class MongoSessionRepository implements ISessionRepository {
     return doc ? this.toEntity(doc) : null;
   }
 
-  async count(userId: string): Promise<number> {
-    return SessionModel.countDocuments({ userId });
+  async count(userId: string, options?: { agentId?: string; status?: SessionStatus }): Promise<number> {
+    const match: Record<string, unknown> = { userId: new mongoose.Types.ObjectId(userId) };
+    if (options?.agentId) {
+      match.agentId = new mongoose.Types.ObjectId(options.agentId);
+    }
+    if (options?.status) {
+      match.status = options.status;
+    }
+    return SessionModel.countDocuments(match);
   }
 }

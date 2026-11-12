@@ -14,6 +14,7 @@ import { MongoMemorySchemaRepository } from '../infrastructure/database/mongodb/
 import { MongoMemoryStoreRepository } from '../infrastructure/database/mongodb/repositories/MongoMemoryStoreRepository.js';
 import { MongoGitHubSyncRepository } from '../infrastructure/database/mongodb/repositories/MongoGitHubSyncRepository.js';
 import { MongoAgentScheduleRepository } from '../infrastructure/database/mongodb/repositories/MongoAgentScheduleRepository.js';
+import { MongoWebhookRepository } from '../infrastructure/database/mongodb/repositories/MongoWebhookRepository.js';
 import { RunManager } from '../engine/worker/index.js';
 import { SessionService } from '../services/session.service.js';
 import { ScheduleRunner } from '../services/schedule-runner.service.js';
@@ -35,6 +36,7 @@ import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/
 import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import type { IGitHubSyncRepository } from '../domain/interfaces/repositories/IGitHubSyncRepository.js';
 import type { IAgentScheduleRepository } from '../domain/interfaces/repositories/IAgentScheduleRepository.js';
+import type { IWebhookRepository } from '../domain/interfaces/repositories/IWebhookRepository.js';
 
 export interface Container {
   userRepository: IUserRepository;
@@ -53,6 +55,7 @@ export interface Container {
   memoryStoreRepository: IMemoryStoreRepository;
   gitHubSyncRepository: IGitHubSyncRepository;
   agentScheduleRepository: IAgentScheduleRepository;
+  webhookRepository: IWebhookRepository;
   runManager: RunManager;
   scheduleRunner: ScheduleRunner;
 }
@@ -123,6 +126,7 @@ export const container: Container = {
   memoryStoreRepository: new MongoMemoryStoreRepository(),
   gitHubSyncRepository: new MongoGitHubSyncRepository(),
   agentScheduleRepository,
+  webhookRepository: new MongoWebhookRepository(),
   runManager,
   scheduleRunner,
 };

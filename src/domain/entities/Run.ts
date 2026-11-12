@@ -45,11 +45,12 @@ export type RunTrigger =
   | { triggerType: 'tool_call'; nodeId: string; toolName?: string }
   | { triggerType: 'chat'; sessionId?: string }
   | { triggerType: 'api' }
+  | { triggerType: 'webhook'; webhookId: string }
   | { triggerType: 'schedule'; scheduleId: string; scheduledFor: Date };
 
 export type RunTriggerType = RunTrigger['triggerType'];
 
-export const RUN_TRIGGER_TYPES = ['agent_node', 'tool_call', 'chat', 'api', 'schedule'] as const satisfies readonly RunTriggerType[];
+export const RUN_TRIGGER_TYPES = ['agent_node', 'tool_call', 'chat', 'api', 'schedule', 'webhook'] as const satisfies readonly RunTriggerType[];
 
 export interface Run {
   id: string;
@@ -65,6 +66,7 @@ export interface Run {
   error: string | null;
   startedAt: Date;
   completedAt: Date | null;
+  sessionId?: string;
   // Parent-child relationship
   parentRunId?: string;
   triggeredBy?: RunTrigger;
@@ -88,6 +90,7 @@ export interface RunSummary {
   error: string | null;
   startedAt: Date;
   completedAt: Date | null;
+  sessionId?: string;
   // Parent-child relationship
   parentRunId?: string;
   triggeredBy?: RunTrigger;
@@ -101,6 +104,7 @@ export interface CreateRunDTO {
   agentId: string;
   userId: string;
   input: Record<string, unknown>;
+  sessionId?: string;
   parentRunId?: string;
   triggeredBy?: RunTrigger;
 }

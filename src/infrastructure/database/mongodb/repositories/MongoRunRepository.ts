@@ -35,6 +35,7 @@ export class MongoRunRepository implements IRunRepository {
       error: doc.error,
       startedAt: doc.startedAt,
       completedAt: doc.completedAt,
+      sessionId: doc.sessionId,
       parentRunId: doc.parentRunId?.toString(),
       triggeredBy: doc.triggeredBy,
       usage: doc.usage,
@@ -57,6 +58,7 @@ export class MongoRunRepository implements IRunRepository {
       error: doc.error,
       startedAt: doc.startedAt,
       completedAt: doc.completedAt,
+      sessionId: doc.sessionId,
       parentRunId: doc.parentRunId?.toString(),
       triggeredBy: doc.triggeredBy,
       usage: doc.usage,
@@ -138,6 +140,9 @@ export class MongoRunRepository implements IRunRepository {
     if (options?.agentId) {
       query.agentId = options.agentId;
     }
+    if (options?.sessionId) {
+      query.sessionId = options.sessionId;
+    }
     if (options?.status) {
       query.status = options.status;
     }
@@ -179,6 +184,7 @@ export class MongoRunRepository implements IRunRepository {
       agentId: data.agentId,
       userId: data.userId,
       input: data.input,
+      sessionId: data.sessionId,
       status: 'pending',
       nodeStates: new Map(),
       startedAt: new Date(),
@@ -293,6 +299,9 @@ export class MongoRunRepository implements IRunRepository {
     if (options?.agentId) {
       match.agentId = options.agentId;
     }
+    if (options?.sessionId) {
+      match.sessionId = options.sessionId;
+    }
     if (options?.status) {
       match.status = options.status;
     }
@@ -353,6 +362,7 @@ export class MongoRunRepository implements IRunRepository {
     error: 1,
     startedAt: 1,
     completedAt: 1,
+    sessionId: 1,
     parentRunId: 1,
     triggeredBy: 1,
     usage: 1,
@@ -366,6 +376,9 @@ export class MongoRunRepository implements IRunRepository {
     }
     if (options?.agentId) {
       match.agentId = new mongoose.Types.ObjectId(options.agentId);
+    }
+    if (options?.sessionId) {
+      match.sessionId = options.sessionId;
     }
     if (options?.status) {
       match.status = options.status;
@@ -426,6 +439,9 @@ export class MongoRunRepository implements IRunRepository {
     }
     if (options?.agentId) {
       match.agentId = new mongoose.Types.ObjectId(options.agentId);
+    }
+    if (options?.sessionId) {
+      match.sessionId = options.sessionId;
     }
     if (options?.status) {
       match.status = options.status;

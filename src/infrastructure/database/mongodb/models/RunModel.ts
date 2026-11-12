@@ -16,6 +16,7 @@ export interface RunDocument extends Document {
   error: string | null;
   startedAt: Date;
   completedAt: Date | null;
+  sessionId?: string;
   // Parent-child relationship
   parentRunId?: mongoose.Types.ObjectId;
   triggeredBy?: RunTrigger;
@@ -93,6 +94,11 @@ const runSchema = new Schema<RunDocument>(
       type: Date,
       default: null,
     },
+    sessionId: {
+      type: String,
+      default: undefined,
+      index: true,
+    },
     // Parent-child relationship
     parentRunId: {
       type: Schema.Types.ObjectId,
@@ -112,6 +118,7 @@ const runSchema = new Schema<RunDocument>(
       sessionId: { type: String },
       scheduleId: { type: String },
       scheduledFor: { type: Date },
+      webhookId: { type: String },
     },
     // Cumulative LLM usage by provider
     usage: {
