@@ -55,6 +55,12 @@ export async function fileRoutes(app: FastifyInstance) {
         properties: {
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
           offset: { type: 'integer', minimum: 0, default: 0 },
+          name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
+          mimeType: { type: 'string', description: "Filter by MIME type prefix, case-insensitive (e.g. 'image' or 'application/pdf')" },
+          createdAfter: { type: 'string', format: 'date-time', description: 'Filter by created date (after)' },
+          createdBefore: { type: 'string', format: 'date-time', description: 'Filter by created date (before)' },
+          sortBy: { type: 'string', enum: ['name', 'size', 'mimeType', 'createdAt'], default: 'createdAt' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
         },
       },
       response: {
@@ -77,11 +83,27 @@ export async function fileRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request) => {
     const { userId } = request.user as { userId: string };
-    const { limit = 50, offset = 0 } = request.query as { limit?: number; offset?: number };
+    const { limit = 50, offset = 0, sortBy, sortOrder, name, mimeType, createdAfter, createdBefore } = request.query as {
+      limit?: number;
+      offset?: number;
+      name?: string;
+      mimeType?: string;
+      createdAfter?: string;
+      createdBefore?: string;
+      sortBy?: 'name' | 'size' | 'mimeType' | 'createdAt';
+      sortOrder?: 'asc' | 'desc';
+    };
+
+    const filters = {
+      name,
+      mimeType,
+      createdAfter: createdAfter ? new Date(createdAfter) : undefined,
+      createdBefore: createdBefore ? new Date(createdBefore) : undefined,
+    };
 
     const [files, total] = await Promise.all([
-      fileRepo.listByUserId(userId, { limit, offset }),
-      fileRepo.countByUserId(userId),
+      fileRepo.listByUserId(userId, { ...filters, limit, offset, sortBy, sortOrder }),
+      fileRepo.countByUserId(userId, filters),
     ]);
 
     return { success: true, data: { files, total } };

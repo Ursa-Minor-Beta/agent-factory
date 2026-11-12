@@ -1,6 +1,11 @@
 import { FileModel, FileDocument } from '../models/FileModel.js';
-import type { IFileRepository } from '../../../../domain/interfaces/repositories/IFileRepository.js';
+import type { IFileRepository, FileListFilters } from '../../../../domain/interfaces/repositories/IFileRepository.js';
 import type { File, FileListItem, CreateFileDTO } from '../../../../domain/entities/File.js';
+
+// Escape regex special chars so user input is matched literally
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export class MongoFileRepository implements IFileRepository {
   private toEntity(doc: FileDocument): File {
@@ -37,7 +42,7 @@ export class MongoFileRepository implements IFileRepository {
     options?: { limit?: number; offset?: number }
   ): Promise<File[]> {
     const docs = await FileModel.find({ userId })
-      .sort({ createdAt: -1 })
+      .sort({ [options?.sortBy ?? 'createdAt']: options?.sortOrder === 'asc' ? 1 : -1, _id: -1 })
       .skip(options?.offset ?? 0)
       .limit(options?.limit ?? 100);
     return docs.map((doc) => this.toEntity(doc));
@@ -45,11 +50,11 @@ export class MongoFileRepository implements IFileRepository {
 
   async listByUserId(
     userId: string,
-    options?: { limit?: number; offset?: number }
+    options?: FileListFilters & { limit?: number; offset?: number; sortBy?: 'name' | 'size' | 'mimeType' | 'createdAt'; sortOrder?: 'asc' | 'desc' }
   ): Promise<FileListItem[]> {
-    const docs = await FileModel.find({ userId })
+    const docs = await FileModel.find(this.buildListQuery(userId, options))
       .select({ _id: 1, name: 1, mimeType: 1, size: 1, createdAt: 1 })
-      .sort({ createdAt: -1 })
+      .sort({ [options?.sortBy ?? 'createdAt']: options?.sortOrder === 'asc' ? 1 : -1, _id: -1 })
       .skip(options?.offset ?? 0)
       .limit(options?.limit ?? 100);
     return docs.map((doc) => ({
@@ -61,8 +66,25 @@ export class MongoFileRepository implements IFileRepository {
     }));
   }
 
-  async countByUserId(userId: string): Promise<number> {
-    return FileModel.countDocuments({ userId });
+  async countByUserId(userId: string, filters?: FileListFilters): Promise<number> {
+    return FileModel.countDocuments(this.buildListQuery(userId, filters));
+  }
+
+  private buildListQuery(userId: string, filters?: FileListFilters): Record<string, unknown> {
+    const query: Record<string, unknown> = { userId };
+    if (filters?.name) {
+      query.name = { $regex: escapeRegex(filters.name), $options: 'i' };
+    }
+    if (filters?.mimeType) {
+      query.mimeType = { $regex: `^${escapeRegex(filters.mimeType)}`, $options: 'i' };
+    }
+    if (filters?.createdAfter || filters?.createdBefore) {
+      query.createdAt = {
+        ...(filters.createdAfter ? { $gte: filters.createdAfter } : {}),
+        ...(filters.createdBefore ? { $lte: filters.createdBefore } : {}),
+      };
+    }
+    return query;
   }
 
   async create(data: CreateFileDTO): Promise<File> {

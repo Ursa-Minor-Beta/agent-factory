@@ -6,12 +6,19 @@ export interface FileQueryOptions {
   fields?: Array<keyof File>;
 }
 
+export interface FileListFilters {
+  name?: string; // contains, case-insensitive
+  mimeType?: string; // prefix, case-insensitive (e.g. 'image' or 'image/png')
+  createdAfter?: Date;
+  createdBefore?: Date;
+}
+
 export interface IFileRepository {
   findById(id: string): Promise<File | null>;
   findByIds(ids: string[]): Promise<File[]>;
   findByUserId(userId: string, options?: FileQueryOptions): Promise<File[]>;
-  listByUserId(userId: string, options?: { limit?: number; offset?: number }): Promise<FileListItem[]>;
-  countByUserId(userId: string): Promise<number>;
+  listByUserId(userId: string, options?: FileListFilters & { limit?: number; offset?: number; sortBy?: 'name' | 'size' | 'mimeType' | 'createdAt'; sortOrder?: 'asc' | 'desc' }): Promise<FileListItem[]>;
+  countByUserId(userId: string, filters?: FileListFilters): Promise<number>;
   create(data: CreateFileDTO): Promise<File>;
   createMany(data: CreateFileDTO[]): Promise<File[]>;
   deleteBy(options: { id?: string | string[]; userId?: string }): Promise<number>;
