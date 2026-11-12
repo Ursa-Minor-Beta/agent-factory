@@ -137,9 +137,11 @@ export class AgentNode extends BaseNode {
 
     // Resolve nodeRef references to actual values for downstream nodes
     const resolvedOutputs = runs.map((run) => resolveRunOutput(run));
+    // Child runs are stored separately (linked via parentRunId); only expose a reference here
+    const runRefs = runs.map((run) => ({ id: run.id, status: run.status, error: run.error ?? null }));
     const outputs = isBatch
-      ? { output: resolvedOutputs, run: runs }
-      : { output: resolvedOutputs[0], run: runs[0] };
+      ? { output: resolvedOutputs, run: runRefs }
+      : { output: resolvedOutputs[0], run: runRefs[0] };
 
     // Extract files from output, store in context with temp refs
     const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
