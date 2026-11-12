@@ -1,4 +1,4 @@
-import type { Run, RunSummary, CreateRunDTO, RunStatus, NodeState } from '../../entities/Run.js';
+import type { Run, RunSummary, CreateRunDTO, RunStatus, RunTriggerType, NodeState } from '../../entities/Run.js';
 import type { LLMProvider, TokenUsage } from '../../../engine/nodes/llm/types.js';
 
 export interface RunQueryOptions {
@@ -6,6 +6,8 @@ export interface RunQueryOptions {
   agentId?: string;
   sessionId?: string;
   status?: RunStatus;
+  triggerType?: RunTriggerType;
+  scheduleId?: string;
   startedAfter?: Date;
   startedBefore?: Date;
   sortBy?: 'startedAt' | 'completedAt';
@@ -32,6 +34,8 @@ export interface RunWithChildrenQueryOptions {
   agentId?: string;
   sessionId?: string;
   status?: RunStatus;
+  triggerType?: RunTriggerType;
+  scheduleId?: string;
   startedAfter?: Date;
   startedBefore?: Date;
   sortBy?: 'startedAt' | 'completedAt';

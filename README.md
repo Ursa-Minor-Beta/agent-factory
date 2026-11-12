@@ -23,6 +23,10 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Multi-User** - JWT auth + API keys
 - **Workspaces** - Organize agents, secrets, collections, and providers into isolated workspaces
 - **Streaming Chat** - Real-time streaming status
+- **Agent Schedules** - Run agents automatically: `cron` (5-field, or 6-field with leading seconds at least 10s apart, + `@daily`/`@weekly`/..., timezone-aware, optional `startAt`/`endAt`/`maxRuns`), `once` at a date, or fixed `interval`
+  - `sessionMode: "session"` keeps all runs in one chat session (visible in chat UI; recreated if deleted, or continue an existing `sessionId`), `"incognito"` stores only the run
+  - Overlap policy (`skip`/`allow`), auto-disable via `stopAfterFailures`, run-now, and upcoming-runs preview
+  - Scheduled runs are tagged `triggeredBy.triggerType = "schedule"` and filterable in `/api/executions?scheduleId=...`
 - **Encrypted Secrets** - Provider API keys and secrets encrypted at rest (AES-256-GCM), referenced in nodes as `{{secret:KEY}}`
 - **Variables** - Plain-text, user-defined values (global or per workspace) usable in any node input as `{{var:KEY}}`
 - **File Storage** - Built-in file storage for agent artifacts
@@ -31,48 +35,6 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **GitHub Sync** - Link agents to GitHub repos with push/pull support
 - **Agent Snapshots** - Version history with restore capability
 - **Swagger Docs** - Full API documentation at `/docs`
-
-## Environment Variables
-
-```bash
-# Server
-PORT=3000
-HOST=0.0.0.0
-NODE_ENV=development
-
-# CORS (optional - leave empty to allow all origins)
-ALLOWED_ORIGINS=http://localhost:3000
-
-# MongoDB
-MONGODB_URI=mongodb://localhost:27017/agent-factory
-
-# JWT
-JWT_SECRET=your-secret-key
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-
-# Encryption (for provider API keys)
-# Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-ENCRYPTION_KEY=your-32-byte-hex-key
-
-# Admin (REQUIRED)
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=your-secure-password
-ADMIN_NAME=Admin
-
-# Agent Versions (optional)
-AGENT_MAX_SNAPSHOTS=50  # Maximum snapshots per agent (default: 50)
-
-# Workflow Engine (optional)
-ENGINE_DEFAULT_PARALLEL_NODES=2  # Default max nodes run in parallel per run, 1 = sequential (default: 2)
-LLM_CLIENT_TOOL_TIMEOUT_MS=60000  # How long a run waits for the UI to answer a client tool call (default: 60000)
-WEBHOOK_PUBLIC_BASE_URL=https://api.example.com  # Base URL used to build webhook trigger URLs
-WEBHOOK_MAX_BODY_BYTES=1048576  # Max webhook request body size (default: 1 MB)
-WEBHOOK_RATE_LIMIT_PER_MINUTE=60  # Max triggers per webhook per minute (default: 60)
-WEBHOOK_HANDLER_TIMEOUT_MS=1000  # Custom webhook handler time limit (default: 1000)
-WEBHOOK_HANDLER_MEMORY_MB=32  # Custom webhook handler memory limit (default: 32)
-WEBHOOK_RUN_WAIT_TIMEOUT_MS=30000  # Max time `await ctx.runAgent()` waits for the agent (default: 30000)
-```
 
 ## Quick Start
 
@@ -226,6 +188,50 @@ curl -X POST http://localhost:3000/api/agents/:id/chat \
   -d '{"message": "Add error handling", "sessionId": "<sessionId>"}'
 ```
 
+### Chat with Agent Creator
+
+```bash
+# Start conversation (auto-creates session)
+curl -X POST http://localhost:3000/api/agents/agent-creator/chat \
+  -H "X-API-Key: af_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Create an agent that summarizes articles"}'
+
+# Continue conversation
+curl -X POST http://localhost:3000/api/agents/agent-creator/chat \
+  -H "X-API-Key: af_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Add error handling", "sessionId": "<sessionId>"}'
+```
+
+### Schedule an Agent
+
+```bash
+# Every weekday at 09:00 Berlin time, continuing one chat session
+curl -X POST http://localhost:3000/api/schedules \
+  -H "X-API-Key: af_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "<agentId>",
+    "name": "Morning digest",
+    "trigger": { "type": "cron", "expression": "0 9 * * mon-fri" },
+    "timezone": "Europe/Berlin",
+    "input": { "message": "Summarize yesterday" },
+    "sessionMode": "session",
+    "stopAfterFailures": 5
+  }'
+
+# Other triggers
+#   { "type": "once", "at": "2026-12-24T10:00:00Z" }
+#   { "type": "interval", "everyMs": 5400000, "anchorAt": "2026-11-10T08:00:00Z" }
+
+# Preview next run times, run now, list scheduled runs
+curl -X POST http://localhost:3000/api/schedules/preview -H "X-API-Key: af_live_..." -H "Content-Type: application/json" \
+  -d '{"trigger": {"type": "cron", "expression": "0 0 1 * *"}, "timezone": "UTC", "count": 3}'
+curl -X POST http://localhost:3000/api/schedules/<id>/run -H "X-API-Key: af_live_..."
+curl "http://localhost:3000/api/executions?scheduleId=<id>" -H "X-API-Key: af_live_..."
+```
+
 ### Trigger Agent via Webhook
 
 ```bash
@@ -263,23 +269,56 @@ Handler time limit excludes time spent waiting on `runAgent()`; a wait longer th
 - `POST /api/webhooks/:id/test` - dry-run the handler with `{ headers, query, body }`, returns `{ response, runs, logs, error }` (no runs are started)
 - `POST /api/webhooks/:id/rotate` - new URL token
 
-### Chat with Agent Creator
+See http://localhost:3000/docs for full API documentation.
+
+
+## Environment Variables
 
 ```bash
-# Start conversation (auto-creates session)
-curl -X POST http://localhost:3000/api/agents/agent-creator/chat \
-  -H "X-API-Key: af_live_..." \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Create an agent that summarizes articles"}'
+# Server
+PORT=3000
+HOST=0.0.0.0
+NODE_ENV=development
 
-# Continue conversation
-curl -X POST http://localhost:3000/api/agents/agent-creator/chat \
-  -H "X-API-Key: af_live_..." \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Add error handling", "sessionId": "<sessionId>"}'
+# CORS (optional - leave empty to allow all origins)
+ALLOWED_ORIGINS=http://localhost:3000
+
+# MongoDB
+MONGODB_URI=mongodb://localhost:27017/agent-factory
+
+# JWT
+JWT_SECRET=your-secret-key
+JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_EXPIRES_IN=7d
+
+# Encryption (for provider API keys)
+# Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ENCRYPTION_KEY=your-32-byte-hex-key
+
+# Admin (REQUIRED)
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=your-secure-password
+ADMIN_NAME=Admin
+
+# Agent Versions (optional)
+AGENT_MAX_SNAPSHOTS=50  # Maximum snapshots per agent (default: 50)
+
+# Workflow Engine (optional)
+ENGINE_DEFAULT_PARALLEL_NODES=2  # Default max nodes run in parallel per run, 1 = sequential (default: 2)
+LLM_CLIENT_TOOL_TIMEOUT_MS=60000  # How long a run waits for the UI to answer a client tool call (default: 60000)
+WEBHOOK_PUBLIC_BASE_URL=https://api.example.com  # Base URL used to build webhook trigger URLs
+WEBHOOK_MAX_BODY_BYTES=1048576  # Max webhook request body size (default: 1 MB)
+WEBHOOK_RATE_LIMIT_PER_MINUTE=60  # Max triggers per webhook per minute (default: 60)
+WEBHOOK_HANDLER_TIMEOUT_MS=1000  # Custom webhook handler time limit (default: 1000)
+WEBHOOK_HANDLER_MEMORY_MB=32  # Custom webhook handler memory limit (default: 32)
+WEBHOOK_RUN_WAIT_TIMEOUT_MS=30000  # Max time `await ctx.runAgent()` waits for the agent (default: 30000)
+
+# Agent Scheduler (optional)
+SCHEDULER_POLL_INTERVAL_MS=15000    # Max delay between checks for due schedules (default: 15000)
+SCHEDULER_MAX_CONCURRENT_RUNS=3     # Max scheduled runs executing at the same time (default: 3)
 ```
 
-See http://localhost:3000/docs for full API documentation.
+
 
 ## Licence
 

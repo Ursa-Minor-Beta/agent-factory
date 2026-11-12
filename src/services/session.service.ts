@@ -11,7 +11,7 @@ import type { IUserVariableRepository } from '../domain/interfaces/repositories/
 import type { Session, SessionStatus } from '../domain/entities/Session.js';
 import type { Agent } from '../domain/entities/Agent.js';
 import type { Message, ToolCall } from '../domain/entities/Message.js';
-import type { Run } from '../domain/entities/Run.js';
+import type { Run, RunTrigger } from '../domain/entities/Run.js';
 import type { ExecutedToolCall } from '../engine/nodes/llm/types.js';
 import { resolveRunOutput } from '../utils/node-ref.js';
 import type { ProviderConfig } from '../engine/nodes/base.js';
@@ -49,6 +49,15 @@ export interface ExtractedFile {
 export interface ChatOptions {
   sessionId?: string;
   incognito?: boolean;
+  /**
+   * With incognito: skip the in-memory session entirely (no history, no notes, nothing retained).
+   * Used for one-shot background runs (e.g. schedules).
+   */
+  ephemeral?: boolean;
+  /** Title for a newly created persisted session (skips LLM title generation) */
+  title?: string;
+  /** What started the run (default: { triggerType: 'chat' }) */
+  triggeredBy?: RunTrigger;
   /** Max length for session notes (default: 8000) */
   maxNotesLength?: number;
   /** Max workflow nodes executed in parallel (default: ENGINE_DEFAULT_PARALLEL_NODES) */
@@ -170,6 +179,7 @@ export class SessionService {
       agentId: agent.id,
       userId,
       input,
+      triggeredBy: options.triggeredBy ?? { triggerType: 'chat', sessionId: session?.id },
       sessionId: effectiveSessionId ?? undefined,
     });
     run = (await this.runRepo.updateStatus(run.id, 'running'))!;
@@ -305,6 +315,7 @@ export class SessionService {
       agentId: agent.id,
       userId,
       input,
+      triggeredBy: options.triggeredBy ?? { triggerType: 'chat', sessionId: session?.id },
       sessionId: effectiveSessionId ?? undefined,
     });
     run = (await this.runRepo.updateStatus(run.id, 'running'))!;
@@ -578,7 +589,7 @@ export class SessionService {
     options: ChatOptions,
     providers: ProviderConfig
   ): Promise<SessionSetupResult> {
-    const { sessionId, incognito = false } = options;
+    const { sessionId, incognito = false, ephemeral = false, title: requestedTitle } = options;
     let session: Session | null = null;
     let incognitoSession: IncognitoSession | null = null;
     let isNewSession = false;
@@ -617,6 +628,10 @@ export class SessionService {
       }
       effectiveSessionId = sessionId;
     }
+    // Ephemeral incognito: no session at all
+    else if (incognito && ephemeral) {
+      // Nothing to set up - run executes without session context
+    }
     // Create new incognito session (in-memory)
     else if (incognito) {
       const newSessionId = `incognito_${crypto.randomUUID()}`;
@@ -634,7 +649,8 @@ export class SessionService {
     }
     // Create new persisted session
     else {
-      const title = await this.generateTitle(inputContent, providers).catch(() => {}) || '';
+      const title = requestedTitle
+        ?? (await this.generateTitle(inputContent, providers).catch(() => {}) || '');
       session = await this.sessionRepo.create({
         userId,
         agentId: agent.id,

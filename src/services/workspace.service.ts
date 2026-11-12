@@ -5,6 +5,7 @@ import type { IUserVariableRepository } from '../domain/interfaces/repositories/
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
+import type { IAgentScheduleRepository } from '../domain/interfaces/repositories/IAgentScheduleRepository.js';
 import type {
   Workspace,
   CreateWorkspaceDTO,
@@ -23,6 +24,7 @@ export interface WorkspaceServiceDependencies {
   providerConfigRepo: IProviderConfigRepository;
   memorySchemaRepo: IMemorySchemaRepository;
   memoryStoreRepo: IMemoryStoreRepository;
+  agentScheduleRepo: IAgentScheduleRepository;
 }
 
 export class WorkspaceService {
@@ -33,6 +35,7 @@ export class WorkspaceService {
   private providerConfigRepo: IProviderConfigRepository;
   private memorySchemaRepo: IMemorySchemaRepository;
   private memoryStoreRepo: IMemoryStoreRepository;
+  private agentScheduleRepo: IAgentScheduleRepository;
 
   constructor(deps: WorkspaceServiceDependencies) {
     this.workspaceRepo = deps.workspaceRepo;
@@ -42,6 +45,7 @@ export class WorkspaceService {
     this.providerConfigRepo = deps.providerConfigRepo;
     this.memorySchemaRepo = deps.memorySchemaRepo;
     this.memoryStoreRepo = deps.memoryStoreRepo;
+    this.agentScheduleRepo = deps.agentScheduleRepo;
   }
 
   async create(userId: string, data: Omit<CreateWorkspaceDTO, 'userId'>): Promise<Workspace> {
@@ -111,6 +115,7 @@ export class WorkspaceService {
       this.userVariableRepo.delete({ workspaceId }),
       this.providerConfigRepo.delete({ workspaceId }),
       this.memorySchemaRepo.delete({ workspaceId }),
+      this.agentScheduleRepo.delete({ workspaceId }),
     ]);
 
     // Delete the workspace
@@ -138,6 +143,7 @@ export class WorkspaceService {
     variableCount: number;
     providerCount: number;
     collectionCount: number;
+    scheduleCount: number;
   }> {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace) {
@@ -147,12 +153,13 @@ export class WorkspaceService {
       throw new ForbiddenError('Access denied');
     }
 
-    const [agentCount, secretCount, variableCount, providerCount, collectionCount] = await Promise.all([
+    const [agentCount, secretCount, variableCount, providerCount, collectionCount, scheduleCount] = await Promise.all([
       this.workspaceRepo.countAgentsInWorkspace(workspaceId),
       this.userSecretRepo.count(userId, workspaceId),
       this.userVariableRepo.count(userId, workspaceId),
       this.providerConfigRepo.count(userId, workspaceId),
       this.memorySchemaRepo.count(userId, workspaceId),
+      this.agentScheduleRepo.count(userId, workspaceId),
     ]);
 
     return {
@@ -162,6 +169,7 @@ export class WorkspaceService {
       variableCount,
       providerCount,
       collectionCount,
+      scheduleCount,
     };
   }
 }

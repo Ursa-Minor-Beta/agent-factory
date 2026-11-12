@@ -13,8 +13,11 @@ import { MongoFileRepository } from '../infrastructure/database/mongodb/reposito
 import { MongoMemorySchemaRepository } from '../infrastructure/database/mongodb/repositories/MongoMemorySchemaRepository.js';
 import { MongoMemoryStoreRepository } from '../infrastructure/database/mongodb/repositories/MongoMemoryStoreRepository.js';
 import { MongoGitHubSyncRepository } from '../infrastructure/database/mongodb/repositories/MongoGitHubSyncRepository.js';
+import { MongoAgentScheduleRepository } from '../infrastructure/database/mongodb/repositories/MongoAgentScheduleRepository.js';
 import { MongoWebhookRepository } from '../infrastructure/database/mongodb/repositories/MongoWebhookRepository.js';
 import { RunManager } from '../engine/worker/index.js';
+import { SessionService } from '../services/session.service.js';
+import { ScheduleRunner } from '../services/schedule-runner.service.js';
 import { config } from './index.js';
 
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
@@ -32,6 +35,7 @@ import type { IFileRepository } from '../domain/interfaces/repositories/IFileRep
 import type { IMemorySchemaRepository } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import type { IGitHubSyncRepository } from '../domain/interfaces/repositories/IGitHubSyncRepository.js';
+import type { IAgentScheduleRepository } from '../domain/interfaces/repositories/IAgentScheduleRepository.js';
 import type { IWebhookRepository } from '../domain/interfaces/repositories/IWebhookRepository.js';
 
 export interface Container {
@@ -50,8 +54,10 @@ export interface Container {
   memorySchemaRepository: IMemorySchemaRepository;
   memoryStoreRepository: IMemoryStoreRepository;
   gitHubSyncRepository: IGitHubSyncRepository;
+  agentScheduleRepository: IAgentScheduleRepository;
   webhookRepository: IWebhookRepository;
   runManager: RunManager;
+  scheduleRunner: ScheduleRunner;
 }
 
 // Create singleton repository instances
@@ -74,22 +80,53 @@ runManager.on('log', ({ runId, level, message }) => {
   }
 });
 
+const providerConfigRepository = new MongoProviderConfigRepository();
+const agentRepository = new MongoAgentRepository();
+const sessionRepository = new MongoSessionRepository();
+const messageRepository = new MongoMessageRepository();
+const userSecretRepository = new MongoUserSecretRepository();
+const userVariableRepository = new MongoUserVariableRepository();
+const agentScheduleRepository = new MongoAgentScheduleRepository();
+
+// Background executor for agent schedules (started in index.ts after the server listens)
+const scheduleRunner = new ScheduleRunner(
+  agentScheduleRepository,
+  agentRepository,
+  sessionRepository,
+  new SessionService(
+    sessionRepository,
+    messageRepository,
+    agentRepository,
+    runRepository,
+    runManager,
+    providerConfigRepository,
+    userSecretRepository,
+    userVariableRepository
+  ),
+  {
+    pollIntervalMs: config.scheduler.pollIntervalMs,
+    maxConcurrentRuns: config.scheduler.maxConcurrentRuns,
+  }
+);
+
 export const container: Container = {
   userRepository: new MongoUserRepository(),
   apiKeyRepository: new MongoApiKeyRepository(),
-  providerConfigRepository: new MongoProviderConfigRepository(),
-  agentRepository: new MongoAgentRepository(),
+  providerConfigRepository,
+  agentRepository,
   agentVersionRepository: new MongoAgentVersionRepository(),
   workspaceRepository: new MongoWorkspaceRepository(),
   runRepository,
-  sessionRepository: new MongoSessionRepository(),
-  messageRepository: new MongoMessageRepository(),
-  userSecretRepository: new MongoUserSecretRepository(),
-  userVariableRepository: new MongoUserVariableRepository(),
+  sessionRepository,
+  messageRepository,
+  userSecretRepository,
+  userVariableRepository,
   fileRepository: new MongoFileRepository(),
   memorySchemaRepository: new MongoMemorySchemaRepository(),
   memoryStoreRepository: new MongoMemoryStoreRepository(),
   gitHubSyncRepository: new MongoGitHubSyncRepository(),
+  agentScheduleRepository,
   webhookRepository: new MongoWebhookRepository(),
   runManager,
+  scheduleRunner,
 };

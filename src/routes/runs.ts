@@ -2,7 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { RunService } from '../services/run.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
-import type { RunStatus } from '../domain/entities/Run.js';
+import type { RunStatus, RunTriggerType } from '../domain/entities/Run.js';
+import { RUN_TRIGGER_TYPES } from '../domain/entities/Run.js';
 import { NODE_TYPES } from '../domain/entities/Agent.js';
 
 // Schemas
@@ -45,9 +46,12 @@ const nodeStateSchema = {
 const triggeredBySchema = {
   type: 'object',
   properties: {
-    triggerType: { type: 'string', enum: ['agent_node', 'tool_call', 'webhook'] },
+    triggerType: { type: 'string', enum: [...RUN_TRIGGER_TYPES] },
     nodeId: { type: 'string' },
     toolName: { type: 'string' },
+    sessionId: { type: 'string' },
+    scheduleId: { type: 'string' },
+    scheduledFor: { type: 'string', format: 'date-time' },
     webhookId: { type: 'string' },
   },
 };
@@ -218,6 +222,8 @@ export async function runRoutes(app: FastifyInstance) {
           agentId: { type: 'string', description: 'Filter by agent ID' },
           sessionId: { type: 'string', description: 'Filter by session ID' },
           status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'], description: 'Filter by status' },
+          triggerType: { type: 'string', enum: [...RUN_TRIGGER_TYPES], description: 'Filter by what started the run' },
+          scheduleId: { type: 'string', description: 'Filter by schedule ID (scheduled runs)' },
           startedAfter: { type: 'string', format: 'date-time', description: 'Filter by started date (after)' },
           startedBefore: { type: 'string', format: 'date-time', description: 'Filter by started date (before)' },
           sortBy: { type: 'string', enum: ['startedAt', 'completedAt'], default: 'startedAt' },
@@ -252,6 +258,8 @@ export async function runRoutes(app: FastifyInstance) {
       agentId?: string;
       sessionId?: string;
       status?: RunStatus;
+      triggerType?: RunTriggerType;
+      scheduleId?: string;
       startedAfter?: string;
       startedBefore?: string;
       sortBy?: 'startedAt' | 'completedAt';
@@ -283,6 +291,8 @@ export async function runRoutes(app: FastifyInstance) {
         agentId: query.agentId,
         sessionId: query.sessionId,
         status: query.status,
+        triggerType: query.triggerType,
+        scheduleId: query.scheduleId,
         startedAfter: query.startedAfter ? new Date(query.startedAfter) : undefined,
         startedBefore: query.startedBefore ? new Date(query.startedBefore) : undefined,
         sortBy: query.sortBy,
@@ -306,6 +316,8 @@ export async function runRoutes(app: FastifyInstance) {
       agentId: query.agentId,
       sessionId: query.sessionId,
       status: query.status,
+      triggerType: query.triggerType,
+      scheduleId: query.scheduleId,
       startedAfter: query.startedAfter ? new Date(query.startedAfter) : undefined,
       startedBefore: query.startedBefore ? new Date(query.startedBefore) : undefined,
       sortBy: query.sortBy,

@@ -146,6 +146,12 @@ export class MongoRunRepository implements IRunRepository {
     if (options?.status) {
       query.status = options.status;
     }
+    if (options?.triggerType) {
+      query['triggeredBy.triggerType'] = options.triggerType;
+    }
+    if (options?.scheduleId) {
+      query['triggeredBy.scheduleId'] = options.scheduleId;
+    }
     if (options?.startedAfter || options?.startedBefore) {
       query.startedAt = {};
       if (options.startedAfter) {
@@ -299,6 +305,12 @@ export class MongoRunRepository implements IRunRepository {
     if (options?.status) {
       match.status = options.status;
     }
+    if (options?.triggerType) {
+      match['triggeredBy.triggerType'] = options.triggerType;
+    }
+    if (options?.scheduleId) {
+      match['triggeredBy.scheduleId'] = options.scheduleId;
+    }
     if (options?.startedAfter || options?.startedBefore) {
       match.startedAt = {};
       if (options.startedAfter) {
@@ -371,6 +383,12 @@ export class MongoRunRepository implements IRunRepository {
     if (options?.status) {
       match.status = options.status;
     }
+    if (options?.triggerType) {
+      match['triggeredBy.triggerType'] = options.triggerType;
+    }
+    if (options?.scheduleId) {
+      match['triggeredBy.scheduleId'] = options.scheduleId;
+    }
     if (options?.startedAfter || options?.startedBefore) {
       match.startedAt = {};
       if (options.startedAfter) {
@@ -427,6 +445,12 @@ export class MongoRunRepository implements IRunRepository {
     }
     if (options?.status) {
       match.status = options.status;
+    }
+    if (options?.triggerType) {
+      match['triggeredBy.triggerType'] = options.triggerType;
+    }
+    if (options?.scheduleId) {
+      match['triggeredBy.scheduleId'] = options.scheduleId;
     }
     if (options?.startedAfter || options?.startedBefore) {
       match.startedAt = {};

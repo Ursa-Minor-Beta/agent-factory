@@ -36,7 +36,8 @@ export class RunService {
   async run(
     userId: string,
     agentId: string,
-    input: Record<string, unknown>
+    input: Record<string, unknown>,
+    triggeredBy: RunTrigger = { triggerType: 'api' }
   ): Promise<Run> {
     const { run, options } = await this.prepare(userId, agentId, input);
 

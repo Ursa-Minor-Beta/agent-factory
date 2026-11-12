@@ -53,6 +53,12 @@ export const config = {
     /** How long a run waits for the client (UI) to return a client tool result */
     clientToolTimeoutMs: parseInt(process.env['LLM_CLIENT_TOOL_TIMEOUT_MS'] ?? '60000', 10),
   },
+  scheduler: {
+    /** Max delay between checks for due schedules */
+    pollIntervalMs: parseInt(process.env['SCHEDULER_POLL_INTERVAL_MS'] ?? '15000', 10),
+    /** Max scheduled runs executing at the same time (across all users) */
+    maxConcurrentRuns: parseInt(process.env['SCHEDULER_MAX_CONCURRENT_RUNS'] ?? '3', 10),
+  },
   webhooks: {
     /** Public base URL used to build webhook URLs (e.g. https://api.example.com) */
     publicBaseUrl: process.env['WEBHOOK_PUBLIC_BASE_URL'] ?? '',
