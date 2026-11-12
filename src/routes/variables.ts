@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { UserVariableService } from '../services/user-variable.service.js';
 import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
+import type { UserVariableQueryOptions } from '../domain/interfaces/repositories/IUserVariableRepository.js';
 
 // Schemas
 const errorSchema = {
@@ -48,6 +49,9 @@ export async function variableRoutes(app: FastifyInstance) {
             type: 'string',
             description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
           },
+          name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
+          sortBy: { type: 'string', enum: ['name', 'createdAt', 'updatedAt'], default: 'updatedAt' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
         },
       },
       response: {
@@ -64,9 +68,18 @@ export async function variableRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const query = request.query as { workspaceId?: string };
+    const query = request.query as {
+      workspaceId?: string;
+      name?: string;
+      sortBy?: 'name' | 'createdAt' | 'updatedAt';
+      sortOrder?: 'asc' | 'desc';
+    };
 
-    const options: { workspaceId?: string | null } = {};
+    const options: UserVariableQueryOptions = {
+      name: query.name,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+    };
     if (query.workspaceId === 'null') {
       options.workspaceId = null;
     }

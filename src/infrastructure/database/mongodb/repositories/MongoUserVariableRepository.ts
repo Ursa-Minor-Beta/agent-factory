@@ -10,6 +10,7 @@ import type {
   CreateUserVariableDTO,
   UpdateUserVariableDTO,
 } from '../../../../domain/entities/UserVariable.js';
+import { escapeRegex } from '../../../../utils/regex.js';
 
 interface UserVariableWithWorkspace extends UserVariableDocument {
   workspace?: { name: string }[];
@@ -54,8 +55,16 @@ export class MongoUserVariableRepository implements IUserVariableRepository {
     }
     // If workspaceId is undefined, return all (no filter)
 
+    if (options?.name) {
+      matchStage.name = { $regex: escapeRegex(options.name), $options: 'i' };
+    }
+
+    const sortField = options?.sortBy ?? 'updatedAt';
+    const sortDirection = options?.sortOrder === 'asc' ? 1 : -1;
+
     const docs = await UserVariableModel.aggregate<UserVariableWithWorkspace>([
       { $match: matchStage },
+      { $sort: { [sortField]: sortDirection, _id: sortDirection } },
       {
         $lookup: {
           from: 'workspaces',
