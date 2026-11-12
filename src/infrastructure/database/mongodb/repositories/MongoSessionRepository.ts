@@ -26,7 +26,7 @@ export class MongoSessionRepository implements ISessionRepository {
 
   async findByUserId(
     userId: string,
-    options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number }
+    options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number; sortBy?: 'status' | 'createdAt' | 'updatedAt'; sortOrder?: 'asc' | 'desc' }
   ): Promise<Session[]> {
     const match: Record<string, unknown> = { userId: new mongoose.Types.ObjectId(userId) };
     if (options?.agentId) {
@@ -38,7 +38,7 @@ export class MongoSessionRepository implements ISessionRepository {
 
     const docs = await SessionModel.aggregate([
       { $match: match },
-      { $sort: { updatedAt: -1 } },
+      { $sort: { [options?.sortBy ?? 'updatedAt']: options?.sortOrder === 'asc' ? 1 : -1, _id: -1 } },
       { $skip: options?.offset ?? 0 },
       { $limit: options?.limit ?? 50 },
       {

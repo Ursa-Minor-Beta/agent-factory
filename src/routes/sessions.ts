@@ -87,6 +87,8 @@ export async function sessionRoutes(app: FastifyInstance) {
           status: { type: 'string', enum: ['active', 'archived'] },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
           offset: { type: 'integer', minimum: 0, default: 0 },
+          sortBy: { type: 'string', enum: ['status', 'createdAt', 'updatedAt'], default: 'updatedAt' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
         },
       },
       response: {
@@ -109,14 +111,16 @@ export async function sessionRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { agentId, status, limit, offset } = request.query as {
+    const { agentId, status, limit, offset, sortBy, sortOrder } = request.query as {
       agentId?: string;
       status?: 'active' | 'archived';
       limit?: number;
       offset?: number;
+      sortBy?: 'status' | 'createdAt' | 'updatedAt';
+      sortOrder?: 'asc' | 'desc';
     };
 
-    const { sessions, total } = await sessionService.list(userId, { agentId, status, limit, offset });
+    const { sessions, total } = await sessionService.list(userId, { agentId, status, limit, offset, sortBy, sortOrder });
 
     return reply.send({
       success: true,

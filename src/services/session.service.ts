@@ -455,7 +455,7 @@ export class SessionService {
 
   async list(
     userId: string,
-    options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number }
+    options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number; sortBy?: 'status' | 'createdAt' | 'updatedAt'; sortOrder?: 'asc' | 'desc' }
   ): Promise<{ sessions: Session[]; total: number }> {
     const [sessions, total] = await Promise.all([
       this.sessionRepo.findByUserId(userId, options),
