@@ -38,7 +38,7 @@ export class MongoFileRepository implements IFileRepository {
     options?: { limit?: number; offset?: number }
   ): Promise<File[]> {
     const docs = await FileModel.find({ userId })
-      .sort({ [options?.sortBy ?? 'createdAt']: options?.sortOrder === 'asc' ? 1 : -1, _id: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .skip(options?.offset ?? 0)
       .limit(options?.limit ?? 100);
     return docs.map((doc) => this.toEntity(doc));
