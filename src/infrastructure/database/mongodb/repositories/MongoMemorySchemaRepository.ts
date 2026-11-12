@@ -10,6 +10,7 @@ import type {
   CreateMemorySchemaDTO,
   UpdateMemorySchemaDTO,
 } from '../../../../domain/entities/Memory.js';
+import { escapeRegex } from '../../../../utils/regex.js';
 
 interface MemorySchemaWithWorkspace extends MemorySchemaDocument {
   workspace?: { name: string }[];
@@ -101,9 +102,18 @@ export class MongoMemorySchemaRepository implements IMemorySchemaRepository {
     }
     // If workspaceId is undefined, return all (no filter)
 
+    if (options?.name) {
+      matchStage.name = { $regex: escapeRegex(options.name), $options: 'i' };
+    }
+    if (options?.description) {
+      matchStage.description = { $regex: escapeRegex(options.description), $options: 'i' };
+    }
+
+    const sortDirection = options?.sortOrder === 'asc' ? 1 : -1;
+
     const docs = await MemorySchemaModel.aggregate<MemorySchemaWithWorkspace>([
       { $match: matchStage },
-      { $sort: { createdAt: -1 } },
+      { $sort: { [options?.sortBy ?? 'createdAt']: sortDirection, _id: sortDirection } },
       { $skip: options?.offset ?? 0 },
       { $limit: options?.limit ?? 50 },
       {

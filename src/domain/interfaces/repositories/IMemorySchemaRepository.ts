@@ -7,6 +7,12 @@ import type {
 export interface MemorySchemaQueryOptions {
   /** Filter by workspace: undefined = all, null = global only, "<id>" = workspace only */
   workspaceId?: string | null;
+  /** Filter by name (contains, case-insensitive) */
+  name?: string;
+  /** Filter by description (contains, case-insensitive) */
+  description?: string;
+  sortBy?: 'name' | 'createdAt' | 'updatedAt';
+  sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }

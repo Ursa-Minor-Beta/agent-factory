@@ -7,6 +7,7 @@ import type {
   UpdateMemorySchemaDTO,
 } from '../domain/entities/Memory.js';
 import * as memoryService from '../domain/services/memory.service.js';
+import type { MemorySchemaQueryOptions } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 
 const errorSchema = {
   type: 'object',
@@ -86,6 +87,10 @@ export async function memoryRoutes(app: FastifyInstance) {
             type: 'string',
             description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
           },
+          name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
+          description: { type: 'string', description: 'Filter by description (contains, case-insensitive)' },
+          sortBy: { type: 'string', enum: ['name', 'createdAt', 'updatedAt'], default: 'createdAt' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
         },
       },
       response: {
@@ -102,15 +107,23 @@ export async function memoryRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const { limit, offset, workspaceId } = request.query as {
+    const { limit, offset, workspaceId, name, description, sortBy, sortOrder } = request.query as {
       limit?: number;
       offset?: number;
       workspaceId?: string;
+      name?: string;
+      description?: string;
+      sortBy?: 'name' | 'createdAt' | 'updatedAt';
+      sortOrder?: 'asc' | 'desc';
     };
 
-    const options: { limit?: number; offset?: number; workspaceId?: string | null } = {
+    const options: MemorySchemaQueryOptions = {
       limit,
       offset,
+      name,
+      description,
+      sortBy,
+      sortOrder,
     };
     if (workspaceId === 'null') {
       options.workspaceId = null;
