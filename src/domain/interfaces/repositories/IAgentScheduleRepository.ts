@@ -2,6 +2,8 @@ import type {
   AgentSchedule,
   CreateAgentScheduleDTO,
   UpdateAgentScheduleDTO,
+  ScheduleTriggerType,
+  ScheduleLastStatus,
 } from '../../entities/AgentSchedule.js';
 
 export interface AgentScheduleQueryOptions {
@@ -9,13 +11,31 @@ export interface AgentScheduleQueryOptions {
   /** Filter by workspace: undefined = all, null = global only, "<id>" = workspace only */
   workspaceId?: string | null;
   enabled?: boolean;
-  sortBy?: 'name' | 'nextRunAt' | 'createdAt' | 'updatedAt';
+  /** Filter by name (contains, case-insensitive) */
+  name?: string;
+  /** Filter by description (contains, case-insensitive) */
+  description?: string;
+  triggerType?: ScheduleTriggerType;
+  lastStatus?: ScheduleLastStatus;
+  sessionMode?: 'session' | 'incognito';
+  nextRunAfter?: Date;
+  nextRunBefore?: Date;
+  createdAfter?: Date;
+  createdBefore?: Date;
+  updatedAfter?: Date;
+  updatedBefore?: Date;
+  sortBy?: 'name' | 'nextRunAt' | 'lastRunAt' | 'runCount' | 'createdAt' | 'updatedAt';
   sortOrder?: 'asc' | 'desc';
+  skip?: number;
+  /** Max items; omit for all */
+  limit?: number;
 }
 
 export interface IAgentScheduleRepository {
   findById(id: string): Promise<AgentSchedule | null>;
   findByUserId(userId: string, options?: AgentScheduleQueryOptions): Promise<AgentSchedule[]>;
+  /** Count schedules matching the same filters as findByUserId (skip/limit/sort ignored) */
+  countByUserId(userId: string, options?: AgentScheduleQueryOptions): Promise<number>;
   /** Enabled schedules with nextRunAt <= now, earliest first */
   findDue(now: Date, limit: number): Promise<AgentSchedule[]>;
   /** Earliest nextRunAt among enabled schedules */

@@ -11,11 +11,20 @@ import type {
   CreateAgentScheduleDTO,
   UpdateAgentScheduleDTO,
 } from '../../../../domain/entities/AgentSchedule.js';
+import { escapeRegex } from '../../../../utils/regex.js';
 
 type AgentScheduleRecord = Omit<AgentScheduleDocument, keyof Document> & { _id: Types.ObjectId };
 
 interface AgentScheduleWithWorkspace extends AgentScheduleRecord {
   workspace?: { name: string }[];
+}
+
+function addDateRange(query: Record<string, unknown>, field: string, after?: Date, before?: Date): void {
+  if (!after && !before) return;
+  query[field] = {
+    ...(after ? { $gte: after } : {}),
+    ...(before ? { $lte: before } : {}),
+  };
 }
 
 export class MongoAgentScheduleRepository implements IAgentScheduleRepository {
@@ -60,11 +69,18 @@ export class MongoAgentScheduleRepository implements IAgentScheduleRepository {
   /** Find schedules with workspaceName populated via $lookup */
   private async findWithWorkspace(
     match: Record<string, unknown>,
-    sort?: Record<string, 1 | -1>
+    sort?: Record<string, 1 | -1>,
+    page?: { skip?: number; limit?: number }
   ): Promise<AgentSchedule[]> {
     const pipeline: PipelineStage[] = [{ $match: match }];
     if (sort) {
       pipeline.push({ $sort: sort });
+    }
+    if (page?.skip) {
+      pipeline.push({ $skip: page.skip });
+    }
+    if (page?.limit) {
+      pipeline.push({ $limit: page.limit });
     }
     pipeline.push({
       $lookup: {
@@ -86,7 +102,7 @@ export class MongoAgentScheduleRepository implements IAgentScheduleRepository {
     return schedule ?? null;
   }
 
-  async findByUserId(userId: string, options?: AgentScheduleQueryOptions): Promise<AgentSchedule[]> {
+  private buildUserQuery(userId: string, options?: AgentScheduleQueryOptions): Record<string, unknown> {
     const query: Record<string, unknown> = { userId: new Types.ObjectId(userId) };
 
     if (options?.agentId) {
@@ -100,11 +116,42 @@ export class MongoAgentScheduleRepository implements IAgentScheduleRepository {
     if (options?.enabled !== undefined) {
       query.enabled = options.enabled;
     }
+    if (options?.name) {
+      query.name = { $regex: escapeRegex(options.name), $options: 'i' };
+    }
+    if (options?.description) {
+      query.description = { $regex: escapeRegex(options.description), $options: 'i' };
+    }
+    if (options?.triggerType) {
+      query['trigger.type'] = options.triggerType;
+    }
+    if (options?.lastStatus) {
+      query.lastStatus = options.lastStatus;
+    }
+    if (options?.sessionMode) {
+      query.sessionMode = options.sessionMode;
+    }
+    addDateRange(query, 'nextRunAt', options?.nextRunAfter, options?.nextRunBefore);
+    addDateRange(query, 'createdAt', options?.createdAfter, options?.createdBefore);
+    addDateRange(query, 'updatedAt', options?.updatedAfter, options?.updatedBefore);
 
+    return query;
+  }
+
+  async findByUserId(userId: string, options?: AgentScheduleQueryOptions): Promise<AgentSchedule[]> {
+    const query = this.buildUserQuery(userId, options);
     const sortField = options?.sortBy ?? 'updatedAt';
     const sortDirection = options?.sortOrder === 'asc' ? 1 : -1;
 
-    return this.findWithWorkspace(query, { [sortField]: sortDirection, _id: sortDirection });
+    return this.findWithWorkspace(
+      query,
+      { [sortField]: sortDirection, _id: sortDirection },
+      { skip: options?.skip, limit: options?.limit }
+    );
+  }
+
+  async countByUserId(userId: string, options?: AgentScheduleQueryOptions): Promise<number> {
+    return AgentScheduleModel.countDocuments(this.buildUserQuery(userId, options));
   }
 
   async findDue(now: Date, limit: number): Promise<AgentSchedule[]> {

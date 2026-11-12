@@ -49,8 +49,15 @@ export class AgentScheduleService {
     private onChange: () => void = () => {}
   ) {}
 
-  async list(userId: string, options?: AgentScheduleQueryOptions): Promise<AgentSchedule[]> {
-    return this.scheduleRepo.findByUserId(userId, options);
+  async list(
+    userId: string,
+    options?: AgentScheduleQueryOptions
+  ): Promise<{ schedules: AgentSchedule[]; total: number }> {
+    const [schedules, total] = await Promise.all([
+      this.scheduleRepo.findByUserId(userId, options),
+      this.scheduleRepo.countByUserId(userId, options),
+    ]);
+    return { schedules, total };
   }
 
   async getById(userId: string, id: string): Promise<AgentSchedule> {

@@ -93,6 +93,8 @@ const idParams = {
 
 const MAX_PREVIEW = 20;
 
+const toDate = (value?: string): Date | undefined => (value ? new Date(value) : undefined);
+
 export async function scheduleRoutes(app: FastifyInstance) {
   const runner = container.scheduleRunner;
   const scheduleService = new AgentScheduleService(
@@ -125,8 +127,21 @@ export async function scheduleRoutes(app: FastifyInstance) {
             description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
           },
           enabled: { type: 'boolean' },
-          sortBy: { type: 'string', enum: ['name', 'nextRunAt', 'createdAt', 'updatedAt'], default: 'updatedAt' },
+          name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
+          description: { type: 'string', description: 'Filter by description (contains, case-insensitive)' },
+          triggerType: { type: 'string', enum: SCHEDULE_TRIGGER_TYPES },
+          lastStatus: { type: 'string', enum: ['completed', 'failed', 'cancelled', 'skipped'] },
+          sessionMode: { type: 'string', enum: ['session', 'incognito'] },
+          nextRunAfter: { type: 'string', format: 'date-time', description: 'Filter by next run time (after)' },
+          nextRunBefore: { type: 'string', format: 'date-time', description: 'Filter by next run time (before)' },
+          createdAfter: { type: 'string', format: 'date-time', description: 'Filter by created date (after)' },
+          createdBefore: { type: 'string', format: 'date-time', description: 'Filter by created date (before)' },
+          updatedAfter: { type: 'string', format: 'date-time', description: 'Filter by updated date (after)' },
+          updatedBefore: { type: 'string', format: 'date-time', description: 'Filter by updated date (before)' },
+          sortBy: { type: 'string', enum: ['name', 'nextRunAt', 'lastRunAt', 'runCount', 'createdAt', 'updatedAt'], default: 'updatedAt' },
           sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+          skip: { type: 'integer', minimum: 0, default: 0 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Omit to return all' },
         },
       },
       response: {
@@ -135,6 +150,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
           properties: {
             success: { type: 'boolean' },
             data: { type: 'array', items: scheduleSchema },
+            total: { type: 'integer', description: 'Total matching schedules (ignores skip/limit)' },
           },
         },
         401: errorSchema,
@@ -147,13 +163,39 @@ export async function scheduleRoutes(app: FastifyInstance) {
       agentId?: string;
       workspaceId?: string;
       enabled?: boolean;
+      name?: string;
+      description?: string;
+      triggerType?: AgentScheduleQueryOptions['triggerType'];
+      lastStatus?: AgentScheduleQueryOptions['lastStatus'];
+      sessionMode?: AgentScheduleQueryOptions['sessionMode'];
+      nextRunAfter?: string;
+      nextRunBefore?: string;
+      createdAfter?: string;
+      createdBefore?: string;
+      updatedAfter?: string;
+      updatedBefore?: string;
       sortBy?: AgentScheduleQueryOptions['sortBy'];
       sortOrder?: 'asc' | 'desc';
+      skip?: number;
+      limit?: number;
     };
 
     const options: AgentScheduleQueryOptions = {
+      skip: query.skip,
+      limit: query.limit,
       agentId: query.agentId,
       enabled: query.enabled,
+      name: query.name,
+      description: query.description,
+      triggerType: query.triggerType,
+      lastStatus: query.lastStatus,
+      sessionMode: query.sessionMode,
+      nextRunAfter: toDate(query.nextRunAfter),
+      nextRunBefore: toDate(query.nextRunBefore),
+      createdAfter: toDate(query.createdAfter),
+      createdBefore: toDate(query.createdBefore),
+      updatedAfter: toDate(query.updatedAfter),
+      updatedBefore: toDate(query.updatedBefore),
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
     };
@@ -164,8 +206,8 @@ export async function scheduleRoutes(app: FastifyInstance) {
       options.workspaceId = query.workspaceId;
     }
 
-    const schedules = await scheduleService.list(userId, options);
-    return reply.send({ success: true, data: schedules.map(toResponse) });
+    const { schedules, total } = await scheduleService.list(userId, options);
+    return reply.send({ success: true, data: schedules.map(toResponse), total });
   });
 
   // Preview upcoming run times (no save)
