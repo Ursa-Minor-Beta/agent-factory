@@ -10,6 +10,7 @@ import {
   type ProviderType,
   type LlmProviderPreset,
 } from '../domain/entities/ProviderConfig.js';
+import type { ProviderConfigQueryOptions } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 
 // Schemas
 const errorSchema = {
@@ -136,6 +137,9 @@ export async function settingsRoutes(app: FastifyInstance) {
             type: 'string',
             description: 'Filter by workspace ID. Omit for all, "null" for global only, or ID for workspace only.',
           },
+          name: { type: 'string', description: 'Filter by name (contains, case-insensitive)' },
+          sortBy: { type: 'string', enum: ['name', 'provider', 'createdAt', 'updatedAt'], description: 'Sort field (default: provider, then name)' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'], default: 'asc' },
         },
       },
       response: {
@@ -152,9 +156,19 @@ export async function settingsRoutes(app: FastifyInstance) {
     preHandler: requireAuth,
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
-    const query = request.query as { provider?: ProviderType; workspaceId?: string };
+    const query = request.query as {
+      provider?: ProviderType;
+      workspaceId?: string;
+      name?: string;
+      sortBy?: 'name' | 'provider' | 'createdAt' | 'updatedAt';
+      sortOrder?: 'asc' | 'desc';
+    };
 
-    const options: { provider?: ProviderType; workspaceId?: string | null } = {};
+    const options: ProviderConfigQueryOptions = {
+      name: query.name,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+    };
     if (query.provider) {
       options.provider = query.provider;
     }

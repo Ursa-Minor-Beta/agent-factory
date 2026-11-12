@@ -1,11 +1,7 @@
 import { FileModel, FileDocument } from '../models/FileModel.js';
 import type { IFileRepository, FileListFilters } from '../../../../domain/interfaces/repositories/IFileRepository.js';
 import type { File, FileListItem, CreateFileDTO } from '../../../../domain/entities/File.js';
-
-// Escape regex special chars so user input is matched literally
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+import { escapeRegex } from '../../../../utils/regex.js';
 
 export class MongoFileRepository implements IFileRepository {
   private toEntity(doc: FileDocument): File {

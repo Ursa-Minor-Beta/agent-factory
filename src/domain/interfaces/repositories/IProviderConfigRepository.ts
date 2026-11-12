@@ -10,6 +10,11 @@ export interface ProviderConfigQueryOptions {
   provider?: ProviderType;
   /** Filter by workspace: undefined = all, null = global only, "<id>" = workspace only */
   workspaceId?: string | null;
+  /** Filter by name (contains, case-insensitive) */
+  name?: string;
+  /** Sort field; default sorts by provider, then name */
+  sortBy?: 'name' | 'provider' | 'createdAt' | 'updatedAt';
+  sortOrder?: 'asc' | 'desc';
 }
 
 export interface IProviderConfigRepository {

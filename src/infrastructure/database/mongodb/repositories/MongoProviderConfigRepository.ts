@@ -12,6 +12,7 @@ import type {
   ProviderType,
 } from '../../../../domain/entities/ProviderConfig.js';
 import { encrypt, decrypt, isEncrypted } from '../../../../utils/crypto.js';
+import { escapeRegex } from '../../../../utils/regex.js';
 
 interface ProviderConfigWithWorkspace extends ProviderConfigDocument {
   workspace?: { name: string }[];
@@ -87,9 +88,17 @@ export class MongoProviderConfigRepository implements IProviderConfigRepository 
     }
     // If workspaceId is undefined, return all (no filter)
 
+    if (options?.name) {
+      matchStage.name = { $regex: escapeRegex(options.name), $options: 'i' };
+    }
+
+    const sortStage: Record<string, 1 | -1> = options?.sortBy
+      ? { [options.sortBy]: options.sortOrder === 'desc' ? -1 : 1, _id: 1 }
+      : { provider: 1, name: 1 };
+
     const docs = await ProviderConfigModel.aggregate<ProviderConfigWithWorkspace>([
       { $match: matchStage },
-      { $sort: { provider: 1, name: 1 } },
+      { $sort: sortStage },
       {
         $lookup: {
           from: 'workspaces',
