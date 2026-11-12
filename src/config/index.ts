@@ -53,6 +53,19 @@ export const config = {
     /** How long a run waits for the client (UI) to return a client tool result */
     clientToolTimeoutMs: parseInt(process.env['LLM_CLIENT_TOOL_TIMEOUT_MS'] ?? '60000', 10),
   },
+  webhooks: {
+    /** Public base URL used to build webhook URLs (e.g. https://api.example.com) */
+    publicBaseUrl: process.env['WEBHOOK_PUBLIC_BASE_URL'] ?? '',
+    /** Max request body size accepted by webhook endpoints */
+    maxBodyBytes: parseInt(process.env['WEBHOOK_MAX_BODY_BYTES'] ?? '1048576', 10),
+    /** Max triggers per webhook per minute */
+    rateLimitPerMinute: parseInt(process.env['WEBHOOK_RATE_LIMIT_PER_MINUTE'] ?? '60', 10),
+    /** Custom handler execution limits */
+    handlerTimeoutMs: parseInt(process.env['WEBHOOK_HANDLER_TIMEOUT_MS'] ?? '1000', 10),
+    handlerMemoryMb: parseInt(process.env['WEBHOOK_HANDLER_MEMORY_MB'] ?? '32', 10),
+    /** Max time `await ctx.runAgent()` waits for a run before returning status 'running' */
+    runWaitTimeoutMs: parseInt(process.env['WEBHOOK_RUN_WAIT_TIMEOUT_MS'] ?? '30000', 10),
+  },
 } as const;
 
 // Validate required config

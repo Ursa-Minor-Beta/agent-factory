@@ -110,10 +110,11 @@ const runSchema = new Schema<RunDocument>(
       // 'type' field renamed to avoid Mongoose keyword conflict
       triggerType: {
         type: String,
-        enum: ['agent_node', 'tool_call'],
+        enum: ['agent_node', 'tool_call', 'webhook'],
       },
       nodeId: { type: String },
       toolName: { type: String },
+      webhookId: { type: String },
     },
     // Cumulative LLM usage by provider
     usage: {

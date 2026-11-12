@@ -45,9 +45,10 @@ const nodeStateSchema = {
 const triggeredBySchema = {
   type: 'object',
   properties: {
-    triggerType: { type: 'string', enum: ['agent_node', 'tool_call'] },
+    triggerType: { type: 'string', enum: ['agent_node', 'tool_call', 'webhook'] },
     nodeId: { type: 'string' },
     toolName: { type: 'string' },
+    webhookId: { type: 'string' },
   },
 };
 

@@ -156,8 +156,22 @@ export class RunManager extends EventEmitter {
    * Returns when the run completes, fails, or is cancelled
    */
   async executeAndWait(runId: string, options: StartRunOptions): Promise<RunCompletionResult> {
-    // Create promise that will be resolved when run completes
-    const completionPromise = new Promise<RunCompletionResult>((resolve) => {
+    // Subscribe before starting so a fast run can't complete unnoticed
+    const completionPromise = this.waitForCompletion(runId);
+
+    // Start the run
+    await this.startRun(runId, options);
+
+    // Wait for completion
+    return completionPromise;
+  }
+
+  /**
+   * Resolve when the run completes, fails, or is cancelled.
+   * Subscribe before startRun() - events of already finished runs are not replayed.
+   */
+  waitForCompletion(runId: string): Promise<RunCompletionResult> {
+    return new Promise<RunCompletionResult>((resolve) => {
       let resolved = false;
 
       const cleanup = () => {
@@ -207,12 +221,6 @@ export class RunManager extends EventEmitter {
       this.on('run-cancelled', onCancel);
       this.on('worker-exit', onWorkerExit);
     });
-
-    // Start the run
-    await this.startRun(runId, options);
-
-    // Wait for completion
-    return completionPromise;
   }
 
   /**
