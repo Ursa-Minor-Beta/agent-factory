@@ -57,6 +57,7 @@ export interface Run {
   error: string | null;
   startedAt: Date;
   completedAt: Date | null;
+  sessionId?: string;
   // Parent-child relationship
   parentRunId?: string;
   triggeredBy?: RunTrigger;
@@ -80,6 +81,7 @@ export interface RunSummary {
   error: string | null;
   startedAt: Date;
   completedAt: Date | null;
+  sessionId?: string;
   // Parent-child relationship
   parentRunId?: string;
   triggeredBy?: RunTrigger;
@@ -93,6 +95,7 @@ export interface CreateRunDTO {
   agentId: string;
   userId: string;
   input: Record<string, unknown>;
+  sessionId?: string;
   parentRunId?: string;
   triggeredBy?: RunTrigger;
 }

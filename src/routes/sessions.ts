@@ -94,7 +94,13 @@ export async function sessionRoutes(app: FastifyInstance) {
           type: 'object',
           properties: {
             success: { type: 'boolean' },
-            data: { type: 'array', items: sessionSchema },
+            data: {
+              type: 'object',
+              properties: {
+                items: { type: 'array', items: sessionSchema },
+                total: { type: 'integer' },
+              },
+            },
           },
         },
         401: errorSchema,
@@ -110,11 +116,11 @@ export async function sessionRoutes(app: FastifyInstance) {
       offset?: number;
     };
 
-    const sessions = await sessionService.list(userId, { agentId, status, limit, offset });
+    const { sessions, total } = await sessionService.list(userId, { agentId, status, limit, offset });
 
     return reply.send({
       success: true,
-      data: sessions,
+      data: { items: sessions, total },
     });
   });
 

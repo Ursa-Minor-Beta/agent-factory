@@ -170,6 +170,7 @@ export class SessionService {
       agentId: agent.id,
       userId,
       input,
+      sessionId: effectiveSessionId ?? undefined,
     });
     run = (await this.runRepo.updateStatus(run.id, 'running'))!;
 
@@ -304,6 +305,7 @@ export class SessionService {
       agentId: agent.id,
       userId,
       input,
+      sessionId: effectiveSessionId ?? undefined,
     });
     run = (await this.runRepo.updateStatus(run.id, 'running'))!;
 
@@ -443,8 +445,12 @@ export class SessionService {
   async list(
     userId: string,
     options?: { agentId?: string; status?: SessionStatus; limit?: number; offset?: number }
-  ): Promise<Session[]> {
-    return this.sessionRepo.findByUserId(userId, options);
+  ): Promise<{ sessions: Session[]; total: number }> {
+    const [sessions, total] = await Promise.all([
+      this.sessionRepo.findByUserId(userId, options),
+      this.sessionRepo.count(userId, { agentId: options?.agentId, status: options?.status }),
+    ]);
+    return { sessions, total };
   }
 
   async delete(userId: string, sessionId: string): Promise<void> {
