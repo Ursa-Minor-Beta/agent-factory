@@ -34,12 +34,13 @@ export class MongoMemoryStoreRepository implements IMemoryStoreRepository {
       limit?: number;
       offset?: number;
       sort?: { field: string; direction: 'asc' | 'desc' };
+      filters?: Record<string, unknown>;
     }
   ): Promise<MemoryRecord[]> {
     const sortField = options?.sort?.field ?? 'createdAt';
     const sortDirection = options?.sort?.direction === 'asc' ? 1 : -1;
 
-    const docs = await MemoryRecordModel.find({ schemaId })
+    const docs = await MemoryRecordModel.find({ ...(options?.filters ?? {}), schemaId })
       .sort({ [sortField]: sortDirection })
       .skip(options?.offset ?? 0)
       .limit(options?.limit ?? 50);

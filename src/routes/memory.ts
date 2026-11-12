@@ -7,6 +7,7 @@ import type {
   UpdateMemorySchemaDTO,
 } from '../domain/entities/Memory.js';
 import * as memoryService from '../domain/services/memory.service.js';
+import { escapeRegex } from '../utils/regex.js';
 import type { MemorySchemaQueryOptions } from '../domain/interfaces/repositories/IMemorySchemaRepository.js';
 
 const errorSchema = {
@@ -430,6 +431,8 @@ export async function memoryRoutes(app: FastifyInstance) {
           offset: { type: 'integer', minimum: 0, default: 0 },
           sortField: { type: 'string' },
           sortDirection: { type: 'string', enum: ['asc', 'desc'], default: 'desc' },
+          field: { type: 'string', description: 'Schema field to search in (used with value)' },
+          value: { type: 'string', description: 'Text the field must contain (case-insensitive)' },
         },
       },
       response: {
@@ -446,6 +449,7 @@ export async function memoryRoutes(app: FastifyInstance) {
             },
           },
         },
+        400: errorSchema,
         401: errorSchema,
         404: errorSchema,
       },
@@ -454,23 +458,38 @@ export async function memoryRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { schemaId } = request.params as { schemaId: string };
-    const { limit, offset, sortField, sortDirection } = request.query as {
+    const { limit, offset, sortField, sortDirection, field, value } = request.query as {
       limit?: number;
       offset?: number;
       sortField?: string;
       sortDirection?: 'asc' | 'desc';
+      field?: string;
+      value?: string;
     };
 
     const schema = await getSchemaWithOwnership(schemaId, userId, reply);
     if (!schema) return;
+
+    let filters: Record<string, unknown> | undefined;
+    if (field && value) {
+      // Only allow searching on the collection's own fields
+      if (!schema.fields.some((f) => f.name === field)) {
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: `Unknown field "${field}" in collection "${schema.name}"` },
+        });
+      }
+      filters = { [field]: { $regex: escapeRegex(value), $options: 'i' } };
+    }
 
     const [records, total] = await Promise.all([
       memoryStoreRepo.findBySchemaId(schema.id, {
         limit,
         offset,
         sort: sortField ? { field: sortField, direction: sortDirection ?? 'desc' } : undefined,
+        filters,
       }),
-      memoryStoreRepo.count(schema.id),
+      memoryStoreRepo.count(schema.id, filters),
     ]);
 
     return reply.send({

@@ -17,7 +17,12 @@ export interface IMemoryStoreRepository {
    */
   findBySchemaId(
     schemaId: string,
-    options?: { limit?: number; offset?: number; sort?: { field: string; direction: 'asc' | 'desc' } }
+    options?: {
+      limit?: number;
+      offset?: number;
+      sort?: { field: string; direction: 'asc' | 'desc' };
+      filters?: Record<string, unknown>;
+    }
   ): Promise<MemoryRecord[]>;
 
   /**
