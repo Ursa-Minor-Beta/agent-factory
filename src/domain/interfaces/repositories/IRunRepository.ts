@@ -4,6 +4,7 @@ import type { LLMProvider, TokenUsage } from '../../../engine/nodes/llm/types.js
 export interface RunQueryOptions {
   userId?: string;
   agentId?: string;
+  sessionId?: string;
   status?: RunStatus;
   startedAfter?: Date;
   startedBefore?: Date;
@@ -29,6 +30,7 @@ export interface RunSummaryQueryResult {
 export interface RunWithChildrenQueryOptions {
   userId?: string;
   agentId?: string;
+  sessionId?: string;
   status?: RunStatus;
   startedAfter?: Date;
   startedBefore?: Date;

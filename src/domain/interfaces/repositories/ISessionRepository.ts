@@ -13,5 +13,5 @@ export interface ISessionRepository {
    */
   deleteBy(options: { id?: string | string[]; agentId?: string | string[]; userId?: string }): Promise<number>;
   archive(id: string): Promise<Session | null>;
-  count(userId: string): Promise<number>;
+  count(userId: string, options?: { agentId?: string; status?: SessionStatus }): Promise<number>;
 }

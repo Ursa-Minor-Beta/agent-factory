@@ -15,6 +15,7 @@ export interface RunDocument extends Document {
   error: string | null;
   startedAt: Date;
   completedAt: Date | null;
+  sessionId?: string;
   // Parent-child relationship
   parentRunId?: mongoose.Types.ObjectId;
   triggeredBy?: RunTrigger;
@@ -91,6 +92,11 @@ const runSchema = new Schema<RunDocument>(
     completedAt: {
       type: Date,
       default: null,
+    },
+    sessionId: {
+      type: String,
+      default: undefined,
+      index: true,
     },
     // Parent-child relationship
     parentRunId: {

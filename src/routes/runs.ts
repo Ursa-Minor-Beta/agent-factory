@@ -65,6 +65,7 @@ const runSummarySchema: Record<string, unknown> = {
     error: { type: 'string', nullable: true },
     startedAt: { type: 'string', format: 'date-time' },
     completedAt: { type: 'string', format: 'date-time', nullable: true },
+    sessionId: { type: 'string', nullable: true },
     parentRunId: { type: 'string' },
     triggeredBy: triggeredBySchema,
     childRunIds: { type: 'array', items: { type: 'string' } },
@@ -85,6 +86,7 @@ const runSchema: Record<string, unknown> = {
     error: { type: 'string', nullable: true },
     startedAt: { type: 'string', format: 'date-time' },
     completedAt: { type: 'string', format: 'date-time', nullable: true },
+    sessionId: { type: 'string', nullable: true },
     parentRunId: { type: 'string' },
     triggeredBy: triggeredBySchema,
     childRuns: { type: 'array' }, // Recursive reference handled by Fastify
@@ -100,62 +102,6 @@ export async function runRoutes(app: FastifyInstance) {
     container.userSecretRepository,
     container.userVariableRepository
   );
-
-  // List runs for agent
-  app.get('/api/agents/:agentId/runs', {
-    schema: {
-      tags: ['runs'],
-      summary: 'List runs for an agent',
-      security: [{ bearerAuth: [] }, { apiKey: [] }],
-      params: {
-        type: 'object',
-        properties: {
-          agentId: { type: 'string' },
-        },
-      },
-      querystring: {
-        type: 'object',
-        properties: {
-          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
-        },
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            success: { type: 'boolean' },
-            data: {
-              type: 'object',
-              properties: {
-                runs: { type: 'array', items: runSummarySchema },
-                total: { type: 'integer' },
-              },
-            },
-          },
-        },
-        401: errorSchema,
-        403: errorSchema,
-        404: errorSchema,
-      },
-    },
-    preHandler: requireAuth,
-  }, async (request, reply) => {
-    const { userId } = request.user as { userId: string };
-    const { agentId } = request.params as { agentId: string };
-    const { limit } = request.query as { limit?: number };
-
-    // Use summary query for list view (excludes input, output, nodeStates)
-    const result = await runService.listAllSummary({
-      userId,
-      agentId,
-      limit,
-    });
-
-    return reply.send({
-      success: true,
-      data: result,
-    });
-  });
 
   // Get run by ID
   app.get('/api/runs/:id', {
@@ -270,6 +216,7 @@ export async function runRoutes(app: FastifyInstance) {
         properties: {
           userId: { type: 'string', description: 'Filter by user ID (admin only)' },
           agentId: { type: 'string', description: 'Filter by agent ID' },
+          sessionId: { type: 'string', description: 'Filter by session ID' },
           status: { type: 'string', enum: ['pending', 'running', 'completed', 'failed', 'cancelling', 'cancelled'], description: 'Filter by status' },
           startedAfter: { type: 'string', format: 'date-time', description: 'Filter by started date (after)' },
           startedBefore: { type: 'string', format: 'date-time', description: 'Filter by started date (before)' },
@@ -303,6 +250,7 @@ export async function runRoutes(app: FastifyInstance) {
     const query = request.query as {
       userId?: string;
       agentId?: string;
+      sessionId?: string;
       status?: RunStatus;
       startedAfter?: string;
       startedBefore?: string;
@@ -333,6 +281,7 @@ export async function runRoutes(app: FastifyInstance) {
       const result = await runService.listParentsWithChildIdsSummary({
         userId: effectiveUserId,
         agentId: query.agentId,
+        sessionId: query.sessionId,
         status: query.status,
         startedAfter: query.startedAfter ? new Date(query.startedAfter) : undefined,
         startedBefore: query.startedBefore ? new Date(query.startedBefore) : undefined,
@@ -355,6 +304,7 @@ export async function runRoutes(app: FastifyInstance) {
     const result = await runService.listAllSummary({
       userId: effectiveUserId,
       agentId: query.agentId,
+      sessionId: query.sessionId,
       status: query.status,
       startedAfter: query.startedAfter ? new Date(query.startedAfter) : undefined,
       startedBefore: query.startedBefore ? new Date(query.startedBefore) : undefined,
