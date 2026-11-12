@@ -12,8 +12,8 @@ export interface IWebhookRepository {
   create(data: CreateWebhookDTO): Promise<Webhook>;
   update(id: string, data: UpdateWebhookDTO): Promise<Webhook | null>;
   /**
-   * Delete webhooks by id or agentId
+   * Delete webhooks by id, agentId or userId
    * @returns Number of deleted webhooks
    */
-  delete(options: { id?: string; agentId?: string }): Promise<number>;
+  delete(options: { id?: string; agentId?: string; userId?: string }): Promise<number>;
 }

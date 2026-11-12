@@ -238,6 +238,7 @@ export async function userRoutes(app: FastifyInstance) {
                 gitHubSyncs: { type: 'integer' },
                 memorySchemas: { type: 'integer' },
                 memoryRecords: { type: 'integer' },
+                webhooks: { type: 'integer' },
               },
             },
           },
@@ -290,6 +291,7 @@ export async function userRoutes(app: FastifyInstance) {
       providerConfigsDeleted,
       gitHubSyncsDeleted,
       memorySchemasDeleted,
+      webhooksDeleted,
       ...memoryRecordsDeleted
     ] = await Promise.all([
       container.apiKeyRepository.delete({ userId: targetUserId }),
@@ -305,6 +307,7 @@ export async function userRoutes(app: FastifyInstance) {
       container.providerConfigRepository.delete({ userId: targetUserId }),
       container.gitHubSyncRepository.delete({ userId: targetUserId }),
       container.memorySchemaRepository.delete({ userId: targetUserId }),
+      container.webhookRepository.delete({ userId: targetUserId }),
       ...schemaIds.map((schemaId) => container.memoryStoreRepository.deleteBySchemaId(schemaId)),
     ]);
 
@@ -329,6 +332,7 @@ export async function userRoutes(app: FastifyInstance) {
         gitHubSyncs: gitHubSyncsDeleted,
         memorySchemas: memorySchemasDeleted,
         memoryRecords: totalMemoryRecords,
+        webhooks: webhooksDeleted,
       },
     });
   });

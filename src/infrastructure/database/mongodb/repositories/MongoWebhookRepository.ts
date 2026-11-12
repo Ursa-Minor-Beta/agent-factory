@@ -98,9 +98,9 @@ export class MongoWebhookRepository implements IWebhookRepository {
     return doc ? this.toEntity(doc) : null;
   }
 
-  async delete(options: { id?: string; agentId?: string }): Promise<number> {
-    if (!options.id && !options.agentId) {
-      throw new Error('WebhookRepository.delete requires id or agentId');
+  async delete(options: { id?: string; agentId?: string; userId?: string }): Promise<number> {
+    if (!options.id && !options.agentId && !options.userId) {
+      throw new Error('WebhookRepository.delete requires id, agentId or userId');
     }
     const query: Record<string, unknown> = {};
     if (options.id) {
@@ -110,6 +110,10 @@ export class MongoWebhookRepository implements IWebhookRepository {
     if (options.agentId) {
       if (!Types.ObjectId.isValid(options.agentId)) return 0;
       query.agentId = new Types.ObjectId(options.agentId);
+    }
+    if (options.userId) {
+      if (!Types.ObjectId.isValid(options.userId)) return 0;
+      query.userId = new Types.ObjectId(options.userId);
     }
     const result = await WebhookModel.deleteMany(query);
     return result.deletedCount;
