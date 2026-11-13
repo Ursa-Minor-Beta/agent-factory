@@ -13,7 +13,6 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Node Graph Workflows** - Define agents as connected nodes
 - **Composable Agents** - Agents can call other agents as sub-workflows or llm-tools
 - **Multi-Provider LLM** - Anthropic, OpenAI, Ollama, DeepSeek, Groq, Mistral, OpenRouter, Together AI, xAI, plus any OpenAI-compatible endpoint (vLLM, LM Studio, LiteLLM, ...) via custom `baseUrl`
-- **Agent Creator** - System agent that builds custom agents through conversation
 - **Memory System** - Persistent storage with collections, schemas, and CRUD operations
 - **Builtin Tools** - LLM function calling for agents, memory, collections, and session notes
   - Agent tools: `create_agent`, `get_agent`, `update_agent`
@@ -79,7 +78,7 @@ Open http://localhost:3000/docs for full API documentation.
 
 On startup, the server creates:
 - **Admin user** from `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars
-- **Agent Creator** - System agent for building custom agents
+- **Agent Builder** - System agent that assists inside the UI agent editor
 - **Default agent** - Simple `Input → LLM → Output` workflow
 
 
@@ -186,22 +185,6 @@ curl -X POST http://localhost:3000/api/agents/:id/chat \
 
 # Continue conversation
 curl -X POST http://localhost:3000/api/agents/:id/chat \
-  -H "X-API-Key: af_live_..." \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Add error handling", "sessionId": "<sessionId>"}'
-```
-
-### Chat with Agent Creator
-
-```bash
-# Start conversation (auto-creates session)
-curl -X POST http://localhost:3000/api/agents/agent-creator/chat \
-  -H "X-API-Key: af_live_..." \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Create an agent that summarizes articles"}'
-
-# Continue conversation
-curl -X POST http://localhost:3000/api/agents/agent-creator/chat \
   -H "X-API-Key: af_live_..." \
   -H "Content-Type: application/json" \
   -d '{"message": "Add error handling", "sessionId": "<sessionId>"}'

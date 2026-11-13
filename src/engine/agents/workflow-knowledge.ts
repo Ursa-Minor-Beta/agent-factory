@@ -1,5 +1,5 @@
 /**
- * Shared workflow knowledge for agent-building assistants (Agent Creator, Agent Builder)
+ * Shared workflow knowledge for agent-building assistants (Agent Builder)
  * Node docs, template syntax, models, patterns, memory, workspaces, validation rules
  */
 

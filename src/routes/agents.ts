@@ -15,7 +15,6 @@ import type { ClientToolDefinition, ToolParameters } from '../engine/tools/types
 import { AgentExecutionError } from '../utils/errors.js';
 import {
   CHAT_AGENT,
-  AGENT_CREATOR,
   AGENT_BUILDER,
 } from '../engine/agents/index.js';
 import { isOriginAllowed } from '../utils/cors.js';
@@ -317,7 +316,6 @@ export async function agentRoutes(app: FastifyInstance) {
       success: true,
       data: [
         CHAT_AGENT,
-        AGENT_CREATOR,
         AGENT_BUILDER,
       ],
     });

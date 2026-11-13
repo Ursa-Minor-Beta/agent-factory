@@ -4,7 +4,6 @@ import type { IWorkspaceRepository } from '../domain/interfaces/repositories/IWo
 import type { WorkflowNode } from '../domain/entities/Agent.js';
 import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
-import { AGENT_CREATOR } from '../engine/agents/agent-creator.js';
 import { CHAT_AGENT } from '../engine/agents/chat.js';
 import { AGENT_BUILDER } from '../engine/agents/agent-builder.js';
 
@@ -89,7 +88,6 @@ export class SeedService {
     await this.seedWorkspaces();
 
     // System agents → global (no workspace)
-    await this.findOrCreateSystemAgent(admin.id, 'agent-creator', AGENT_CREATOR.name, AGENT_CREATOR.description, AGENT_CREATOR.nodes);
     await this.findOrCreateSystemAgent(admin.id, 'chat-agent', CHAT_AGENT.name, CHAT_AGENT.description, CHAT_AGENT.nodes);
     await this.findOrCreateSystemAgent(admin.id, 'agent-builder', AGENT_BUILDER.name, AGENT_BUILDER.description, AGENT_BUILDER.nodes);
 
@@ -110,7 +108,6 @@ export class SeedService {
 
     // Update system agents (by systemName); keep existing workspace, new ones → global
     const systemAgents = [
-      { systemName: 'agent-creator', name: AGENT_CREATOR.name, desc: AGENT_CREATOR.description, nodes: AGENT_CREATOR.nodes },
       { systemName: 'chat-agent', name: CHAT_AGENT.name, desc: CHAT_AGENT.description, nodes: CHAT_AGENT.nodes },
       { systemName: 'agent-builder', name: AGENT_BUILDER.name, desc: AGENT_BUILDER.description, nodes: AGENT_BUILDER.nodes },
     ];
