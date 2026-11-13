@@ -105,17 +105,20 @@ export class ExecutionContext {
 
   /**
    * Resolve skip reason for a node, or null if it should execute.
-   * A node is skipped if it is in an inactive branch, or if ANY dependency
+   * A node is skipped if it is disabled, if it is in an inactive branch, or if ANY dependency
    * was skipped and NO dependency comes from an active branch path.
    * Nodes explicitly listed in an active branch always execute.
    * Skipped nodes are recorded so propagation works transitively;
    * executed nodes on an active branch path are recorded for merge detection.
    */
-  getSkipReason(nodeId: string, dependencies: Set<string>): string | null {
+  getSkipReason(nodeId: string, dependencies: Set<string>, disabled = false): string | null {
     let reason: string | null = null;
     const deps = [...dependencies];
 
-    if (this.shouldSkipNode(nodeId)) {
+    if (disabled) {
+      reason = 'Node disabled';
+    }
+    else if (this.shouldSkipNode(nodeId)) {
       reason = 'Not in active branch';
     }
     else if (

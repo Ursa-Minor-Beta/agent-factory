@@ -72,6 +72,11 @@ export const COMMON_NODE_FIELDS: NodeOption[] = [
     type: 'node[]',
     description: 'Ordering-only dependencies: ids of nodes that must finish (or be skipped) before this node runs. No data is passed; use {{node:id.path}} for that.',
   },
+  {
+    name: 'disabled',
+    type: 'boolean',
+    description: 'When true, the node is skipped at runtime; nodes depending on it are skipped too. Not allowed on input/output nodes.',
+  },
 ];
 
 export interface NodeDefinitionRaw {

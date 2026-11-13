@@ -26,6 +26,7 @@ export const nodeSchema = new Schema(
     },
     data: { type: Schema.Types.Mixed, default: {} },
     runAfter: { type: [String], default: undefined },
+    disabled: { type: Boolean, default: undefined },
   },
   { _id: false }
 );

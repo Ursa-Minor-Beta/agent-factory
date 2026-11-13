@@ -308,6 +308,13 @@ export function validateWorkflow(nodes: WorkflowNode[]): { valid: boolean; error
     }
   }
 
+  // Input/output nodes cannot be disabled
+  for (const node of nodes) {
+    if (node.disabled && (node.type === 'input' || node.type === 'output')) {
+      errors.push(`Node "${node.id}" of type "${node.type}" cannot be disabled`);
+    }
+  }
+
   // Check for cycles
   try {
     topologicalSort(nodes);

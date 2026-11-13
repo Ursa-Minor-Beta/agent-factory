@@ -251,8 +251,8 @@ export class WorkflowExecutor {
         : rawNode;
 
       if (node.type !== 'output') {
-        // Check if this node should be skipped (inactive branch or all dependencies skipped)
-        const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node));
+        // Check if this node should be skipped (disabled, inactive branch or all dependencies skipped)
+        const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node), node.disabled === true);
         if (skipReason) {
           await this.runRepo.updateNodeState(runId, nodeId, {
             nodeType: node.type,

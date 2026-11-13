@@ -271,6 +271,9 @@ To make a node wait for another node that it does not reference, set \`runAfter\
 \`\`\`
 **Do not use \`runAfter\` when the node already references the other node** via a \`{{node:<id>...}}\` template (in any field, including \`inputs\`, prompts, \`url\`, etc.). A referenced node is automatically a dependency, so the ordering is already guaranteed. Only use \`runAfter\` for a pure side-effect ordering where no data flows between the two nodes.
 
+### Disabling a Node
+Set \`"disabled": true\` on the node itself (next to \`id\`/\`type\`) to skip it at runtime without deleting it. Nodes that depend on a disabled node are skipped as well. Input and output nodes cannot be disabled.
+
 ### LLM with Tool Calling (Sub-Agent)
 When an LLM needs to call another agent as a tool:
 \`\`\`json

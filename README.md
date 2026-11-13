@@ -98,6 +98,8 @@ On startup, the server creates:
 | `memory-update` | Update existing memory records |
 | `memory-delete` | Delete memory records |
 
+Any non-input/output node can be disabled by setting `"disabled": true` on the node (next to `id`/`type`). Disabled nodes are skipped at runtime (status `skipped`, reason `Node disabled`), and nodes that depend on them are skipped as well.
+
 Get full node documentation: `GET /api/nodes`
 
 ## Workspace Scoping

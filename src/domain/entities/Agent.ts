@@ -7,6 +7,8 @@ export interface WorkflowNode {
   data: Record<string, unknown>;
   /** Ordering-only dependencies: node ids that must finish (or be skipped) before this node runs */
   runAfter?: string[];
+  /** Disabled nodes are skipped at runtime (dependents are skipped too) */
+  disabled?: boolean;
 }
 
 export interface NodePosition {
