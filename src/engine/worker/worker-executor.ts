@@ -123,7 +123,8 @@ export class WorkerExecutor {
     private messageRepo: IMessageRepository,
     private memorySchemaRepo: IMemorySchemaRepository | undefined,
     private memoryStoreRepo: IMemoryStoreRepository | undefined,
-    private callbacks: WorkerExecutorCallbacks
+    private callbacks: WorkerExecutorCallbacks,
+    private managementServices: Pick<ExecutionOptions, 'scheduleService' | 'webhookService'> = {}
   ) {}
 
   /**
@@ -198,6 +199,8 @@ export class WorkerExecutor {
       messageRepo: this.messageRepo,
       memorySchemaRepo: this.memorySchemaRepo,
       memoryStoreRepo: this.memoryStoreRepo,
+      scheduleService: this.managementServices.scheduleService,
+      webhookService: this.managementServices.webhookService,
       userId,
       workspaceId: await resolveWorkspaceId(agent, input, userId, this.agentRepo), // For workspace-scoped resources
       currentRunId: runId, // For parent-child run linking

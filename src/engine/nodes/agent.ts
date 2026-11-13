@@ -109,6 +109,8 @@ export class AgentNode extends BaseNode {
           messageRepo: options.messageRepo,
           memorySchemaRepo: options.memorySchemaRepo,
           memoryStoreRepo: options.memoryStoreRepo,
+          scheduleService: options.scheduleService,
+          webhookService: options.webhookService,
           fileRepo: options.fileRepo,
           callStack: newCallStack,
           userId: options.userId,

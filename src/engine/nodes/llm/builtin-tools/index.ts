@@ -34,6 +34,24 @@ import {
   handleMemoryDelete,
 } from './memory.js';
 
+import {
+  handleListSchedules,
+  handleGetSchedule,
+  handleCreateSchedule,
+  handleUpdateSchedule,
+  handleDeleteSchedule,
+} from './schedules.js';
+
+import {
+  handleListWebhookTemplates,
+  handleListWebhooks,
+  handleGetWebhook,
+  handleCreateWebhook,
+  handleUpdateWebhook,
+  handleDeleteWebhook,
+  handleTestWebhook,
+} from './webhooks.js';
+
 /**
  * Registry of all builtin tool handlers
  */
@@ -60,6 +78,22 @@ const builtinToolHandlers: Record<string, ToolHandler> = {
   memory_search: handleMemorySearch,
   memory_update: handleMemoryUpdate,
   memory_delete: handleMemoryDelete,
+
+  // Schedule tools
+  list_schedules: handleListSchedules,
+  get_schedule: handleGetSchedule,
+  create_schedule: handleCreateSchedule,
+  update_schedule: handleUpdateSchedule,
+  delete_schedule: handleDeleteSchedule,
+
+  // Webhook tools
+  list_webhook_templates: handleListWebhookTemplates,
+  list_webhooks: handleListWebhooks,
+  get_webhook: handleGetWebhook,
+  create_webhook: handleCreateWebhook,
+  update_webhook: handleUpdateWebhook,
+  delete_webhook: handleDeleteWebhook,
+  test_webhook: handleTestWebhook,
 };
 
 /**

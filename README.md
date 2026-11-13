@@ -20,6 +20,9 @@ Backend API for building and executing AI agent workflows using a node-graph sys
   - Memory tools: `memory_store`, `memory_search`, `memory_update`, `memory_delete`
   - Collection tools: `create_collection`, `get_collection`, `update_collection`, `list_collections`, `delete_collection`
   - Session tools: `update_session_notes`, `append_session_notes`
+  - Schedule tools: `list_schedules`, `get_schedule`, `create_schedule`, `update_schedule`, `delete_schedule`
+  - Webhook tools: `list_webhook_templates`, `list_webhooks`, `get_webhook`, `create_webhook`, `update_webhook`, `delete_webhook`, `test_webhook` (dry run)
+  - The Agent Builder (editor assistant) uses the schedule and webhook tools to set up triggers for the agent open in the editor
 - **Multi-User** - JWT auth + API keys
 - **Workspaces** - Organize agents, secrets, collections, and providers into isolated workspaces
 - **Streaming Chat** - Real-time streaming status

@@ -205,6 +205,8 @@ export class WorkflowExecutor {
       messageRepo: options.messageRepo,
       memorySchemaRepo: options.memorySchemaRepo,
       memoryStoreRepo: options.memoryStoreRepo,
+      scheduleService: options.scheduleService,
+      webhookService: options.webhookService,
       fileRepo: options.fileRepo ?? this.fileRepo,
       callStack: options.callStack,
       userId: options.userId ?? userId,

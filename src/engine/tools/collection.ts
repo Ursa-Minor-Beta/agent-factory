@@ -3,6 +3,7 @@
  */
 
 import type { BuiltinToolDefinition } from './types.js';
+import { PAGING_PARAMETERS, PAGING_HINT } from './paging.js';
 import { MEMORY_FIELD_TYPES, MEMORY_FIELD_OPTIONS } from '../../domain/entities/Memory.js';
 
 const FIELD_TYPES_LIST = MEMORY_FIELD_TYPES.join(', ');
@@ -100,14 +101,15 @@ WARNING: Changing field types or removing fields may affect existing records.`,
 export const LIST_COLLECTIONS_TOOL: BuiltinToolDefinition = {
   type: 'builtin',
   name: 'list_collections',
-  description: 'List all memory collections for the current user.',
+  description: `List memory collections for the current user. ${PAGING_HINT}`,
   parameters: {
     type: 'object',
     properties: {
-      limit: {
-        type: 'number',
-        description: 'Maximum number of collections to return (default: 50)',
+      name: {
+        type: 'string',
+        description: 'Filter by name (contains, case-insensitive)',
       },
+      ...PAGING_PARAMETERS,
     },
   },
 };

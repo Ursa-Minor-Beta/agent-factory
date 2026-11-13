@@ -4,6 +4,7 @@
 
 import type { WorkflowNode } from '../../../../domain/entities/Agent.js';
 import type { ToolHandler } from './types.js';
+import { parsePaging } from './paging.js';
 
 /**
  * Handle create_agent tool
@@ -101,11 +102,12 @@ export const handleListAgents: ToolHandler = async (args, options) => {
   }
 
   const name = args.name ? String(args.name) : undefined;
-  const limit = Math.min(Math.max(Number(args.limit ?? 50) || 50, 1), 200);
+  const { skip, limit } = parsePaging(args);
   const workspaceId = args.workspaceId ? String(args.workspaceId) : undefined;
 
-  const { agents } = await options.agentRepo.findByUserId(options.userId, {
+  const { agents, total } = await options.agentRepo.findByUserId(options.userId, {
     name,
+    skip,
     limit,
     workspaceId,
     sortBy: 'updatedAt',
@@ -114,6 +116,8 @@ export const handleListAgents: ToolHandler = async (args, options) => {
 
   return {
     success: true,
+    total,
+    hasMore: skip + agents.length < total,
     agents: agents.map((a) => ({ id: a.id, name: a.name, description: a.description, workspaceId: a.workspaceId ?? null })),
   };
 };

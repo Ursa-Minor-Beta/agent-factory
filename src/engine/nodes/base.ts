@@ -8,6 +8,8 @@ import type { IFileRepository } from '../../domain/interfaces/repositories/IFile
 import type { IMemorySchemaRepository } from '../../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import type { ClientToolDefinition } from '../tools/types.js';
+import type { AgentScheduleService } from '../../services/agent-schedule.service.js';
+import type { WebhookService } from '../../services/webhook.service.js';
 
 export interface NodeExecutionResult {
   outputs: Record<string, unknown>;
@@ -104,6 +106,9 @@ export interface ExecutionOptions {
   // Memory storage - for memory node operations
   memorySchemaRepo?: IMemorySchemaRepository;
   memoryStoreRepo?: IMemoryStoreRepository;
+  // Schedule / webhook management - for builtin schedule and webhook tools
+  scheduleService?: AgentScheduleService;
+  webhookService?: WebhookService;
   // Forwards node events of nested sub-agent runs up to the top-level run
   onSubAgentNodeEvent?: (event: SubAgentNodeEvent) => void;
   subAgentPath?: string[]; // Path to the current sub-agent: [callerNodeId, agentName, ...]

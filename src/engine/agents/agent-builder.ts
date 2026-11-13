@@ -10,6 +10,8 @@ import { CREATE_AGENT_TOOL } from '../tools/create-agent.js';
 import { UPDATE_AGENT_TOOL } from '../tools/update-agent.js';
 import { SESSION_NOTES_TOOLS } from '../tools/session-notes.js';
 import { COLLECTION_TOOLS } from '../tools/collection.js';
+import { SCHEDULE_TOOLS } from '../tools/schedule.js';
+import { WEBHOOK_TOOLS } from '../tools/webhook.js';
 import { WORKFLOW_KNOWLEDGE } from './workflow-knowledge.js';
 
 /** LLM node id - UI targets it with clientTools[].nodeIds */
@@ -51,6 +53,16 @@ Briefly confirm the planned input and output with the user before building the r
 - **create_agent / update_agent** - create a new sub-agent or change an existing one (never the agent open in the editor - edit that through editor tools). These are saved immediately, unlike editor changes - always confirm with the user first. Use get_agent before update_agent.
 - **list_collections / get_collection** - find existing memory collections and their fields before adding memory tools or memory nodes.
 - **create_collection / update_collection / delete_collection** - change memory collections in the edited agent's workspace. These are saved immediately, unlike editor changes - always confirm with the user first.
+- **list_schedules / get_schedule / create_schedule / update_schedule / delete_schedule** - run the agent automatically on a cron, once, or at a fixed interval.
+- **list_webhook_templates / list_webhooks / get_webhook / create_webhook / update_webhook / delete_webhook / test_webhook** - public URLs that start the agent when an external service calls them.
+
+## Schedules and Webhooks
+Schedules and webhooks trigger the **saved** agent open in the editor - pass the editor state's agent id as \`agentId\`.
+- If the agent id is empty, the agent is not saved yet - ask the user to save it first.
+- They are saved immediately, unlike editor changes - confirm with the user before creating, changing, or deleting them. Check existing ones with list_schedules / list_webhooks first to avoid duplicates.
+- Schedule \`input\` and the input a webhook passes to the agent must match the agent's **saved** input schema (read it with get_agent). If the user is changing the input node in the editor, warn that existing schedules and webhooks may break until they save and update them.
+- **Schedules**: prefer \`cron\` for calendar-like requests ("every weekday at 9") and \`interval\` for "every N minutes". Always set an IANA \`timezone\` for cron - ask the user if it is unknown. Use \`sessionMode: "session"\` only when runs should remember previous runs. After creating, tell the user the next run time.
+- **Webhooks**: without a handler the agent receives \`{ body, headers, query }\` - the input node needs matching fields (usually \`body\` as object). Add a handler to verify signatures, filter events, or reshape the request into the agent's input; for Slack / GitHub / Telegram, start from list_webhook_templates and tell the user which secrets to add. After creating or changing a handler, run test_webhook with a realistic sample request and fix errors. Give the user the webhook URL.
 
 ${WORKFLOW_KNOWLEDGE}`;
 
@@ -58,6 +70,7 @@ const EDITOR_STATE_PROMPT = `{{node:input.message}}
 
 ---
 Current editor state:
+- Agent id (empty = not saved yet): {{node:input.agentId}}
 - Agent name: {{node:input.agentName}}
 - Description: {{node:input.agentDescription}}
 - Selected node ids: {{node:input.selection}}
@@ -93,8 +106,8 @@ export const AGENT_BUILDER_NODES: WorkflowNode[] = [
       temperature: 0.3,
       // Tool args carry full nodes (long prompts) - truncation breaks the JSON
       maxTokens: 16000,
-      tools: [LIST_AGENTS_TOOL, GET_AGENT_TOOL, CREATE_AGENT_TOOL, UPDATE_AGENT_TOOL, ...SESSION_NOTES_TOOLS, ...COLLECTION_TOOLS],
-      maxToolCalls: 20,
+      tools: [LIST_AGENTS_TOOL, GET_AGENT_TOOL, CREATE_AGENT_TOOL, UPDATE_AGENT_TOOL, ...SESSION_NOTES_TOOLS, ...COLLECTION_TOOLS, ...SCHEDULE_TOOLS, ...WEBHOOK_TOOLS],
+      maxToolCalls: 30,
       // Editor edits depend on each other (e.g. add node, then wire it) - apply them in order
       toolExecutionMode: 'sequential',
     },

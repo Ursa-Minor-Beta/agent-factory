@@ -171,6 +171,8 @@ export async function listCollections(
   userId: string,
   options: {
     limit?: number;
+    offset?: number;
+    name?: string;
     includeRecordCounts?: boolean;
     workspaceId?: string | null;
   },
@@ -188,6 +190,8 @@ export async function listCollections(
   const limit = options.limit ?? 50;
   const queryOptions: MemorySchemaQueryOptions = {
     limit,
+    offset: options.offset,
+    name: options.name,
     workspaceId: options.workspaceId,
   };
 

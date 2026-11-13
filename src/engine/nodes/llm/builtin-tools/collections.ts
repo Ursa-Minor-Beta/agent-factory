@@ -4,6 +4,7 @@
 
 import type { MemorySchemaField } from '../../../../domain/entities/Memory.js';
 import type { ToolHandler } from './types.js';
+import { parsePaging } from './paging.js';
 import * as collectionService from '../../../../domain/services/collection.service.js';
 
 /**
@@ -146,12 +147,14 @@ export const handleListCollections: ToolHandler = async (args, options) => {
     throw new Error('list_collections tool requires userId in options');
   }
 
-  const limit = typeof args.limit === 'number' ? args.limit : 50;
+  const { skip, limit } = parsePaging(args);
+  const name = args.name ? String(args.name) : undefined;
 
   try {
     const collections = await collectionService.listCollections(
       options.userId,
-      { limit, includeRecordCounts: true, workspaceId: options.workspaceId },
+      // One extra item tells whether there is a next page
+      { limit: limit + 1, offset: skip, name, includeRecordCounts: true, workspaceId: options.workspaceId },
       {
         memorySchemaRepo: options.memorySchemaRepo,
         memoryStoreRepo: options.memoryStoreRepo,
@@ -160,8 +163,9 @@ export const handleListCollections: ToolHandler = async (args, options) => {
 
     return {
       success: true,
-      collections,
-      count: collections.length,
+      collections: collections.slice(0, limit),
+      count: Math.min(collections.length, limit),
+      hasMore: collections.length > limit,
     };
   }
   catch (error) {

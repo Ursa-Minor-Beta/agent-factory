@@ -16,7 +16,11 @@ import { MongoMemorySchemaRepository } from '../../infrastructure/database/mongo
 import { MongoMemoryStoreRepository } from '../../infrastructure/database/mongodb/repositories/MongoMemoryStoreRepository.js';
 import { MongoUserSecretRepository } from '../../infrastructure/database/mongodb/repositories/MongoUserSecretRepository.js';
 import { MongoUserVariableRepository } from '../../infrastructure/database/mongodb/repositories/MongoUserVariableRepository.js';
+import { MongoAgentScheduleRepository } from '../../infrastructure/database/mongodb/repositories/MongoAgentScheduleRepository.js';
+import { MongoWebhookRepository } from '../../infrastructure/database/mongodb/repositories/MongoWebhookRepository.js';
 import { UserSecretService } from '../../services/user-secret.service.js';
+import { AgentScheduleService } from '../../services/agent-schedule.service.js';
+import { WebhookService } from '../../services/webhook.service.js';
 import { UserVariableService } from '../../services/user-variable.service.js';
 
 let shouldStop = false;
@@ -89,6 +93,15 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
     const memoryStoreRepo = new MongoMemoryStoreRepository();
     const userSecretService = new UserSecretService(new MongoUserSecretRepository());
     const userVariableService = new UserVariableService(new MongoUserVariableRepository());
+    // The schedule runner lives in the main process and picks up changes on its next poll
+    const scheduleService = new AgentScheduleService(new MongoAgentScheduleRepository(), agentRepo, sessionRepo);
+    const webhookService = new WebhookService(
+      new MongoWebhookRepository(),
+      agentRepo,
+      null,
+      new MongoUserSecretRepository(),
+      new MongoUserVariableRepository()
+    );
 
     // Create executor with callbacks
     currentExecutor = new WorkerExecutor(runRepo, fileRepo, agentRepo, messageRepo, memorySchemaRepo, memoryStoreRepo, {
@@ -99,7 +112,7 @@ async function executeRun(config: WorkerExecutionConfig): Promise<void> {
       onNodeSkipped: (nodeId, nodeType) => sendMessage({ type: 'node-skipped', nodeId, nodeType }),
       onSubAgentNodeEvent: (event) => sendMessage({ type: 'subagent-node', event }),
       onToolCallEvent: (event) => sendMessage({ type: 'tool-call', event }),
-    });
+    }, { scheduleService, webhookService });
 
     sendMessage({ type: 'started' });
 

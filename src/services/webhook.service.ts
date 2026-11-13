@@ -136,7 +136,8 @@ export class WebhookService {
   constructor(
     private webhookRepo: IWebhookRepository,
     private agentRepo: IAgentRepository,
-    private runService: RunService,
+    /** null = management only (e.g. inside a run worker); trigger() is unavailable */
+    private runService: RunService | null,
     userSecretRepo: IUserSecretRepository,
     userVariableRepo: IUserVariableRepository
   ) {
@@ -341,6 +342,9 @@ export class WebhookService {
     const completions = new Map<string, Promise<Run | null>>();
     return {
       startRun: async (input) => {
+        if (!this.runService) {
+          throw new Error('Webhook triggers are not available in this context');
+        }
         const { run, completion } = await this.runService.start(
           webhook.userId,
           webhook.agentId,
