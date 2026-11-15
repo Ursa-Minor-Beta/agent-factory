@@ -195,8 +195,7 @@ async function bootstrap() {
     // Seed admin user and agents
     const seedService = new SeedService(
       container.userRepository,
-      container.agentRepository,
-      container.workspaceRepository
+      container.agentRepository
     );
 
     const { created: adminCreated, email } = await seedService.seedAdmin();

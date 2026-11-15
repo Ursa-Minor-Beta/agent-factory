@@ -1,6 +1,5 @@
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
-import type { IWorkspaceRepository } from '../domain/interfaces/repositories/IWorkspaceRepository.js';
 import type { WorkflowNode } from '../domain/entities/Agent.js';
 import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/index.js';
@@ -10,8 +9,7 @@ import { AGENT_BUILDER } from '../engine/agents/agent-builder.js';
 export class SeedService {
   constructor(
     private userRepo: IUserRepository,
-    private agentRepo: IAgentRepository,
-    private workspaceRepo: IWorkspaceRepository
+    private agentRepo: IAgentRepository
   ) {}
 
   private async getAdminUser() {
@@ -58,34 +56,11 @@ export class SeedService {
     return { created: true, email: config.admin.email! };
   }
 
-  async seedWorkspaces(): Promise<{ startId: string }> {
-    const admin = await this.getAdminUser();
-    if (!admin) {
-      throw new Error('Admin user not found - cannot seed workspaces');
-    }
-
-    // Upsert "Start" workspace
-    let startWorkspace = await this.workspaceRepo.findByDefaultName('start');
-    if (!startWorkspace) {
-      startWorkspace = await this.workspaceRepo.create({
-        userId: admin.id,
-        name: 'Start',
-        description: 'Default workspace for system and starter agents',
-        defaultName: 'start',
-      });
-    }
-
-    return { startId: startWorkspace.id };
-  }
-
   async seedSystemAgents(): Promise<{ created: string[] }> {
     const admin = await this.getAdminUser();
     if (!admin) {
       return { created: [] };
     }
-
-    // Seed workspaces first
-    await this.seedWorkspaces();
 
     // System agents → global (no workspace)
     await this.findOrCreateSystemAgent(admin.id, 'chat-agent', CHAT_AGENT.name, CHAT_AGENT.description, CHAT_AGENT.nodes);
@@ -102,9 +77,6 @@ export class SeedService {
 
     const updated: string[] = [];
     const created: string[] = [];
-
-    // Seed workspaces first
-    await this.seedWorkspaces();
 
     // Update system agents (by systemName); keep existing workspace, new ones → global
     const systemAgents = [

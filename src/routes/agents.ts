@@ -1420,8 +1420,7 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const seedService = new SeedService(
       container.userRepository,
-      container.agentRepository,
-      container.workspaceRepository
+      container.agentRepository
     );
     const result = await seedService.updateSystemAgents();
 
