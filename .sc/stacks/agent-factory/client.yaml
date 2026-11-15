@@ -36,6 +36,9 @@ stacks:
         HOST: 0.0.0.0
         ADMIN_NAME: Admin
         SEED_SYSTEM_AGENTS_ON_START: "true"
+        # Webhook URLs are built from this. Unset, they come out relative and the
+        # UI prefixes its own host, whose nginx has no /hooks route (405).
+        WEBHOOK_PUBLIC_BASE_URL: https://test-agent-factory.everworker.ai
         # Unset means every origin is allowed, with credentials. Only the UI
         # calls this API from a browser.
         ALLOWED_ORIGINS: https://test-agent-factory-ui.everworker.ai
