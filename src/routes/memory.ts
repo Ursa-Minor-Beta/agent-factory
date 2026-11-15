@@ -498,6 +498,123 @@ export async function memoryRoutes(app: FastifyInstance) {
     });
   });
 
+  // Export all records of a collection
+  app.get('/api/memory/:schemaId/export', {
+    schema: {
+      tags: ['memory'],
+      summary: 'Export all records of a memory collection',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                collection: { type: 'string' },
+                exportedAt: { type: 'string', format: 'date-time' },
+                total: { type: 'number' },
+                records: { type: 'array', items: memoryRecordSchema },
+              },
+            },
+          },
+        },
+        401: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { schemaId } = request.params as { schemaId: string };
+
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
+
+    const total = await memoryStoreRepo.count(schema.id);
+    const records = total > 0
+      ? await memoryStoreRepo.findBySchemaId(schema.id, { limit: total, sort: { field: 'createdAt', direction: 'asc' } })
+      : [];
+
+    return reply.send({
+      success: true,
+      data: { collection: schema.name, exportedAt: new Date(), total, records },
+    });
+  });
+
+  // Import records into a collection
+  app.post('/api/memory/:schemaId/import', {
+    bodyLimit: 20 * 1024 * 1024,
+    schema: {
+      tags: ['memory'],
+      summary: 'Import records into a memory collection',
+      description: 'Accepts the records array from /export. System fields are dropped and regenerated; invalid records are skipped and reported.',
+      security: [{ bearerAuth: [] }, { apiKey: [] }],
+      params: {
+        type: 'object',
+        properties: {
+          schemaId: { type: 'string', description: 'Collection/schema ID' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['records'],
+        properties: {
+          records: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            data: {
+              type: 'object',
+              properties: {
+                imported: { type: 'number' },
+                failed: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      index: { type: 'number' },
+                      error: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        400: errorSchema,
+        401: errorSchema,
+        404: errorSchema,
+      },
+    },
+    preHandler: requireAuth,
+  }, async (request, reply) => {
+    const { userId } = request.user as { userId: string };
+    const { schemaId } = request.params as { schemaId: string };
+    const { records } = request.body as { records: unknown[] };
+
+    const schema = await getSchemaWithOwnership(schemaId, userId, reply);
+    if (!schema) return;
+
+    const result = await memoryService.importMemoryRecords(schema, records, {
+      memorySchemaRepo,
+      memoryStoreRepo,
+    });
+
+    return reply.send({ success: true, data: result });
+  });
+
   // Search records
   app.post('/api/memory/:schemaId/search', {
     schema: {

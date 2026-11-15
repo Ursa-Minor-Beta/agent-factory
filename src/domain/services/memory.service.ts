@@ -105,6 +105,54 @@ export async function saveMemoryRecord(
   return record;
 }
 
+export interface ImportMemoryRecordsResult {
+  imported: number;
+  /** Records that failed validation (index in the input array) */
+  failed: { index: number; error: string }[];
+}
+
+/**
+ * Import records into a collection (e.g. from a records export)
+ * - System fields (id, schemaId, createdAt, updatedAt) are dropped; new ones are generated
+ * - Invalid records are skipped and reported, valid ones are inserted
+ */
+export async function importMemoryRecords(
+  schema: MemorySchema,
+  records: unknown[],
+  deps: MemoryServiceDependencies
+): Promise<ImportMemoryRecordsResult> {
+  const valid: Record<string, unknown>[] = [];
+  const failed: ImportMemoryRecordsResult['failed'] = [];
+
+  records.forEach((record, index) => {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) {
+      failed.push({ index, error: 'Record must be an object' });
+      return;
+    }
+
+    const data = Object.fromEntries(
+      Object.entries(record).filter(([key]) => !MEMORY_RESERVED_FIELDS.includes(key as never))
+    );
+
+    try {
+      if (Object.keys(data).length === 0) {
+        throw new Error('At least one data field is required');
+      }
+      validateMemoryData(data, schema.fields);
+      valid.push(data);
+    }
+    catch (error) {
+      failed.push({ index, error: (error as Error).message });
+    }
+  });
+
+  if (valid.length > 0) {
+    await deps.memoryStoreRepo.createMany(valid.map((data) => ({ schemaId: schema.id, ...data })));
+  }
+
+  return { imported: valid.length, failed };
+}
+
 /**
  * Search records in a memory collection
  */
