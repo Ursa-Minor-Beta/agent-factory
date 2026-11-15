@@ -4,8 +4,8 @@
  */
 
 import type { WorkflowNode } from '../entities/Agent.js';
-import type { AgentExport, ExportedAgent, ExportedCollection } from '../entities/AgentExport.js';
-import { validateExportPackage } from './agent-export.service.js';
+import type { AgentExport, ExportedAgent, ExportedCollection, WorkspaceExport } from '../entities/AgentExport.js';
+import { validateExportPackage, validateWorkspaceExportPackage } from './agent-export.service.js';
 import type { IAgentRepository } from '../interfaces/repositories/IAgentRepository.js';
 import type { IWorkspaceRepository } from '../interfaces/repositories/IWorkspaceRepository.js';
 
@@ -84,6 +84,79 @@ async function generateUniqueWorkspaceName(
 }
 
 /**
+ * Use the target workspace from options, or create a new one with a unique name
+ */
+async function resolveWorkspace(
+  source: { name: string; description?: string },
+  userId: string,
+  deps: ImportServiceDependencies,
+  options: ImportOptions
+): Promise<{ workspaceId: string; workspaceName: string }> {
+  if (options.workspaceId) {
+    const existing = await deps.workspaceRepo.findById(options.workspaceId);
+    if (!existing) {
+      throw new Error(`Workspace not found: ${options.workspaceId}`);
+    }
+    if (existing.userId !== userId) {
+      throw new Error('Access denied: Workspace belongs to another user');
+    }
+    return { workspaceId: existing.id, workspaceName: existing.name };
+  }
+
+  const workspaceName = await generateUniqueWorkspaceName(source.name, userId, deps.workspaceRepo);
+  const workspace = await deps.workspaceRepo.create({
+    userId,
+    name: workspaceName,
+    description: source.description,
+  });
+  return { workspaceId: workspace.id, workspaceName };
+}
+
+/**
+ * Create agents in order and remap refIds to new IDs.
+ * References to agents created later (cycles) are fixed in a second pass.
+ */
+async function createAgents(
+  agents: ExportedAgent[],
+  userId: string,
+  workspaceId: string,
+  deps: ImportServiceDependencies
+): Promise<Map<string, string>> {
+  const idMap = new Map<string, string>();
+  const refIds = new Set(agents.map((a) => a.refId));
+  const unresolved: ExportedAgent[] = [];
+
+  for (const exportedAgent of agents) {
+    const remappedNodes = remapAgentIds(exportedAgent.nodes, idMap);
+
+    const created = await deps.agentRepo.create({
+      userId,
+      name: exportedAgent.name,
+      description: exportedAgent.description,
+      nodes: remappedNodes,
+      editorData: exportedAgent.editorData,
+      workspaceId,
+    });
+
+    const hasForwardRef = [...JSON.stringify(remappedNodes).matchAll(AGENT_ID_PATTERN)]
+      .some((m) => refIds.has(m[1]!) && !idMap.has(m[1]!));
+    if (hasForwardRef) {
+      unresolved.push(exportedAgent);
+    }
+
+    idMap.set(exportedAgent.refId, created.id);
+  }
+
+  for (const exportedAgent of unresolved) {
+    await deps.agentRepo.update(idMap.get(exportedAgent.refId)!, {
+      nodes: remapAgentIds(exportedAgent.nodes, idMap),
+    });
+  }
+
+  return idMap;
+}
+
+/**
  * Import an agent from an export package
  * Always creates a new workspace
  */
@@ -107,52 +180,12 @@ export async function importAgent(
   };
 
   // 2. Get or create workspace
-  let workspaceId: string;
-  let workspaceName: string;
-  if (options.workspaceId) {
-    // Use existing workspace
-    const existing = await deps.workspaceRepo.findById(options.workspaceId);
-    if (!existing) {
-      throw new Error(`Workspace not found: ${options.workspaceId}`);
-    }
-    if (existing.userId !== userId) {
-      throw new Error('Access denied: Workspace belongs to another user');
-    }
-    workspaceId = existing.id;
-    workspaceName = existing.name;
-  }
-  else {
-    // Create new workspace with unique name
-    const baseName = pkg.workspace.name;
-    workspaceName = await generateUniqueWorkspaceName(baseName, userId, deps.workspaceRepo);
-    const workspace = await deps.workspaceRepo.create({
-      userId,
-      name: workspaceName,
-      description: pkg.workspace.description,
-    });
-    workspaceId = workspace.id;
-  }
+  const { workspaceId, workspaceName } = await resolveWorkspace(pkg.workspace, userId, deps, options);
 
   // 3. Collections are not auto-created - they appear in warnings.missingCollections
 
-  // 5. Create agents (dependencies first, then main)
-  const idMap = new Map<string, string>();
-  const allAgents: ExportedAgent[] = [...pkg.dependencies, pkg.agent];
-
-  for (const exportedAgent of allAgents) {
-    const remappedNodes = remapAgentIds(exportedAgent.nodes, idMap);
-
-    const created = await deps.agentRepo.create({
-      userId,
-      name: exportedAgent.name,
-      description: exportedAgent.description,
-      nodes: remappedNodes,
-      editorData: exportedAgent.editorData,
-      workspaceId: workspaceId,
-    });
-
-    idMap.set(exportedAgent.refId, created.id);
-  }
+  // 4. Create agents (dependencies first, then main)
+  const idMap = await createAgents([...pkg.dependencies, pkg.agent], userId, workspaceId, deps);
 
   const mainAgentId = idMap.get(pkg.agent.refId)!;
 
@@ -160,6 +193,46 @@ export async function importAgent(
     workspaceId,
     workspaceName,
     agentId: mainAgentId,
+    agentIdMap: Object.fromEntries(idMap),
+    warnings,
+  };
+}
+
+export interface WorkspaceImportResult {
+  workspaceId: string;
+  workspaceName: string;
+  /** Map of refIds to new IDs */
+  agentIdMap: Record<string, string>;
+  warnings: ImportWarnings;
+}
+
+/**
+ * Import all agents from a workspace export package
+ */
+export async function importWorkspace(
+  data: unknown,
+  userId: string,
+  deps: ImportServiceDependencies,
+  options: ImportOptions = {}
+): Promise<WorkspaceImportResult> {
+  if (!validateWorkspaceExportPackage(data)) {
+    throw new Error('Invalid workspace export package format');
+  }
+
+  const pkg = data as WorkspaceExport;
+  const warnings: ImportWarnings = {
+    missingSecrets: pkg.secrets.map((s) => s.name),
+    missingVariables: (pkg.variables ?? []).map((v) => v.name),
+    missingProviders: [...pkg.providers],
+    missingCollections: [...pkg.collections],
+  };
+
+  const { workspaceId, workspaceName } = await resolveWorkspace(pkg.workspace, userId, deps, options);
+  const idMap = await createAgents(pkg.agents, userId, workspaceId, deps);
+
+  return {
+    workspaceId,
+    workspaceName,
     agentIdMap: Object.fromEntries(idMap),
     warnings,
   };

@@ -8,6 +8,11 @@ import type { ProviderType } from './ProviderConfig.js';
 export const AGENT_EXPORT_VERSION = '1.0';
 
 /**
+ * Workspace export format version
+ */
+export const WORKSPACE_EXPORT_VERSION = '1.0';
+
+/**
  * Exported agent data (stripped of user-specific IDs)
  */
 export interface ExportedAgent {
@@ -77,6 +82,40 @@ export interface AgentExport {
   secrets: RequiredSecret[];
 
   /** User variable names required (optional for packages exported before variables existed) */
+  variables?: RequiredVariable[];
+
+  /** Provider types required */
+  providers: ProviderType[];
+}
+
+/**
+ * Complete workspace export package
+ */
+export interface WorkspaceExport {
+  /** Export format version */
+  version: string;
+  /** Export timestamp */
+  exportedAt: Date;
+
+  /** Source workspace info */
+  workspace: {
+    name: string;
+    description?: string;
+  };
+
+  /**
+   * Workspace agents plus agents from other workspaces they reference
+   * (topologically sorted: dependencies before dependents)
+   */
+  agents: ExportedAgent[];
+
+  /** Collections used by the agents */
+  collections: ExportedCollection[];
+
+  /** Secret names required (user must provide values on import) */
+  secrets: RequiredSecret[];
+
+  /** User variable names required */
   variables?: RequiredVariable[];
 
   /** Provider types required */

@@ -12,8 +12,11 @@ import type {
   ExportedCollection,
   ExportAnalysis,
   RequiredSecret,
+  RequiredVariable,
+  WorkspaceExport,
 } from '../entities/AgentExport.js';
-import { AGENT_EXPORT_VERSION } from '../entities/AgentExport.js';
+import { AGENT_EXPORT_VERSION, WORKSPACE_EXPORT_VERSION } from '../entities/AgentExport.js';
+import { NotFoundError, ForbiddenError } from '../../utils/errors.js';
 import type { IAgentRepository } from '../interfaces/repositories/IAgentRepository.js';
 import type { IWorkspaceRepository } from '../interfaces/repositories/IWorkspaceRepository.js';
 import type { IMemorySchemaRepository } from '../interfaces/repositories/IMemorySchemaRepository.js';
@@ -102,17 +105,19 @@ function replaceAgentIdsInNodes(nodes: WorkflowNode[], idToRefId: Map<string, st
 }
 
 /**
- * Recursively collect all agent IDs needed for export
+ * Recursively collect root agents and every agent they reference (across workspaces)
  */
 async function collectDependencyAgentIds(
-  startAgent: Agent,
+  rootAgents: Agent[],
   agentRepo: IAgentRepository
 ): Promise<Map<string, Agent>> {
   const agentsMap = new Map<string, Agent>();
-  agentsMap.set(startAgent.id, startAgent);
+  for (const agent of rootAgents) {
+    agentsMap.set(agent.id, agent);
+  }
 
   const pendingIds = new Set<string>(
-    extractAgentIdsFromNodes(startAgent.nodes).filter((id) => id !== startAgent.id)
+    rootAgents.flatMap((agent) => extractAgentIdsFromNodes(agent.nodes)).filter((id) => !agentsMap.has(id))
   );
 
   // Recursively load referenced agents
@@ -145,7 +150,7 @@ async function collectDependencyAgentIds(
  * Topologically sort agents so dependencies come before dependents
  * Uses DFS post-order traversal
  */
-function topologicalSortAgents(agents: Map<string, Agent>, mainAgentId: string): Agent[] {
+function topologicalSortAgents(agents: Map<string, Agent>, rootAgentIds: string[]): Agent[] {
   const result: Agent[] = [];
   const visited = new Set<string>();
 
@@ -167,8 +172,8 @@ function topologicalSortAgents(agents: Map<string, Agent>, mainAgentId: string):
     result.push(agent);
   }
 
-  // Start from main agent - this will visit all reachable dependencies
-  visit(mainAgentId);
+  // Start from root agents - this will visit all reachable dependencies
+  rootAgentIds.forEach(visit);
 
   return result;
 }
@@ -224,6 +229,65 @@ function toExportedCollection(name: string, schema: MemorySchema | null): Export
   };
 }
 
+interface ExportParts {
+  idToRefId: Map<string, string>;
+  /** All agents (roots + dependencies), dependencies before dependents */
+  sortedAgents: Agent[];
+  collections: ExportedCollection[];
+  secrets: RequiredSecret[];
+  variables: RequiredVariable[];
+  providers: ProviderType[];
+}
+
+/**
+ * Collect dependencies and metadata shared by agent and workspace exports
+ */
+async function buildExportParts(
+  rootAgents: Agent[],
+  userId: string,
+  workspaceId: string | undefined,
+  deps: ExportServiceDependencies
+): Promise<ExportParts> {
+  // 1. Collect only needed agents (roots + dependencies)
+  const agentsMap = await collectDependencyAgentIds(rootAgents, deps.agentRepo);
+
+  // 2. Build ID to refId mapping (roots first so they get the base names)
+  const usedRefIds = new Set<string>();
+  const idToRefId = new Map<string, string>();
+  for (const agent of [...rootAgents, ...agentsMap.values()]) {
+    if (!idToRefId.has(agent.id)) {
+      idToRefId.set(agent.id, generateUniqueRefId(agent.name, usedRefIds));
+    }
+  }
+
+  // 3. Analyze dependencies
+  const analysis: ExportAnalysis = {
+    collectionNames: new Set<string>(),
+    secretNames: new Set<string>(),
+    variableNames: new Set<string>(),
+    providerTypes: new Set<ProviderType>(),
+  };
+
+  analyzeAgents(agentsMap, analysis);
+
+  // 4. Load collections (include not-found with just name)
+  const workspaceIds: (string | null)[] = workspaceId ? [workspaceId, null] : [null];
+
+  const collectionNames = Array.from(analysis.collectionNames);
+  const schemas = await Promise.all(
+    collectionNames.map((name) => deps.memorySchemaRepo.findByName(userId, name, workspaceIds))
+  );
+
+  return {
+    idToRefId,
+    sortedAgents: topologicalSortAgents(agentsMap, rootAgents.map((a) => a.id)),
+    collections: collectionNames.map((name, i) => toExportedCollection(name, schemas[i] ?? null)),
+    secrets: Array.from(analysis.secretNames).map((name) => ({ name })),
+    variables: Array.from(analysis.variableNames).map((name) => ({ name })),
+    providers: Array.from(analysis.providerTypes),
+  };
+}
+
 /**
  * Export an agent with all its dependencies
  */
@@ -249,55 +313,15 @@ export async function exportAgent(
     workspace = await deps.workspaceRepo.findById(mainAgent.workspaceId);
   }
 
-  // 3. Collect only needed agents (main + dependencies)
-  const agentsMap = await collectDependencyAgentIds(mainAgent, deps.agentRepo);
+  // 3. Collect dependencies and metadata
+  const parts = await buildExportParts([mainAgent], userId, mainAgent.workspaceId, deps);
 
-  // 4. Build ID to refId mapping
-  const usedRefIds = new Set<string>();
-  const idToRefId = new Map<string, string>();
-  // Process main agent first to ensure it gets the base name
-  idToRefId.set(mainAgent.id, generateUniqueRefId(mainAgent.name, usedRefIds));
-  // Then process dependencies
-  for (const [id, agent] of agentsMap) {
-    if (!idToRefId.has(id)) {
-      idToRefId.set(id, generateUniqueRefId(agent.name, usedRefIds));
-    }
-  }
-
-  // 5. Analyze dependencies
-  const analysis: ExportAnalysis = {
-    collectionNames: new Set<string>(),
-    secretNames: new Set<string>(),
-    variableNames: new Set<string>(),
-    providerTypes: new Set<ProviderType>(),
-  };
-
-  analyzeAgents(agentsMap, analysis);
-
-  // 6. Load collections (include not-found with just name)
-  const workspaceIds: (string | null)[] = mainAgent.workspaceId
-    ? [mainAgent.workspaceId, null]
-    : [null];
-
-  const collectionNames = Array.from(analysis.collectionNames);
-  const schemas = await Promise.all(
-    collectionNames.map((name) => deps.memorySchemaRepo.findByName(userId, name, workspaceIds))
-  );
-
-  const collections = collectionNames.map((name, i) => toExportedCollection(name, schemas[i] ?? null));
-
-  // 7. Build dependency list (topologically sorted, excluding main agent)
-  const sortedAgents = topologicalSortAgents(agentsMap, mainAgent.id);
-  const dependencies = sortedAgents
+  // 4. Build dependency list (topologically sorted, excluding main agent)
+  const dependencies = parts.sortedAgents
     .filter((a) => a.id !== mainAgent.id)
-    .map((a) => toExportedAgent(a, idToRefId.get(a.id)!, idToRefId));
+    .map((a) => toExportedAgent(a, parts.idToRefId.get(a.id)!, parts.idToRefId));
 
-  // 8. Build secrets list
-  const secrets: RequiredSecret[] = Array.from(analysis.secretNames).map(
-    (name) => ({ name })
-  );
-
-  // 9. Build export package
+  // 5. Build export package
   return {
     version: AGENT_EXPORT_VERSION,
     exportedAt: new Date(),
@@ -305,12 +329,52 @@ export async function exportAgent(
       name: workspace?.name ?? mainAgent.name,
       description: workspace?.description,
     },
-    agent: toExportedAgent(mainAgent, idToRefId.get(mainAgent.id)!, idToRefId),
+    agent: toExportedAgent(mainAgent, parts.idToRefId.get(mainAgent.id)!, parts.idToRefId),
     dependencies,
-    collections,
-    secrets,
-    variables: Array.from(analysis.variableNames).map((name) => ({ name })),
-    providers: Array.from(analysis.providerTypes),
+    collections: parts.collections,
+    secrets: parts.secrets,
+    variables: parts.variables,
+    providers: parts.providers,
+  };
+}
+
+/**
+ * Export all agents of a workspace.
+ * Agents from other workspaces referenced by them are included as regular agents,
+ * so on import they are created inside the new workspace.
+ */
+export async function exportWorkspace(
+  workspaceId: string,
+  userId: string,
+  deps: ExportServiceDependencies
+): Promise<WorkspaceExport> {
+  const workspace = await deps.workspaceRepo.findById(workspaceId);
+  if (!workspace) {
+    throw new NotFoundError('Workspace');
+  }
+  if (workspace.userId !== userId) {
+    throw new ForbiddenError('Access denied');
+  }
+
+  const items = await deps.agentRepo.findGraphItems({ userId, workspaceId });
+  const rootAgents = (await Promise.all(items.map((item) => deps.agentRepo.findById(item.id))))
+    .filter((agent): agent is NonNullable<typeof agent> => agent !== null)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const parts = await buildExportParts(rootAgents, userId, workspaceId, deps);
+
+  return {
+    version: WORKSPACE_EXPORT_VERSION,
+    exportedAt: new Date(),
+    workspace: {
+      name: workspace.name,
+      description: workspace.description,
+    },
+    agents: parts.sortedAgents.map((a) => toExportedAgent(a, parts.idToRefId.get(a.id)!, parts.idToRefId)),
+    collections: parts.collections,
+    secrets: parts.secrets,
+    variables: parts.variables,
+    providers: parts.providers,
   };
 }
 
@@ -345,4 +409,29 @@ export function validateExportPackage(data: unknown): data is AgentExport {
   if (!Array.isArray(agent.nodes)) return false;
 
   return true;
+}
+
+/**
+ * Validate a workspace export package structure
+ */
+export function validateWorkspaceExportPackage(data: unknown): data is WorkspaceExport {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const pkg = data as Record<string, unknown>;
+
+  if (typeof pkg.version !== 'string') return false;
+  if (!pkg.workspace || typeof pkg.workspace !== 'object') return false;
+  if (typeof (pkg.workspace as Record<string, unknown>).name !== 'string') return false;
+  if (!Array.isArray(pkg.agents)) return false;
+  if (!Array.isArray(pkg.collections)) return false;
+  if (!Array.isArray(pkg.secrets)) return false;
+  if (!Array.isArray(pkg.providers)) return false;
+  if (pkg.variables !== undefined && !Array.isArray(pkg.variables)) return false;
+
+  return (pkg.agents as unknown[]).every((agent) => {
+    const a = agent as Record<string, unknown> | null;
+    return !!a && typeof a.refId === 'string' && typeof a.name === 'string' && Array.isArray(a.nodes);
+  });
 }

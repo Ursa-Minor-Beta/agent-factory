@@ -4,6 +4,8 @@ import { container } from '../config/container.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { AuthenticatedUser } from '../middleware/auth.js';
 import type { WorkspaceQueryOptions } from '../domain/entities/Workspace.js';
+import * as agentExportService from '../domain/services/agent-export.service.js';
+import * as agentImportService from '../domain/services/agent-import.service.js';
 
 // Schemas
 const errorSchema = {
@@ -148,6 +150,45 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
       const workspace = await workspaceService.create(user.userId, { name, description });
       return reply.send(workspace);
+    }
+  );
+
+  // Import workspace from export package
+  app.post(
+    '/api/workspaces/import',
+    {
+      onRequest: [requireAuth],
+      schema: {
+        description: 'Import a workspace export package. Creates a new workspace or imports into an existing one.',
+        tags: ['workspaces'],
+        body: {
+          type: 'object',
+          required: ['package'],
+          properties: {
+            package: { type: 'object', description: 'The workspace export package (from /api/workspaces/:id/export)' },
+            workspaceId: { type: 'string', description: 'Import into existing workspace (if not provided, creates new workspace)' },
+          },
+        },
+        response: {
+          400: errorSchema,
+          401: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = request.user as AuthenticatedUser;
+      const body = request.body as { package: unknown; workspaceId?: string };
+
+      const result = await agentImportService.importWorkspace(
+        body.package,
+        user.userId,
+        {
+          agentRepo: container.agentRepository,
+          workspaceRepo: container.workspaceRepository,
+        },
+        { workspaceId: body.workspaceId }
+      );
+      return reply.send({ success: true, data: result });
     }
   );
 
@@ -337,6 +378,40 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
       const graph = await workspaceService.getAgentGraph(user.userId, id, includeCallers);
       return reply.send(graph);
+    }
+  );
+
+  // Export workspace (all agents + agents from other workspaces they call)
+  app.get(
+    '/api/workspaces/:id/export',
+    {
+      onRequest: [requireAuth],
+      schema: {
+        description: 'Export all workspace agents as a JSON package. Agents from other workspaces referenced by them are included as regular agents of the package.',
+        tags: ['workspaces'],
+        params: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+          },
+        },
+        response: {
+          401: errorSchema,
+          403: errorSchema,
+          404: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = request.user as AuthenticatedUser;
+      const { id } = request.params as { id: string };
+
+      const exportData = await agentExportService.exportWorkspace(id, user.userId, {
+        agentRepo: container.agentRepository,
+        workspaceRepo: container.workspaceRepository,
+        memorySchemaRepo: container.memorySchemaRepository,
+      });
+      return reply.send({ success: true, data: exportData });
     }
   );
 

@@ -32,7 +32,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Encrypted Secrets** - Provider API keys and secrets encrypted at rest (AES-256-GCM), referenced in nodes as `{{secret:KEY}}`
 - **Variables** - Plain-text, user-defined values (global or per workspace) usable in any node input as `{{var:KEY}}`
 - **File Storage** - Built-in file storage for agent artifacts
-- **Export/Import** - Export agents to JSON, import from file
+- **Export/Import** - Export agents or whole workspaces to JSON (agents called from other workspaces are bundled in), import from file
 - **Webhooks** - Public URLs (`POST /hooks/:id/:token`) that start an agent run asynchronously; optional sandboxed JS handler for signature checks, filtering, input shaping and custom responses, with Slack / GitHub / Telegram templates
 - **GitHub Sync** - Link agents to GitHub repos with push/pull support
 - **Agent Snapshots** - Version history with restore capability
