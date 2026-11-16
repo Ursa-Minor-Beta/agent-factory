@@ -107,7 +107,7 @@ export function extractTemplateDependencies(node: WorkflowNode): Set<string> {
 /**
  * Extract node IDs listed in a branch node's branches[].nodes
  */
-function extractBranchTargets(node: WorkflowNode): Set<string> {
+export function extractBranchTargets(node: WorkflowNode): Set<string> {
   const targets = new Set<string>();
   const branches = (node.data as { branches?: { nodes?: unknown }[] }).branches;
   if (!Array.isArray(branches)) return targets;

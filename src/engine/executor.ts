@@ -3,7 +3,7 @@ import type { Run, NodeErrorDetails, RunTrigger } from '../domain/entities/Run.j
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import { ExecutionContext } from './context.js';
-import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from './graph.js';
+import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies, extractBranchTargets } from './graph.js';
 import { runNodesConcurrently } from './scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
 import type { SubAgentNodeEvent } from './nodes/base.js';
@@ -254,6 +254,15 @@ export class WorkflowExecutor {
         // Check if this node should be skipped (disabled, inactive branch or all dependencies skipped)
         const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node), node.disabled === true);
         if (skipReason) {
+          // A skipped branch node activates none of its branches, so its targets are skipped too
+          if (node.type === 'branch') {
+            context.setBranchControl(nodeId, {
+              branchNodeId: nodeId,
+              activeBranch: '',
+              activeNodes: [],
+              allBranchNodes: [...extractBranchTargets(node)],
+            });
+          }
           await this.runRepo.updateNodeState(runId, nodeId, {
             nodeType: node.type,
             status: 'skipped',

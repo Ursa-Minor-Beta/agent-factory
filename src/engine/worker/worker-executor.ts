@@ -15,7 +15,7 @@ import type { IMessageRepository } from '../../domain/interfaces/repositories/IM
 import type { IMemorySchemaRepository } from '../../domain/interfaces/repositories/IMemorySchemaRepository.js';
 import type { IMemoryStoreRepository } from '../../domain/interfaces/repositories/IMemoryStoreRepository.js';
 import { ExecutionContext } from '../context.js';
-import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies } from '../graph.js';
+import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractTemplateDependencies, extractBranchTargets } from '../graph.js';
 import { runNodesConcurrently } from '../scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from '../nodes/index.js';
 import type { SubAgentNodeEvent, ClientToolCall, ToolCallEvent, ResolvedScope } from '../nodes/base.js';
@@ -231,10 +231,18 @@ export class WorkerExecutor {
         : rawNode;
 
       if (node.type !== 'output') {
-        // Check if this node should be skipped due to branch control
-        // Check if this node should be skipped (inactive branch or all dependencies skipped)
-        const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node));
+        // Check if this node should be skipped (disabled, inactive branch or all dependencies skipped)
+        const skipReason = context.getSkipReason(nodeId, extractTemplateDependencies(node), node.disabled === true);
         if (skipReason) {
+          // A skipped branch node activates none of its branches, so its targets are skipped too
+          if (node.type === 'branch') {
+            context.setBranchControl(nodeId, {
+              branchNodeId: nodeId,
+              activeBranch: '',
+              activeNodes: [],
+              allBranchNodes: [...extractBranchTargets(node)],
+            });
+          }
           await this.runRepo.updateNodeState(runId, nodeId, {
             nodeType: node.type,
             status: 'skipped',
