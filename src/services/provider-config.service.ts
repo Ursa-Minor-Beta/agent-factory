@@ -45,7 +45,13 @@ export class ProviderConfigService {
     userId: string,
     data: Omit<CreateProviderConfigDTO, 'userId'>
   ): Promise<ProviderConfig> {
-    return this.providerConfigRepo.create({ ...data, userId });
+    // First config of this provider type in its workspace becomes the default
+    const siblings = await this.providerConfigRepo.findByUserId(userId, {
+      provider: data.provider,
+      workspaceId: data.workspaceId ?? null,
+    });
+    const isDefault = siblings.length === 0 ? true : data.isDefault;
+    return this.providerConfigRepo.create({ ...data, userId, isDefault });
   }
 
   async update(
