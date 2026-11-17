@@ -88,7 +88,7 @@ On startup, the server creates:
 |------|-------------|
 | `input` | Workflow entry point with schema (field types: `string`, `number`, `boolean`, `enum` with predefined `options`) |
 | `output` | Workflow exit point |
-| `llm` | LLM call (OpenAI, Anthropic, Ollama) |
+| `llm` | LLM call (OpenAI, Anthropic, Ollama); `provider` and `model` accept templates (e.g. `{{var:MODEL}}`) |
 | `http` | HTTP/API requests with SSE streaming support |
 | `js` | JavaScript code execution |
 | `agent` | Execute sub-agent |

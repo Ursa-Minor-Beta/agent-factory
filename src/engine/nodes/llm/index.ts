@@ -72,8 +72,18 @@ Extract facts and call the update_session_notes tool.`;
     context: ExecutionContext,
     options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
-    const data = node.data as unknown as LLMNodeData;
+    const rawData = node.data as unknown as LLMNodeData;
     const interpolateOpts = { context };
+
+    // provider and model may be templates (e.g. {{input.model}}, {{var:MODEL}})
+    const data: LLMNodeData = {
+      ...rawData,
+      // validated below by isLlmProviderType
+      provider: (rawData.provider
+        ? interpolateAll(rawData.provider, interpolateOpts).trim()
+        : rawData.provider) as LLMNodeData['provider'],
+      model: rawData.model ? interpolateAll(rawData.model, interpolateOpts).trim() : rawData.model,
+    };
 
     const systemPrompt = data.systemPrompt
       ? interpolateAll(data.systemPrompt, interpolateOpts)
