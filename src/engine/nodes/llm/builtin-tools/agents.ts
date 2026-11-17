@@ -28,15 +28,6 @@ export const handleCreateAgent: ToolHandler = async (args, options) => {
     return { success: false, error: 'At least one node is required' };
   }
 
-  const hasInput = nodes.some((n) => n.type === 'input');
-  const hasOutput = nodes.some((n) => n.type === 'output');
-  if (!hasInput) {
-    return { success: false, error: 'Workflow must have at least one input node' };
-  }
-  if (!hasOutput) {
-    return { success: false, error: 'Workflow must have at least one output node' };
-  }
-
   const agent = await options.agentRepo.create({
     userId: options.userId,
     name,
@@ -158,14 +149,6 @@ export const handleUpdateAgent: ToolHandler = async (args, options) => {
     const nodes = args.nodes as Array<Record<string, unknown>>;
     if (!Array.isArray(nodes) || nodes.length === 0) {
       return { success: false, error: 'At least one node is required' };
-    }
-    const hasInput = nodes.some((n) => n.type === 'input');
-    const hasOutput = nodes.some((n) => n.type === 'output');
-    if (!hasInput) {
-      return { success: false, error: 'Workflow must have at least one input node' };
-    }
-    if (!hasOutput) {
-      return { success: false, error: 'Workflow must have at least one output node' };
     }
     updates.nodes = nodes;
   }

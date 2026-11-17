@@ -1,6 +1,7 @@
 import type { ChatMessage, ResolvedProvider } from '../base.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import type { LLMNodeData, ProviderCallResult } from './types.js';
+import { applyExtraParams } from './utils.js';
 import {
   DEFAULT_OLLAMA_MODEL,
   DEFAULT_TEMPERATURE,
@@ -33,7 +34,7 @@ export async function callOllama(
   messages.push({ role: 'user', content: userPrompt });
 
   const url = `${baseUrl}/api/chat`;
-  const requestBody = {
+  const requestBody = applyExtraParams({
     model: data.model || DEFAULT_OLLAMA_MODEL,
     messages,
     stream: false,
@@ -41,7 +42,7 @@ export async function callOllama(
       temperature: data.temperature ?? DEFAULT_TEMPERATURE,
       num_predict: data.maxTokens ?? DEFAULT_MAX_TOKENS,
     },
-  };
+  }, data.extraParams);
 
   let res: Response;
   try {
