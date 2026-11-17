@@ -346,6 +346,62 @@ When adding agent tools to an LLM node, use this format:
 - **description**: (agent only) Clear description so the LLM knows when to use it
 - **parameters**: (agent only!) JSON Schema - NEVER add this to builtin tools
 
+### Remote MCP Servers (\`mcpServers\`)
+Give an LLM node tools from remote MCP servers. The provider calls the servers itself, so:
+- Only providers \`anthropic\` and \`openai\` support it - never add \`mcpServers\` to other providers
+- The URL must be publicly reachable (no localhost, no stdio/command-based servers)
+- Only add servers the user asked for or provided; never invent MCP URLs
+- Put tokens in secrets and reference them: \`"authorizationToken": "{{secret:KEY}}"\` - never inline a token
+
+\`\`\`json
+{
+  "id": "llm-1",
+  "type": "llm",
+  "data": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "systemPrompt": "Answer questions about GitHub repositories using the available tools.",
+    "userPrompt": "{{node:input.message}}",
+    "mcpServers": [
+      { "name": "deepwiki", "url": "https://mcp.deepwiki.com/mcp" },
+      {
+        "name": "github",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "authorizationToken": "{{secret:GITHUB_TOKEN}}",
+        "allowedTools": ["search_issues", "get_issue"]
+      }
+    ]
+  }
+}
+\`\`\`
+
+- **mcpServers**: always an array of servers
+- **name**: (required) unique label, snake_case or short word
+- **url**: (required) Streamable HTTP / SSE endpoint
+- **authorizationToken**: (optional) Bearer token, use \`{{secret:KEY}}\`
+- **headers**: (optional, \`openai\` only) extra request headers; for \`anthropic\` use \`authorizationToken\` only
+- **allowedTools**: (optional) limit to these tool names; omit to allow all
+
+MCP servers can be combined with \`tools\` (builtin/agent) in the same node. MCP calls appear in the node's \`toolCalls\` output as \`mcp__<server>__<tool>\` (e.g. \`{{node:llm-1.toolCalls}}\`). Mention the server in \`systemPrompt\` so the model knows when to use it.
+
+### Provider-Specific Options (\`extraParams\`)
+\`extraParams\` is deep-merged into the provider API request last. Use it only for options the node has no field for, and only with field names valid for that provider's API:
+
+| Provider | Purpose | extraParams |
+|---|---|---|
+| \`openai\` | Reasoning effort | \`{ "reasoning": { "effort": "low" \\| "medium" \\| "high" } }\` |
+| \`openai\` | Answer length | \`{ "text": { "verbosity": "low" \\| "medium" \\| "high" } }\` |
+| \`openai\` | Force a tool call | \`{ "tool_choice": "required" }\` |
+| \`anthropic\` | Extended thinking | \`{ "thinking": { "type": "enabled", "budget_tokens": 4000 }, "temperature": null }\` (\`maxTokens\` must be greater than \`budget_tokens\`) |
+| \`anthropic\` | Force a tool call | \`{ "tool_choice": { "type": "any" } }\` |
+| \`ollama\` | Context window | \`{ "options": { "num_ctx": 8192 } }\` |
+| \`openrouter\` | Route to a vendor | \`{ "provider": { "order": ["anthropic"] } }\` |
+
+- \`null\` removes a field from the request (e.g. \`{ "temperature": null }\`)
+- String values support templates (e.g. \`{ "reasoning": { "effort": "{{var:EFFORT}}" } }\`)
+- Do NOT set \`model\`, \`messages\`, \`input\`, \`tools\` or \`stream\` via \`extraParams\` - use node fields
+- Unsupported top-level fields such as \`temperature\` on OpenAI reasoning models are dropped automatically - no need to add \`"temperature": null\` for OpenAI
+
 ## Memory Collections
 
 Give agents persistent storage with memory collections.
