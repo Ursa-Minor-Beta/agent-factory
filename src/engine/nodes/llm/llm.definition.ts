@@ -70,6 +70,11 @@ export const LLM_NODE_DEFINITION: NodeDefinitionRaw = {
       default: DEFAULT_MAX_TOKENS,
     },
     {
+      name: 'extraParams',
+      type: 'object',
+      description: 'Provider-specific request fields, deep-merged into the API request (e.g. {"reasoning": {"effort": "high"}} for OpenAI, {"thinking": {"type": "enabled", "budget_tokens": 2048}} for Anthropic). null removes a field (e.g. {"temperature": null}). String values support templates.',
+    },
+    {
       name: 'maxMessages',
       type: 'number',
       description: 'Maximum conversation history messages to include.',

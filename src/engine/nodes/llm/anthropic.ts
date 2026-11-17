@@ -10,7 +10,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
+import { applyExtraParams, buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
 
 type ToolCallResult = {
@@ -95,16 +95,18 @@ async function makeApiCall(
   maxTokens: number,
   systemPrompt: string | undefined,
   messages: Anthropic.MessageParam[],
-  tools: Anthropic.Tool[] | undefined
+  tools: Anthropic.Tool[] | undefined,
+  extraParams: Record<string, unknown> | undefined
 ): Promise<Anthropic.Message> {
   try {
-    return await client.messages.create({
+    return await client.messages.create(applyExtraParams({
       model,
       max_tokens: maxTokens,
       system: systemPrompt,
       messages,
       tools,
-    });
+      stream: false as const,
+    }, extraParams));
   }
   catch (error) {
     if (error instanceof Anthropic.APIError) {
@@ -195,7 +197,7 @@ export async function callAnthropic(
     }
     iterations++;
 
-    const response = await makeApiCall(client, model, maxTokens, systemPrompt, messages, anthropicTools);
+    const response = await makeApiCall(client, model, maxTokens, systemPrompt, messages, anthropicTools, data.extraParams);
     totalUsage.inputTokens += response.usage.input_tokens;
     totalUsage.outputTokens += response.usage.output_tokens;
     // Anthropic-specific: cache tokens (may not be present in all responses)

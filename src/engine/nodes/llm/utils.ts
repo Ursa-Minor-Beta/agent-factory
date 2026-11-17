@@ -97,6 +97,33 @@ export async function executeServerTool(
   }
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Deep-merge node extraParams into a provider request body.
+ * Plain objects merge recursively, other values replace, null removes the key
+ * (e.g. { temperature: null } for reasoning models that reject it).
+ */
+export function applyExtraParams<T extends object>(body: T, extraParams: Record<string, unknown> | undefined): T {
+  if (!extraParams) return body;
+
+  const result: Record<string, unknown> = { ...(body as Record<string, unknown>) };
+  for (const [key, value] of Object.entries(extraParams)) {
+    if (value === null) {
+      delete result[key];
+    }
+    else if (isPlainObject(value) && isPlainObject(result[key])) {
+      result[key] = applyExtraParams(result[key], value);
+    }
+    else {
+      result[key] = value;
+    }
+  }
+  return result as T;
+}
+
 /**
  * Build a summary of tool calls for error messages
  */

@@ -19,6 +19,8 @@ export interface LLMNodeData {
   maxToolCalls?: number;
   /** Tool execution mode: 'parallel' runs all tools simultaneously, 'sequential' runs one at a time */
   toolExecutionMode?: ToolExecutionMode;
+  /** Provider-specific request fields, deep-merged into the request body last (null removes a field) */
+  extraParams?: Record<string, unknown>;
 }
 
 /**
