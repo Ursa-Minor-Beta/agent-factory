@@ -11,7 +11,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
+import { applyExtraParams, callWithUnsupportedParamRetry, buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
 
 type ToolCallResult = {
@@ -117,22 +117,29 @@ interface ApiCallParams {
   maxTokens: number;
   usesLegacyMaxTokens: boolean;
   tools: OpenAI.Chat.ChatCompletionTool[] | undefined;
+  extraParams: Record<string, unknown> | undefined;
 }
 
 /**
  * Make a single API call to OpenAI, wrapping errors
  */
 async function makeApiCall(params: ApiCallParams): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  const { client, model, messages, temperature, maxTokens, usesLegacyMaxTokens, tools } = params;
+  const { client, model, messages, temperature, maxTokens, usesLegacyMaxTokens, tools, extraParams } = params;
 
   try {
-    return await client.chat.completions.create({
+    return await callWithUnsupportedParamRetry(
       model,
-      messages,
-      temperature,
-      ...(usesLegacyMaxTokens ? { max_tokens: maxTokens } : { max_completion_tokens: maxTokens }),
-      tools,
-    });
+      applyExtraParams({
+        model,
+        messages,
+        temperature,
+        ...(usesLegacyMaxTokens ? { max_tokens: maxTokens } : { max_completion_tokens: maxTokens }),
+        tools,
+        stream: false as const,
+      }, extraParams),
+      (body) => client.chat.completions.create(body),
+      (error) => (error instanceof OpenAI.APIError && error.status === 400 ? error.message : undefined)
+    );
   }
   catch (error) {
     if (error instanceof OpenAI.APIError) {
@@ -192,6 +199,7 @@ export async function callOpenAI(
     maxTokens: data.maxTokens ?? DEFAULT_MAX_TOKENS,
     usesLegacyMaxTokens,
     tools: openaiTools,
+    extraParams: data.extraParams,
   };
 
   // Config limit overrides node settings if defined

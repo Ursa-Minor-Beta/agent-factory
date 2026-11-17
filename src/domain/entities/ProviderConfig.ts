@@ -1,5 +1,6 @@
 /** Wire protocols the LLM node knows how to speak (one adapter per protocol) */
-export const LLM_PROTOCOLS = ['openai', 'anthropic', 'ollama'] as const;
+/** 'openai' = Chat Completions (OpenAI-compatible vendors); 'openai-responses' = OpenAI Responses API */
+export const LLM_PROTOCOLS = ['openai', 'openai-responses', 'anthropic', 'ollama'] as const;
 export type LlmProtocol = (typeof LLM_PROTOCOLS)[number];
 
 export interface LlmProviderPreset {
@@ -22,7 +23,7 @@ export const LLM_PROVIDER_PRESETS = {
   'groq': { label: 'Groq', protocol: 'openai', defaultBaseUrl: 'https://api.groq.com/openai/v1', requiresApiKey: true },
   'mistral': { label: 'Mistral', protocol: 'openai', defaultBaseUrl: 'https://api.mistral.ai/v1', requiresApiKey: true },
   'ollama': { label: 'Ollama', protocol: 'ollama', defaultBaseUrl: 'http://localhost:11434', requiresApiKey: false },
-  'openai': { label: 'OpenAI', protocol: 'openai', requiresApiKey: true },
+  'openai': { label: 'OpenAI', protocol: 'openai-responses', requiresApiKey: true },
   /** Any other OpenAI-compatible endpoint (vLLM, LM Studio, LiteLLM, ...) - baseUrl required */
   'openai-compatible': { label: 'OpenAI-compatible', protocol: 'openai', requiresApiKey: false, requiresBaseUrl: true },
   'openrouter': { label: 'OpenRouter', protocol: 'openai', defaultBaseUrl: 'https://openrouter.ai/api/v1', requiresApiKey: true },

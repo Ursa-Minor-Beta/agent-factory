@@ -270,18 +270,8 @@ export function validateWorkflow(nodes: WorkflowNode[]): { valid: boolean; error
   const errors: string[] = [];
   const nodeIds = new Set(nodes.map((n) => n.id));
 
-  // Check for required input node
-  const inputNodes = nodes.filter((n) => n.type === 'input');
-  if (inputNodes.length === 0) {
-    errors.push('Workflow must have at least one input node');
-  }
-
-  // Check for required output node
-  const outputNodes = nodes.filter((n) => n.type === 'output');
-  const outputNodeIds = new Set(outputNodes.map((n) => n.id));
-  if (outputNodes.length === 0) {
-    errors.push('Workflow must have at least one output node');
-  }
+  // Input/output nodes are optional: no input means empty input schema, no output means empty run output
+  const outputNodeIds = new Set(nodes.filter((n) => n.type === 'output').map((n) => n.id));
 
   // Check template references point to valid nodes
   for (const node of nodes) {

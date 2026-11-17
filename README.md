@@ -12,7 +12,8 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 
 - **Node Graph Workflows** - Define agents as connected nodes
 - **Composable Agents** - Agents can call other agents as sub-workflows or llm-tools
-- **Multi-Provider LLM** - Anthropic, OpenAI, Ollama, DeepSeek, Groq, Mistral, OpenRouter, Together AI, xAI, plus any OpenAI-compatible endpoint (vLLM, LM Studio, LiteLLM, ...) via custom `baseUrl`
+- **Multi-Provider LLM** - Anthropic, OpenAI (Responses API), Ollama, DeepSeek, Groq, Mistral, OpenRouter, Together AI, xAI, plus any OpenAI-compatible endpoint (vLLM, LM Studio, LiteLLM, ...) via custom `baseUrl` (Chat Completions)
+- **Remote MCP Servers** - LLM nodes on Anthropic and OpenAI can use tools from remote MCP servers (`mcpServers`), called natively by the provider; auth via `{{secret:KEY}}`
 - **Memory System** - Persistent storage with collections, schemas, and CRUD operations
 - **Builtin Tools** - LLM function calling for agents, memory, collections, and session notes
   - Agent tools: `create_agent`, `get_agent`, `update_agent`
@@ -88,7 +89,7 @@ On startup, the server creates:
 |------|-------------|
 | `input` | Workflow entry point with schema (field types: `string`, `number`, `boolean`, `enum` with predefined `options`) |
 | `output` | Workflow exit point |
-| `llm` | LLM call (OpenAI, Anthropic, Ollama); `provider` and `model` accept templates (e.g. `{{var:MODEL}}`) |
+| `llm` | LLM call (OpenAI, Anthropic, Ollama); `provider` and `model` accept templates (e.g. `{{var:MODEL}}`); `extraParams` deep-merges provider-specific fields into the request (e.g. `{"reasoning": {"effort": "high"}}`, `null` removes a field); `mcpServers` connects remote MCP servers called natively by the provider (anthropic, openai) |
 | `http` | HTTP/API requests with SSE streaming support |
 | `js` | JavaScript code execution |
 | `agent` | Execute sub-agent |

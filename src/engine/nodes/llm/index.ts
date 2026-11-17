@@ -1,21 +1,24 @@
 import type { WorkflowNode } from '../../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions, type ChatMessage } from '../base.js';
-import { interpolateAll } from '../interpolate.js';
+import { interpolateAll, interpolateDeep } from '../interpolate.js';
 import { callOpenAI } from './openai.js';
+import { callOpenAIResponses } from './openai-responses.js';
 import { callAnthropic } from './anthropic.js';
 import { callOllama } from './ollama.js';
 import type { LLMNodeData, ProviderAdapter } from './types.js';
 import { DEFAULT_MAX_MESSAGES } from './constants.js';
+import { resolveMcpServers } from './mcp.js';
 import { extractAndStoreFiles, resolveTempRefsToBase64 } from '../file-helper.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import { isLlmProviderType, type LlmProtocol } from '../../../domain/entities/ProviderConfig.js';
 
 /** One adapter per wire protocol; providers (deepseek, groq, ...) map onto these via presets */
 const PROTOCOL_ADAPTERS: Record<LlmProtocol, ProviderAdapter> = {
-  openai: callOpenAI,
-  anthropic: callAnthropic,
-  ollama: callOllama,
+  'openai': callOpenAI,
+  'openai-responses': callOpenAIResponses,
+  'anthropic': callAnthropic,
+  'ollama': callOllama,
 };
 
 /**
@@ -83,6 +86,7 @@ Extract facts and call the update_session_notes tool.`;
         ? interpolateAll(rawData.provider, interpolateOpts).trim()
         : rawData.provider) as LLMNodeData['provider'],
       model: rawData.model ? interpolateAll(rawData.model, interpolateOpts).trim() : rawData.model,
+      extraParams: rawData.extraParams ? interpolateDeep(rawData.extraParams, interpolateOpts) : undefined,
     };
 
     const systemPrompt = data.systemPrompt
@@ -114,6 +118,11 @@ Extract facts and call the update_session_notes tool.`;
     if (!provider) {
       throw new NodeExecutionError(`LLM provider "${data.provider}" is not configured`, {});
     }
+
+    data.mcpServers = resolveMcpServers(rawData.mcpServers, provider.protocol, {
+      context,
+      secrets: options.resolvedSecrets,
+    });
 
     const adapter = PROTOCOL_ADAPTERS[provider.protocol];
     const result = await adapter(data, provider, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);
