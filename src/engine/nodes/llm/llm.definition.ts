@@ -75,6 +75,18 @@ export const LLM_NODE_DEFINITION: NodeDefinitionRaw = {
       description: 'Provider-specific request fields, deep-merged into the API request (e.g. {"reasoning": {"effort": "high"}} for OpenAI, {"thinking": {"type": "enabled", "budget_tokens": 2048}} for Anthropic). null removes a field (e.g. {"temperature": null}). String values support templates.',
     },
     {
+      name: 'mcpServers',
+      type: 'object',
+      description: [
+        'Remote MCP servers whose tools the model can use. The provider (Anthropic MCP connector / OpenAI Responses mcp tool) connects to the servers itself, so only anthropic and openai providers are supported and the URL must be publicly reachable (no localhost or stdio servers).',
+        'Format: an array of servers (a single server object is also accepted).',
+        'Fields: name (required, unique label; tools appear in toolCalls output as mcp__<name>__<tool>); url (required, Streamable HTTP or SSE endpoint); authorizationToken (optional, sent as Bearer token); headers (optional extra request headers, openai only); allowedTools (optional array of tool names, all server tools when omitted).',
+        'name, url, authorizationToken and header values support templates, e.g. "authorizationToken": "{{secret:GITHUB_TOKEN}}".',
+        'Can be combined with builtin tools in the same node. MCP calls run on the provider side without approval and do not count toward maxToolCalls.',
+        'Example: [{"name": "deepwiki", "url": "https://mcp.deepwiki.com/mcp"}, {"name": "github", "url": "https://api.githubcopilot.com/mcp/", "authorizationToken": "{{secret:GITHUB_TOKEN}}", "allowedTools": ["search_issues"]}]',
+      ].join(' '),
+    },
+    {
       name: 'maxMessages',
       type: 'number',
       description: 'Maximum conversation history messages to include.',
@@ -144,6 +156,61 @@ export const LLM_NODE_DEFINITION: NodeDefinitionRaw = {
           },
         ],
         maxToolCalls: 3,
+      },
+    },
+    {
+      name: 'Reasoning model with extraParams',
+      description: 'Provider-specific fields merged into the request. Here: OpenAI reasoning effort, temperature removed (reasoning models reject it).',
+      id: 'llm-4',
+      type: 'llm',
+      data: {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        userPrompt: '{{node:input.text}}',
+        extraParams: {
+          reasoning: { effort: 'high' },
+          temperature: null,
+        },
+      },
+    },
+    {
+      name: 'Anthropic extended thinking',
+      description: 'Anthropic thinking via extraParams. maxTokens must exceed budget_tokens.',
+      id: 'llm-5',
+      type: 'llm',
+      data: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5',
+        userPrompt: '{{node:input.text}}',
+        maxTokens: 8000,
+        extraParams: {
+          thinking: { type: 'enabled', budget_tokens: 4000 },
+          temperature: null,
+        },
+      },
+    },
+    {
+      name: 'With remote MCP servers',
+      description: 'Provider calls remote MCP servers directly (anthropic/openai). MCP calls appear in toolCalls as mcp__<server>__<tool>.',
+      id: 'llm-6',
+      type: 'llm',
+      data: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5',
+        systemPrompt: 'Answer questions about GitHub repositories using the available tools.',
+        userPrompt: '{{node:input.text}}',
+        mcpServers: [
+          {
+            name: 'deepwiki',
+            url: 'https://mcp.deepwiki.com/mcp',
+          },
+          {
+            name: 'github',
+            url: 'https://api.githubcopilot.com/mcp/',
+            authorizationToken: '{{secret:GITHUB_TOKEN}}',
+            allowedTools: ['search_issues', 'get_issue'],
+          },
+        ],
       },
     },
   ],

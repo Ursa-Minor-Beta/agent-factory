@@ -8,6 +8,7 @@ import { callAnthropic } from './anthropic.js';
 import { callOllama } from './ollama.js';
 import type { LLMNodeData, ProviderAdapter } from './types.js';
 import { DEFAULT_MAX_MESSAGES } from './constants.js';
+import { resolveMcpServers } from './mcp.js';
 import { extractAndStoreFiles, resolveTempRefsToBase64 } from '../file-helper.js';
 import { NodeExecutionError } from '../../../utils/errors.js';
 import { isLlmProviderType, type LlmProtocol } from '../../../domain/entities/ProviderConfig.js';
@@ -117,6 +118,11 @@ Extract facts and call the update_session_notes tool.`;
     if (!provider) {
       throw new NodeExecutionError(`LLM provider "${data.provider}" is not configured`, {});
     }
+
+    data.mcpServers = resolveMcpServers(rawData.mcpServers, provider.protocol, {
+      context,
+      secrets: options.resolvedSecrets,
+    });
 
     const adapter = PROTOCOL_ADAPTERS[provider.protocol];
     const result = await adapter(data, provider, finalSystemPrompt, userPrompt, conversationHistory, options, node.id);

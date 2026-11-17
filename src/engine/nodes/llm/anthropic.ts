@@ -12,6 +12,9 @@ import {
 } from './constants.js';
 import { applyExtraParams, buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
+import { mcpToolCallName, type McpServerConfig } from './mcp.js';
+
+const MCP_BETA = 'mcp-client-2025-04-04';
 
 type ToolCallResult = {
   toolUseId: string;
@@ -96,17 +99,36 @@ async function makeApiCall(
   systemPrompt: string | undefined,
   messages: Anthropic.MessageParam[],
   tools: Anthropic.Tool[] | undefined,
-  extraParams: Record<string, unknown> | undefined
+  extraParams: Record<string, unknown> | undefined,
+  mcpServers: McpServerConfig[] | undefined
 ): Promise<Anthropic.Message> {
+  const body = applyExtraParams({
+    model,
+    max_tokens: maxTokens,
+    system: systemPrompt,
+    messages,
+    tools,
+    stream: false as const,
+  }, extraParams);
+
   try {
-    return await client.messages.create(applyExtraParams({
-      model,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages,
-      tools,
-      stream: false as const,
-    }, extraParams));
+    if (!mcpServers) {
+      return await client.messages.create(body);
+    }
+    // MCP connector (beta): Anthropic calls the servers and returns mcp_tool_use/mcp_tool_result blocks
+    const response = await client.beta.messages.create({
+      ...(body as Anthropic.Beta.MessageCreateParamsNonStreaming),
+      betas: [MCP_BETA],
+      mcp_servers: mcpServers.map((server) => ({
+        type: 'url' as const,
+        name: server.name,
+        url: server.url,
+        authorization_token: server.authorizationToken,
+        tool_configuration: server.allowedTools ? { allowed_tools: server.allowedTools } : undefined,
+      })),
+    });
+    // Beta content is a superset; MCP blocks are passed back as-is in the conversation
+    return response as unknown as Anthropic.Message;
   }
   catch (error) {
     if (error instanceof Anthropic.APIError) {
@@ -123,10 +145,45 @@ async function makeApiCall(
  * Extract text response from Anthropic message
  */
 function extractTextResponse(content: Anthropic.ContentBlock[]): string {
+  // With MCP calls the answer follows the last mcp_tool_result; earlier text is preamble
+  const lastMcpResult = content.map((block) => block.type as string).lastIndexOf('mcp_tool_result');
+  if (lastMcpResult >= 0) {
+    return content
+      .slice(lastMcpResult + 1)
+      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n\n');
+  }
+
   const textBlock = content.find(
     (block): block is Anthropic.TextBlock => block.type === 'text'
   );
   return textBlock?.text ?? '';
+}
+
+/**
+ * Collect MCP calls executed by Anthropic (mcp_tool_use paired with its mcp_tool_result)
+ */
+function extractMcpToolCalls(content: Anthropic.ContentBlock[]): ExecutedToolCall[] {
+  const blocks = content as unknown as Anthropic.Beta.BetaContentBlock[];
+  const results = new Map<string, Anthropic.Beta.BetaMCPToolResultBlock>();
+  for (const block of blocks) {
+    if (block.type === 'mcp_tool_result') results.set(block.tool_use_id, block);
+  }
+
+  return blocks
+    .filter((block): block is Anthropic.Beta.BetaMCPToolUseBlock => block.type === 'mcp_tool_use')
+    .map((block) => {
+      const result = results.get(block.id);
+      return {
+        id: block.id,
+        name: mcpToolCallName(block.server_name, block.name),
+        input: (block.input ?? {}) as Record<string, unknown>,
+        result: result
+          ? (result.is_error ? { error: result.content } : result.content)
+          : { error: 'No result returned' },
+      };
+    });
 }
 
 /**
@@ -197,7 +254,7 @@ export async function callAnthropic(
     }
     iterations++;
 
-    const response = await makeApiCall(client, model, maxTokens, systemPrompt, messages, anthropicTools, data.extraParams);
+    const response = await makeApiCall(client, model, maxTokens, systemPrompt, messages, anthropicTools, data.extraParams, data.mcpServers);
     totalUsage.inputTokens += response.usage.input_tokens;
     totalUsage.outputTokens += response.usage.output_tokens;
     // Anthropic-specific: cache tokens (may not be present in all responses)
@@ -209,6 +266,14 @@ export async function callAnthropic(
     };
     totalUsage.cacheCreationTokens += usageWithCache.cache_creation_input_tokens ?? 0;
     totalUsage.cacheReadTokens += usageWithCache.cache_read_input_tokens ?? 0;
+
+    executedToolCalls.push(...extractMcpToolCalls(response.content));
+
+    // Long server-side (MCP) turn paused: resend with the partial assistant turn to let it continue
+    if ((response.stop_reason as string) === 'pause_turn') {
+      messages.push({ role: 'assistant', content: response.content });
+      continue;
+    }
 
     const toolUses = extractToolUses(response.content);
 

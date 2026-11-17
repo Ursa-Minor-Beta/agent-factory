@@ -124,6 +124,44 @@ export function applyExtraParams<T extends object>(body: T, extraParams: Record<
   return result as T;
 }
 
+const UNSUPPORTED_PARAM_PATTERN = /Unsupported (?:parameter|value): '([^']+)'/;
+const MAX_UNSUPPORTED_PARAM_RETRIES = 3;
+
+/** model -> top-level request fields the model rejected (learned at runtime, single instance) */
+const unsupportedParamsByModel = new Map<string, Set<string>>();
+
+/**
+ * Call the provider, dropping top-level fields the model rejects
+ * (e.g. "Unsupported parameter: 'temperature'" on reasoning models) and retrying.
+ * Rejected fields are remembered per model so later calls skip the failing request.
+ */
+export async function callWithUnsupportedParamRetry<TBody extends object, TResult>(
+  model: string,
+  body: TBody,
+  call: (body: TBody) => Promise<TResult>,
+  getErrorMessage: (error: unknown) => string | undefined
+): Promise<TResult> {
+  const known = unsupportedParamsByModel.get(model);
+  let current = { ...body } as Record<string, unknown>;
+  for (const key of known ?? []) delete current[key];
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await call(current as TBody);
+    }
+    catch (error) {
+      const param = getErrorMessage(error)?.match(UNSUPPORTED_PARAM_PATTERN)?.[1];
+      if (!param || !(param in current) || attempt >= MAX_UNSUPPORTED_PARAM_RETRIES) {
+        throw error;
+      }
+      const rest = { ...current };
+      delete rest[param];
+      current = rest;
+      unsupportedParamsByModel.set(model, (unsupportedParamsByModel.get(model) ?? new Set()).add(param));
+    }
+  }
+}
+
 /**
  * Build a summary of tool calls for error messages
  */

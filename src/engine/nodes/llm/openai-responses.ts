@@ -11,8 +11,9 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { applyExtraParams, buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
+import { applyExtraParams, callWithUnsupportedParamRetry, buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
+import { mcpToolCallName, type McpServerConfig } from './mcp.js';
 
 type ToolCallResult = {
   callId: string;
@@ -56,6 +57,30 @@ async function executeSingleToolCall(
   catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return { ...base, input: toolArgs, result: { error: errorMessage } };
+  }
+}
+
+/**
+ * Convert node MCP servers to Responses `mcp` tools (OpenAI calls the servers itself)
+ */
+function buildMcpTools(servers: McpServerConfig[] | undefined): OpenAI.Responses.Tool[] {
+  return (servers ?? []).map((server) => ({
+    type: 'mcp' as const,
+    server_label: server.name,
+    server_url: server.url,
+    authorization: server.authorizationToken,
+    headers: server.headers,
+    allowed_tools: server.allowedTools,
+    require_approval: 'never' as const,
+  }));
+}
+
+function parseJsonObject(value: string): Record<string, unknown> {
+  try {
+    return JSON.parse(value || '{}') as Record<string, unknown>;
+  }
+  catch {
+    return { raw: value };
   }
 }
 
@@ -109,17 +134,22 @@ async function makeApiCall(params: ApiCallParams): Promise<OpenAI.Responses.Resp
   const { client, model, instructions, input, temperature, maxTokens, tools, extraParams } = params;
 
   try {
-    return await client.responses.create(applyExtraParams({
+    return await callWithUnsupportedParamRetry(
       model,
-      instructions,
-      input,
-      temperature,
-      max_output_tokens: maxTokens,
-      tools,
-      // Stateless: full input is resent each iteration, nothing stored on OpenAI side
-      store: false,
-      stream: false as const,
-    }, extraParams));
+      applyExtraParams({
+        model,
+        instructions,
+        input,
+        temperature,
+        max_output_tokens: maxTokens,
+        tools,
+        // Stateless: full input is resent each iteration, nothing stored on OpenAI side
+        store: false,
+        stream: false as const,
+      }, extraParams),
+      (body) => client.responses.create(body),
+      (error) => (error instanceof OpenAI.APIError && error.status === 400 ? error.message : undefined)
+    );
   }
   catch (error) {
     if (error instanceof OpenAI.APIError) {
@@ -166,6 +196,8 @@ export async function callOpenAIResponses(
   const toolMap = new Map<string, ToolDefinition>();
   resolvedTools?.forEach((tool) => toolMap.set(tool.name, tool));
 
+  const allTools = [...(responsesTools ?? []), ...buildMcpTools(data.mcpServers)];
+
   const apiParams: ApiCallParams = {
     client,
     model: data.model || DEFAULT_OPENAI_MODEL,
@@ -173,7 +205,7 @@ export async function callOpenAIResponses(
     input,
     temperature: data.temperature ?? DEFAULT_TEMPERATURE,
     maxTokens: data.maxTokens ?? DEFAULT_MAX_TOKENS,
-    tools: responsesTools,
+    tools: allTools.length > 0 ? allTools : undefined,
     extraParams: data.extraParams,
   };
 
@@ -210,6 +242,18 @@ export async function callOpenAIResponses(
 
     if (response.error) {
       throw new NodeExecutionError(`OpenAI API error: ${response.error.code} ${response.error.message}`, {});
+    }
+
+    // MCP calls are executed by OpenAI; record them for the node output
+    for (const item of response.output) {
+      if (item.type === 'mcp_call') {
+        executedToolCalls.push({
+          id: item.id,
+          name: mcpToolCallName(item.server_label, item.name),
+          input: parseJsonObject(item.arguments),
+          result: item.error ? { error: item.error } : item.output,
+        });
+      }
     }
 
     const toolCalls = response.output.filter(
