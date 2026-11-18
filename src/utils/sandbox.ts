@@ -42,18 +42,105 @@ export const SANDBOX_AVAILABLE_GLOBALS = [
   'console',
 ] as const;
 
-const SANDBOX_DIRECT_GLOBALS = SANDBOX_AVAILABLE_GLOBALS.filter((g) => g !== 'console');
-
 /** Limits for captured console output */
 const MAX_LOG_ENTRIES = 100;
 const MAX_LOG_LENGTH = 2000;
 
-const sandboxEntries = [
-  ...SANDBOX_DIRECT_GLOBALS,
-  'console: { log: capture(\'log\'), warn: capture(\'warn\'), error: capture(\'error\') }',
-]
-  .map((entry) => `  ${entry}`)
-  .join(',\n');
+/**
+ * Runs inside the vm context before user code. node:vm is not a security boundary: any object or
+ * function from the worker realm reachable by user code leads to the worker's Function constructor
+ * (`x.constructor.constructor('return process')()`). So every value user code can touch is created
+ * here, in the context realm: data is deep-copied in, helpers are context-realm wrappers that only
+ * pass primitives to the bridge, and results leave through captured intrinsics (never by the worker
+ * awaiting a context-realm thenable).
+ */
+const bootstrapScript = `(function (bridge) {
+  'use strict';
+  const { apply } = Reflect;
+  const then = Promise.prototype.then;
+  const resolvePromise = Promise.resolve.bind(Promise);
+  const { keys } = Object;
+  const isArray = Array.isArray;
+  const stringify = JSON.stringify;
+
+  // Deep copy of a worker-realm value into this realm
+  const adopt = (value, seen = new Map()) => {
+    if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return value;
+    if (typeof value === 'function') return undefined;
+    if (seen.has(value)) return seen.get(value);
+    const tag = bridge.tag(value);
+    let copy;
+    if (tag === 'Date') return new Date(bridge.time(value));
+    if (tag === 'Uint8Array' || tag === 'ArrayBuffer') {
+      const bytes = bridge.bytes(value);
+      copy = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) copy[i] = bytes[i];
+      return tag === 'ArrayBuffer' ? copy.buffer : copy;
+    }
+    if (tag === 'Map') {
+      copy = new Map();
+      seen.set(value, copy);
+      for (const [k, v] of bridge.entries(value)) copy.set(adopt(k, seen), adopt(v, seen));
+      return copy;
+    }
+    if (tag === 'Set') {
+      copy = new Set();
+      seen.set(value, copy);
+      for (const [v] of bridge.entries(value)) copy.add(adopt(v, seen));
+      return copy;
+    }
+    copy = isArray(value) ? [] : {};
+    seen.set(value, copy);
+    for (const key of keys(value)) copy[key] = adopt(value[key], seen);
+    return copy;
+  };
+
+  const message = (error) => {
+    try { return String(error && typeof error === 'object' && 'message' in error ? error.message : error); }
+    catch { return 'Unknown error'; }
+  };
+
+  const formatArg = (arg) => {
+    if (typeof arg === 'string') return arg;
+    try { return stringify(arg) ?? String(arg); } catch { return String(arg); }
+  };
+  const capture = (level) => (...args) => { bridge.log(level, args.map(formatArg).join(' ')); };
+  globalThis.console = { log: capture('log'), warn: capture('warn'), error: capture('error') };
+
+  const data = bridge.data;
+  for (const key of keys(data)) globalThis[key] = adopt(data[key]);
+
+  if (bridge.hmac) {
+    globalThis.hmacSha256 = (secret, value) => bridge.hmac(String(secret), String(value));
+    globalThis.safeEqual = (a, b) => bridge.safeEqual(String(a), String(b));
+    globalThis.now = () => bridge.now();
+  }
+
+  for (const method of bridge.hostMethods) {
+    globalThis[method] = (...args) => new Promise((resolve, reject) => {
+      let payload;
+      try { payload = stringify(args); }
+      catch (error) { reject(new Error(method + ': arguments must be JSON-serializable')); return; }
+      bridge.call(method, payload === undefined ? '[]' : payload,
+        (result) => resolve(adopt(result)),
+        (error) => reject(new Error(String(error))));
+    });
+  }
+
+  // Settles the user script's value: thenables are resolved with this realm's intrinsics
+  return (value) => {
+    let promise;
+    try { promise = resolvePromise(value); }
+    catch (error) { bridge.fail(message(error)); return; }
+    apply(then, promise, [
+      (result) => {
+        try { bridge.done(result === undefined ? globalThis.output : result); }
+        catch (error) { bridge.fail('Result is not serializable: ' + message(error)); }
+      },
+      (error) => bridge.fail(message(error)),
+    ]);
+  };
+})`;
 
 /**
  * Worker script that runs user code in isolation.
@@ -65,71 +152,83 @@ const { parentPort, workerData } = require('node:worker_threads');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
 
-const { script, data, cryptoHelpers, hostMethods } = workerData;
+const { script, data, cryptoHelpers, hostMethods, bootstrap } = workerData;
 
 const logs = [];
-const formatArg = (arg) => {
-  if (typeof arg === 'string') return arg;
-  try { return JSON.stringify(arg) ?? String(arg); } catch { return String(arg); }
-};
-const capture = (level) => (...args) => {
-  if (logs.length >= ${MAX_LOG_ENTRIES}) return;
-  const message = args.map(formatArg).join(' ');
-  logs.push({ level, message: message.length > ${MAX_LOG_LENGTH} ? message.slice(0, ${MAX_LOG_LENGTH}) + '...' : message });
+let finished = false;
+const finish = (msg) => {
+  if (finished) return;
+  // Mark finished only after posting, so a non-cloneable result can still be reported via fail()
+  parentPort.postMessage({ ...msg, type: 'done', logs });
+  finished = true;
 };
 
-const sandbox = {
-  ...data,
-${sandboxEntries},
-};
+const pending = new Map();
+let seq = 0;
+parentPort.on('message', (msg) => {
+  const call = pending.get(msg.id);
+  if (!call) return;
+  pending.delete(msg.id);
+  if (msg.error !== undefined) call.reject(msg.error);
+  else call.resolve(msg.result);
+});
 
-if (cryptoHelpers) {
-  sandbox.hmacSha256 = (secret, value) =>
-    crypto.createHmac('sha256', String(secret)).update(String(value)).digest('hex');
-  sandbox.safeEqual = (a, b) => {
-    const bufA = Buffer.from(String(a));
-    const bufB = Buffer.from(String(b));
+// Bridge: only ever hands primitives (or values copied by adopt()) to context-realm code
+const bridge = {
+  data,
+  hostMethods,
+  tag: (value) => {
+    if (value instanceof Date) return 'Date';
+    if (value instanceof Uint8Array) return 'Uint8Array';
+    if (value instanceof ArrayBuffer) return 'ArrayBuffer';
+    if (value instanceof Map) return 'Map';
+    if (value instanceof Set) return 'Set';
+    return 'Object';
+  },
+  time: (date) => date.getTime(),
+  bytes: (value) => Array.from(value instanceof ArrayBuffer ? new Uint8Array(value) : value),
+  entries: (value) => Array.from(value.entries()),
+  log: (level, message) => {
+    if (logs.length >= ${MAX_LOG_ENTRIES}) return;
+    message = String(message);
+    logs.push({ level, message: message.length > ${MAX_LOG_LENGTH} ? message.slice(0, ${MAX_LOG_LENGTH}) + '...' : message });
+  },
+  hmac: cryptoHelpers
+    ? (secret, value) => crypto.createHmac('sha256', secret).update(value).digest('hex')
+    : undefined,
+  safeEqual: (a, b) => {
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
     return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
-  };
-  sandbox.now = () => Math.floor(Date.now() / 1000);
-}
+  },
+  now: () => Math.floor(Date.now() / 1000),
+  call: (method, payload, onResult, onError) => {
+    const id = ++seq;
+    pending.set(id, { resolve: onResult, reject: onError });
+    parentPort.postMessage({ type: 'call', id, method, args: JSON.parse(payload) });
+  },
+  done: (result) => finish({ success: true, result }),
+  fail: (error) => finish({ success: false, error: String(error) }),
+};
 
-// Async functions forwarded to the host (see SandboxOptions.onHostCall)
-if (hostMethods.length > 0) {
-  const pending = new Map();
-  let seq = 0;
-  parentPort.on('message', (msg) => {
-    const call = pending.get(msg.id);
-    if (!call) return;
-    pending.delete(msg.id);
-    if (msg.error !== undefined) call.reject(new Error(msg.error));
-    else call.resolve(msg.result);
-  });
-  for (const method of hostMethods) {
-    sandbox[method] = (...args) => new Promise((resolve, reject) => {
-      const id = ++seq;
-      pending.set(id, { resolve, reject });
-      parentPort.postMessage({ type: 'call', id, method, args });
-    });
-  }
-}
+// Null prototype: otherwise globalThis.constructor is the worker realm's Object
+const ctx = vm.createContext(Object.create(null));
 
-const ctx = vm.createContext(sandbox);
-
-(async () => {
+try {
+  const settle = new vm.Script(bootstrap).runInContext(ctx)(bridge);
+  let value;
   try {
-    let result = await new vm.Script(script).runInContext(ctx);
-    if (result === undefined) result = sandbox.output;
-    parentPort.postMessage({ type: 'done', success: true, result, logs });
+    value = new vm.Script(script).runInContext(ctx);
   } catch (error) {
-    parentPort.postMessage({
-      type: 'done',
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-      logs
-    });
+    // Errors from compiling or running user code may be context-realm objects: read only primitives
+    let message = 'Unknown error';
+    try { message = String(error && typeof error === 'object' && 'message' in error ? error.message : error); } catch {}
+    bridge.fail(message);
   }
-})();
+  if (!finished) settle(value);
+} catch (error) {
+  bridge.fail(error instanceof Error ? error.message : String(error));
+}
 `;
 
 export interface SandboxOptions {
@@ -170,7 +269,9 @@ export function runInSandbox(options: SandboxOptions): Promise<SandboxResult> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(workerScript, {
       eval: true,
-      workerData: { script, data, cryptoHelpers, hostMethods },
+      workerData: { script, data, cryptoHelpers, hostMethods, bootstrap: bootstrapScript },
+      // Defense in depth: even if user code escapes the context, it doesn't see server env
+      env: {},
       resourceLimits: {
         maxOldGenerationSizeMb: memoryMb,
         maxYoungGenerationSizeMb: memoryMb / 4,
