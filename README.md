@@ -268,6 +268,7 @@ See http://localhost:3000/docs for full API documentation.
 PORT=3000
 HOST=0.0.0.0
 NODE_ENV=development
+TRUST_PROXY=0                  # Reverse proxy hops whose X-Forwarded-For is trusted for the client IP (default: 0; set 1 behind Caddy/Nginx)
 
 # CORS (optional - leave empty to allow all origins)
 ALLOWED_ORIGINS=http://localhost:3000
@@ -279,6 +280,8 @@ MONGODB_URI=mongodb://localhost:27017/agent-factory
 JWT_SECRET=your-secret-key
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
+AUTH_LOGIN_MAX_ATTEMPTS=5      # Login attempts per email + IP per window, reset on success; 10x that per email across all IPs (default: 5)
+AUTH_LOGIN_WINDOW_MS=900000    # Login attempt window (default: 15 min)
 
 # Encryption (for provider API keys)
 # Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"

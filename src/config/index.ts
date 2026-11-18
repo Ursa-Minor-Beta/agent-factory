@@ -5,6 +5,8 @@ export const config = {
     port: parseInt(process.env['PORT'] ?? '3000', 10),
     host: process.env['HOST'] ?? '0.0.0.0',
     env: process.env['NODE_ENV'] ?? 'development',
+    /** Number of reverse proxy hops in front of the server whose X-Forwarded-* headers are trusted (0 = none) */
+    trustProxyHops: parseInt(process.env['TRUST_PROXY'] ?? '0', 10),
   },
   mongodb: {
     uri: process.env['MONGODB_URI'] ?? 'mongodb://localhost:27017/agent-factory',
@@ -13,6 +15,11 @@ export const config = {
     secret: process.env['JWT_SECRET'] ?? 'change-me-in-production',
     accessExpiresIn: process.env['JWT_ACCESS_EXPIRES_IN'] ?? '15m',
     refreshExpiresIn: process.env['JWT_REFRESH_EXPIRES_IN'] ?? '7d',
+  },
+  auth: {
+    /** Login attempts allowed per email + IP within the window (10x that per email across all IPs); a successful login resets the count */
+    loginMaxAttempts: parseInt(process.env['AUTH_LOGIN_MAX_ATTEMPTS'] ?? '5', 10),
+    loginWindowMs: parseInt(process.env['AUTH_LOGIN_WINDOW_MS'] ?? '900000', 10),
   },
   encryption: {
     // 32-byte hex key for AES-256 encryption of sensitive data

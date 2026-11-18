@@ -35,6 +35,7 @@ export async function userRoutes(app: FastifyInstance) {
   const authService = new AuthService(
     container.userRepository,
     container.apiKeyRepository,
+    container.authSessionRepository,
     (payload, options) => app.jwt.sign(payload, options)
   );
 
@@ -311,7 +312,8 @@ export async function userRoutes(app: FastifyInstance) {
       ...schemaIds.map((schemaId) => container.memoryStoreRepository.deleteBySchemaId(schemaId)),
     ]);
 
-    // Delete the user
+    // Sign the user out everywhere, then delete them
+    await container.authSessionRepository.delete({ userId: targetUserId });
     await container.userRepository.delete(targetUserId);
 
     const totalMemoryRecords = memoryRecordsDeleted.reduce((sum, count) => sum + count, 0);

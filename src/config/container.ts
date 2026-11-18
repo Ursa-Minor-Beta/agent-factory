@@ -1,5 +1,6 @@
 import { MongoUserRepository } from '../infrastructure/database/mongodb/repositories/MongoUserRepository.js';
 import { MongoApiKeyRepository } from '../infrastructure/database/mongodb/repositories/MongoApiKeyRepository.js';
+import { MongoAuthSessionRepository } from '../infrastructure/database/mongodb/repositories/MongoAuthSessionRepository.js';
 import { MongoProviderConfigRepository } from '../infrastructure/database/mongodb/repositories/MongoProviderConfigRepository.js';
 import { MongoAgentRepository } from '../infrastructure/database/mongodb/repositories/MongoAgentRepository.js';
 import { MongoAgentVersionRepository } from '../infrastructure/database/mongodb/repositories/MongoAgentVersionRepository.js';
@@ -22,6 +23,7 @@ import { config } from './index.js';
 
 import type { IUserRepository } from '../domain/interfaces/repositories/IUserRepository.js';
 import type { IApiKeyRepository } from '../domain/interfaces/repositories/IApiKeyRepository.js';
+import type { IAuthSessionRepository } from '../domain/interfaces/repositories/IAuthSessionRepository.js';
 import type { IProviderConfigRepository } from '../domain/interfaces/repositories/IProviderConfigRepository.js';
 import type { IAgentRepository } from '../domain/interfaces/repositories/IAgentRepository.js';
 import type { IAgentVersionRepository } from '../domain/interfaces/repositories/IAgentVersionRepository.js';
@@ -41,6 +43,7 @@ import type { IWebhookRepository } from '../domain/interfaces/repositories/IWebh
 export interface Container {
   userRepository: IUserRepository;
   apiKeyRepository: IApiKeyRepository;
+  authSessionRepository: IAuthSessionRepository;
   providerConfigRepository: IProviderConfigRepository;
   agentRepository: IAgentRepository;
   agentVersionRepository: IAgentVersionRepository;
@@ -112,6 +115,7 @@ const scheduleRunner = new ScheduleRunner(
 export const container: Container = {
   userRepository: new MongoUserRepository(),
   apiKeyRepository: new MongoApiKeyRepository(),
+  authSessionRepository: new MongoAuthSessionRepository(),
   providerConfigRepository,
   agentRepository,
   agentVersionRepository: new MongoAgentVersionRepository(),
