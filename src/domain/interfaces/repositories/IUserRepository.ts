@@ -19,7 +19,7 @@ export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   findAll(options?: UserQueryOptions): Promise<UserQueryResult>;
   create(data: CreateUserDTO & { passwordHash: string }): Promise<User>;
-  update(id: string, data: UpdateUserDTO): Promise<User | null>;
+  update(id: string, data: UpdateUserDTO): Promise<User | null>;  
   delete(id: string): Promise<boolean>;
   count(): Promise<number>;
 }

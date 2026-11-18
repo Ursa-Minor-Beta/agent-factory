@@ -67,27 +67,35 @@ export async function requireAuth(request: FastifyRequest): Promise<void> {
   if (authHeader?.startsWith('Bearer ')) {
     try {
       await request.jwtVerify();
-      return;
     }
     catch {
       throw new UnauthorizedError('Invalid or expired token');
     }
+    // Refresh tokens are only valid at /api/auth/refresh
+    if ((request.user as { type?: string }).type === 'refresh') {
+      throw new UnauthorizedError('Invalid or expired token');
+    }
+    return;
   }
 
   // Try JWT from cookie
   const cookieToken = request.cookies?.['accessToken'];
   if (cookieToken) {
+    let decoded: { userId: string; role?: string; type?: string };
     try {
-      const decoded = request.server.jwt.verify<{ userId: string; role?: string }>(cookieToken);
-      (request as any).user = {
-        userId: decoded.userId,
-        role: decoded.role ?? 'user',
-      };
-      return;
+      decoded = request.server.jwt.verify<{ userId: string; role?: string; type?: string }>(cookieToken);
     }
     catch {
       throw new UnauthorizedError('Invalid or expired token');
     }
+    if (decoded.type === 'refresh') {
+      throw new UnauthorizedError('Invalid or expired token');
+    }
+    (request as any).user = {
+      userId: decoded.userId,
+      role: decoded.role ?? 'user',
+    };
+    return;
   }
 
   throw new UnauthorizedError('Authentication required');

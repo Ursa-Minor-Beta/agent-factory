@@ -29,6 +29,8 @@ import { isOriginAllowed } from './utils/cors.js';
 
 const app = Fastify({
   logger: config.server.env !== 'test',
+  // Trust X-Forwarded-* from the first N proxy hops so request.ip is the real client IP
+  trustProxy: (_address, hop) => hop < config.server.trustProxyHops,
 });
 
 async function bootstrap() {
