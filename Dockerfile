@@ -5,7 +5,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-RUN npm audit --audit-level=high
+# Only shipped dependencies; dev tooling advisories don't affect the image
+RUN npm audit --omit=dev --audit-level=high
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -17,7 +18,7 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
