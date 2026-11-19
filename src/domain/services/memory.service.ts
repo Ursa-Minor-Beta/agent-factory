@@ -26,10 +26,12 @@ export interface MemoryServiceOptions {
  * Validate memory data
  * - Checks for reserved system fields
  * - Validates required fields from schema
+ * @param options.partial - Partial update: required fields may be omitted, but not cleared
  */
 export function validateMemoryData(
   data: Record<string, unknown>,
-  fields: MemorySchemaField[]
+  fields: MemorySchemaField[],
+  options?: { partial?: boolean }
 ): void {
   // 1. Check for reserved system fields
   const reservedFieldsUsed = Object.keys(data).filter((key) =>
@@ -43,8 +45,13 @@ export function validateMemoryData(
 
   // 2. Check required fields from schema
   for (const field of fields) {
-    if (field.required && !(field.name in data)) {
+    if (!field.required) continue;
+    if (!(field.name in data)) {
+      if (options?.partial) continue;
       throw new Error(`Required field "${field.name}" is missing`);
+    }
+    if (options?.partial && data[field.name] == null) {
+      throw new Error(`Required field "${field.name}" cannot be cleared`);
     }
   }
 
@@ -212,7 +219,7 @@ export async function updateMemoryRecord(
 
   // Find schema and validate data
   const schema = await findCollectionSchema(userId, collection, deps, options);
-  validateMemoryData(data, schema.fields);
+  validateMemoryData(data, schema.fields, { partial: true });
 
   // Verify record exists and belongs to this collection
   const existingRecord = await deps.memoryStoreRepo.findById(id);

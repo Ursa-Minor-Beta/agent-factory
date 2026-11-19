@@ -852,7 +852,7 @@ export async function memoryRoutes(app: FastifyInstance) {
     }
 
     try {
-      memoryService.validateMemoryData(body, schema.fields);
+      memoryService.validateMemoryData(body, schema.fields, { partial: true });
 
       const updated = await memoryStoreRepo.update(id, body);
       if (!updated) {
