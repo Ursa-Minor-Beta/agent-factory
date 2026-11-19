@@ -171,6 +171,7 @@ export async function searchMemoryRecords(
     limit?: number;
     offset?: number;
     sort?: { field: string; direction: 'asc' | 'desc' };
+    fields?: string[];
   },
   deps: MemoryServiceDependencies,
   options?: MemoryServiceOptions
@@ -189,6 +190,7 @@ export async function searchMemoryRecords(
     limit: searchOptions.limit ?? 10,
     offset: searchOptions.offset ?? 0,
     sort: searchOptions.sort,
+    fields: searchOptions.fields,
   });
 
   return results.map((r) => r.record);

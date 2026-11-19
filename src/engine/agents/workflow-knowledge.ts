@@ -521,7 +521,7 @@ For fixed data flow where memory operations happen at specific workflow points:
 
 Memory node types and outputs:
 - **memory-store**: Saves \`data\` (object matching the collection schema) → outputs \`success\`, \`id\`, \`record\`
-- **memory-search**: Finds records → outputs \`records\` (array of matches), \`count\`
+- **memory-search**: Finds records (optional \`fields\` array limits returned fields) → outputs \`records\` (array of matches), \`count\`
 - **memory-update**: Merges \`data\` into record \`id\` → outputs \`success\`, \`record\`
 - **memory-delete**: Deletes record \`id\` → outputs \`success\`, \`deleted\`
 

@@ -62,7 +62,12 @@ export class MongoMemoryStoreRepository implements IMemoryStoreRepository {
     const sortField = options.sort?.field ?? 'createdAt';
     const sortDirection = options.sort?.direction === 'asc' ? 1 : -1;
 
-    const docs = await MemoryRecordModel.find(query)
+    // Projection: system fields are always needed by toEntity
+    const projection = options.fields?.length
+      ? ['schemaId', 'createdAt', 'updatedAt', ...options.fields].join(' ')
+      : undefined;
+
+    const docs = await MemoryRecordModel.find(query, projection)
       .sort({ [sortField]: sortDirection })
       .skip(options.offset ?? 0)
       .limit(options.limit ?? 50);

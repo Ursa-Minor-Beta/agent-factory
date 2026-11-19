@@ -58,13 +58,14 @@ export const handleMemorySearch: ToolHandler = async (args, options) => {
 
   const collection = String(args.collection ?? '');
   const filters = args.filters as Record<string, unknown> | undefined;
+  const fields = Array.isArray(args.fields) ? args.fields.map(String) : undefined;
   const limit = typeof args.limit === 'number' ? args.limit : 10;
 
   try {
     const records = await memoryService.searchMemoryRecords(
       options.userId,
       collection,
-      { filters, limit },
+      { filters, fields, limit },
       {
         memorySchemaRepo: options.memorySchemaRepo,
         memoryStoreRepo: options.memoryStoreRepo,

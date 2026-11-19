@@ -139,6 +139,8 @@ export interface MemorySearchOptions {
   filters?: Record<string, unknown>;
   /** Sort field and direction */
   sort?: { field: string; direction: 'asc' | 'desc' };
+  /** Projection: user fields to return (system fields are always included). Omit for all fields */
+  fields?: string[];
   limit?: number;
   offset?: number;
 }
