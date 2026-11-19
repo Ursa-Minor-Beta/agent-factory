@@ -205,7 +205,11 @@ async function bootstrap() {
       app.log.info(`Admin user created: ${email}`);
     }
 
-    if (config.seed.systemAgentsOnStart) {
+    if (config.seed.refreshSystemAgentsOnStart) {
+      const { updated, created } = await seedService.updateSystemAgents();
+      app.log.info(`System agents refreshed: ${[...updated, ...created].join(', ') || 'none'}`);
+    }
+    else if (config.seed.systemAgentsOnStart) {
       const { created: systemCreated } = await seedService.seedSystemAgents();
       if (systemCreated.length > 0) {
         app.log.info(`System agents created: ${systemCreated.join(', ')}`);

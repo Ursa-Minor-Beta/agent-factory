@@ -292,6 +292,9 @@ ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=your-secure-password
 ADMIN_NAME=Admin
 
+# System agents (optional)
+REFRESH_SYSTEM_AGENTS_ON_START=false  # Overwrite system agents with latest definitions on startup, keeps LLM provider/model (default: false)
+
 # Agent Versions (optional)
 AGENT_MAX_SNAPSHOTS=50  # Maximum snapshots per agent (default: 50)
 

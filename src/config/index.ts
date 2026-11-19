@@ -32,6 +32,8 @@ export const config = {
   },
   seed: {
     systemAgentsOnStart: process.env['SEED_SYSTEM_AGENTS_ON_START'] !== 'false',
+    // Overwrite existing system agents with the latest definitions (keeps LLM provider/model)
+    refreshSystemAgentsOnStart: process.env['REFRESH_SYSTEM_AGENTS_ON_START'] === 'true',
   },
   jsNode: {
     defaultTimeoutMs: parseInt(process.env['JS_NODE_DEFAULT_TIMEOUT_MS'] ?? '5000', 10),
