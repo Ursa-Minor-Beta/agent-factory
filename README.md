@@ -89,7 +89,7 @@ On startup, the server creates:
 |------|-------------|
 | `input` | Workflow entry point with schema (field types: `string`, `number`, `boolean`, `enum` with predefined `options`) |
 | `output` | Workflow exit point |
-| `llm` | LLM call (OpenAI, Anthropic, Ollama); `provider` and `model` accept templates (e.g. `{{var:MODEL}}`); `extraParams` deep-merges provider-specific fields into the request (e.g. `{"reasoning": {"effort": "high"}}`, `null` removes a field); `mcpServers` connects remote MCP servers called natively by the provider (anthropic, openai) |
+| `llm` | LLM call (OpenAI, Anthropic, Ollama); `provider` and `model` accept templates (e.g. `{{var:MODEL}}`); `extraParams` deep-merges provider-specific fields into the request (e.g. `{"reasoning": {"effort": "high"}}`, `null` removes a field); `mcpServers` connects remote MCP servers called natively by the provider (anthropic, openai); `messages` passes an explicit `[{role, content}]` history (array or template like `{{node:id.messages}}`) instead of the session history |
 | `http` | HTTP/API requests with SSE streaming support |
 | `js` | JavaScript code execution |
 | `agent` | Execute sub-agent |

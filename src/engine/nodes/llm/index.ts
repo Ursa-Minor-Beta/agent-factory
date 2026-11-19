@@ -70,6 +70,29 @@ Extract facts and call the update_session_notes tool.`;
     return allMessages.slice(-maxMessages);
   }
 
+  /**
+   * Resolve the explicit `messages` option (array or template) into chat history
+   */
+  private resolveMessages(
+    messages: ChatMessage[] | string,
+    interpolateOpts: { context: ExecutionContext }
+  ): ChatMessage[] {
+    const resolved: unknown = interpolateDeep(messages, interpolateOpts);
+    if (!Array.isArray(resolved)) {
+      throw new NodeExecutionError('LLM option "messages" must resolve to an array of {role, content}', {});
+    }
+    return resolved.map((msg: unknown, i) => {
+      const { role, content } = (msg ?? {}) as Record<string, unknown>;
+      if (role !== 'user' && role !== 'assistant') {
+        throw new NodeExecutionError(`LLM option "messages"[${i}].role must be "user" or "assistant"`, {});
+      }
+      return {
+        role,
+        content: typeof content === 'string' ? content : JSON.stringify(content ?? ''),
+      };
+    });
+  }
+
   async execute(
     node: WorkflowNode,
     context: ExecutionContext,
@@ -101,9 +124,11 @@ Extract facts and call the update_session_notes tool.`;
     userPrompt = resolveTempRefsToBase64(userPrompt, context);
 
     const maxMessages = data.maxMessages ?? DEFAULT_MAX_MESSAGES;
-    const conversationHistory = maxMessages > 0
-      ? await this.getConversationHistory(maxMessages, options)
-      : [];
+    const conversationHistory = rawData.messages !== undefined && rawData.messages !== ''
+      ? this.resolveMessages(rawData.messages, interpolateOpts)
+      : maxMessages > 0
+        ? await this.getConversationHistory(maxMessages, options)
+        : [];
 
     const finalSystemPrompt = this.buildSystemPrompt(
       systemPrompt,

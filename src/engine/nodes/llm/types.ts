@@ -16,6 +16,8 @@ export interface LLMNodeData {
   temperature?: number;
   maxTokens?: number;
   maxMessages?: number;
+  /** Explicit conversation history (array or template resolving to one); replaces session history when set */
+  messages?: ChatMessage[] | string;
   tools?: ToolDefinition[];
   maxToolCalls?: number;
   /** Tool execution mode: 'parallel' runs all tools simultaneously, 'sequential' runs one at a time */

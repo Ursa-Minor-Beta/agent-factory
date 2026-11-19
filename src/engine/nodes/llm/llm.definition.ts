@@ -89,8 +89,13 @@ export const LLM_NODE_DEFINITION: NodeDefinitionRaw = {
     {
       name: 'maxMessages',
       type: 'number',
-      description: 'Maximum conversation history messages to include.',
+      description: 'Maximum conversation history messages to include from the session. Ignored when messages is set.',
       default: DEFAULT_MAX_MESSAGES,
+    },
+    {
+      name: 'messages',
+      type: 'object',
+      description: 'Explicit conversation history placed before userPrompt, replacing the session history. Array of {"role": "user" | "assistant", "content": string}, or a template resolving to one (e.g. "{{node:js-1.messages}}"). String values support templates.',
     },
   ],
   features: [
