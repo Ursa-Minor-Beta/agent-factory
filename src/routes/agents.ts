@@ -1161,8 +1161,14 @@ export async function agentRoutes(app: FastifyInstance) {
     // Set up close handler early to ensure cleanup on disconnect
     request.raw.on('close', cleanupAll);
 
+    // SSE comment as heartbeat - proxies drop a stream that stays silent while the LLM is thinking
+    const heartbeat = setInterval(() => {
+      if (reply.raw.writable) reply.raw.write(': ping\n\n');
+    }, 15_000);
+
     // Response 'close' fires on client disconnect (or after normal end, when cleanup already ran)
     reply.raw.on('close', () => {
+      clearInterval(heartbeat);
       cleanupAll();
       // Nobody can answer client tool calls anymore - stop the run instead of waiting for timeouts
       if (activeRunId && clientTools?.length && container.runManager.isRunActive(activeRunId)) {
