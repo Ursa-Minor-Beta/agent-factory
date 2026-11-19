@@ -10,6 +10,7 @@ interface MemorySearchNodeData {
   collection: string;
   filters?: Record<string, unknown>;
   sort?: { field: string; direction: 'asc' | 'desc' };
+  fields?: string[];
   limit?: number;
   offset?: number;
 }
@@ -52,6 +53,7 @@ export class MemorySearchNode extends BaseNode {
       {
         filters: interpolatedFilters,
         sort: data.sort,
+        fields: Array.isArray(data.fields) ? data.fields.map(String) : undefined,
         limit: data.limit ?? 10,
         offset: data.offset ?? 0,
       },

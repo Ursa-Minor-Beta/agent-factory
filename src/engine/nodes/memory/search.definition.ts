@@ -24,6 +24,11 @@ export const MEMORY_SEARCH_NODE_DEFINITION: NodeDefinitionRaw = {
       description: 'Sort by field. Format: { field: string, direction: "asc" | "desc" }.',
     },
     {
+      name: 'fields',
+      type: 'object',
+      description: 'Fields to return (projection), e.g. ["name", "email"]. id/createdAt/updatedAt are always included. Omit for all fields.',
+    },
+    {
       name: 'limit',
       type: 'number',
       description: 'Maximum results to return.',

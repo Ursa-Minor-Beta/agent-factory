@@ -45,6 +45,10 @@ Example: memory_search({ collection: "contacts", filters: { role: "engineer" }, 
         type: 'object',
         description: 'Filter by schema field values (exact match). Example: { role: "engineer", status: "active" }',
       },
+      fields: {
+        type: 'array',
+        description: 'Array of field names to return, e.g. ["name", "email"]. Omit for all fields',
+      },
       limit: {
         type: 'number',
         description: 'Max results (default: 10)',
