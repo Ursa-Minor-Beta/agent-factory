@@ -19,8 +19,10 @@ export interface RunDocument extends Document {
   sessionId?: string;
   // Parent-child relationship
   parentRunId?: mongoose.Types.ObjectId;
+  // All descendants (children, grandchildren, ...), rolled up when each child finishes
+  childRunIds?: mongoose.Types.ObjectId[];
   triggeredBy?: RunTrigger;
-  // Cumulative LLM usage by provider
+  // Cumulative LLM usage by provider, including all descendants
   usage?: RunUsage;
 }
 
@@ -106,6 +108,10 @@ const runSchema = new Schema<RunDocument>(
       default: undefined,
       index: true,
     },
+    childRunIds: {
+      type: [Schema.Types.ObjectId],
+      default: undefined,
+    },
     triggeredBy: {
       // Use nested object with explicit type definitions
       // 'type' field renamed to avoid Mongoose keyword conflict
@@ -120,7 +126,7 @@ const runSchema = new Schema<RunDocument>(
       scheduledFor: { type: Date },
       webhookId: { type: String },
     },
-    // Cumulative LLM usage by provider
+    // Cumulative LLM usage by provider, including all descendants
     usage: {
       type: Schema.Types.Mixed,
       default: undefined,

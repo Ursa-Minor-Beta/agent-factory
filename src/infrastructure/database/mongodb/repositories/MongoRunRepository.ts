@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { RunModel, RunDocument } from '../models/RunModel.js';
 import type { IRunRepository, RunQueryOptions, RunQueryResult, RunSummaryQueryResult, RunWithChildrenQueryOptions } from '../../../../domain/interfaces/repositories/IRunRepository.js';
 import type { Run, RunSummary, CreateRunDTO, RunStatus, NodeState } from '../../../../domain/entities/Run.js';
-import type { LLMProvider, TokenUsage } from '../../../../engine/nodes/llm/types.js';
+import type { LLMProvider, RunUsage, TokenUsage } from '../../../../engine/nodes/llm/types.js';
 
 export class MongoRunRepository implements IRunRepository {
   private toEntity(doc: RunDocument & { agentName?: string }, childDocs?: (RunDocument & { agentName?: string })[]): Run {
@@ -38,6 +38,7 @@ export class MongoRunRepository implements IRunRepository {
       sessionId: doc.sessionId,
       parentRunId: doc.parentRunId?.toString(),
       triggeredBy: doc.triggeredBy,
+      childRunIds: doc.childRunIds?.map((childId) => childId.toString()),
       usage: doc.usage,
     };
 
@@ -48,7 +49,7 @@ export class MongoRunRepository implements IRunRepository {
     return run;
   }
 
-  private toSummary(doc: RunDocument & { agentName?: string }, childIds?: string[]): RunSummary {
+  private toSummary(doc: RunDocument & { agentName?: string }): RunSummary {
     const summary: RunSummary = {
       id: doc._id.toString(),
       agentId: doc.agentId.toString(),
@@ -64,8 +65,8 @@ export class MongoRunRepository implements IRunRepository {
       usage: doc.usage,
     };
 
-    if (childIds && childIds.length > 0) {
-      summary.childRunIds = childIds;
+    if (doc.childRunIds && doc.childRunIds.length > 0) {
+      summary.childRunIds = doc.childRunIds.map((childId) => childId.toString());
     }
 
     return summary;
@@ -102,6 +103,25 @@ export class MongoRunRepository implements IRunRepository {
           from: 'runs',
           localField: '_id',
           foreignField: 'parentRunId',
+          // Lightweight fields only - full child data loads separatly
+          pipeline: [
+            {
+              $project: {
+                _id: 1,
+                agentId: 1,
+                userId: 1,
+                status: 1,
+                error: 1,
+                startedAt: 1,
+                completedAt: 1,
+                parentRunId: 1,
+                triggeredBy: 1,
+                usage: 1
+              },
+            },
+            { $sort: { startedAt: 1 } },
+            ...MongoRunRepository.AGENT_NAME_STAGES,
+          ],
           as: 'childRuns',
         },
       },
@@ -365,6 +385,7 @@ export class MongoRunRepository implements IRunRepository {
     sessionId: 1,
     parentRunId: 1,
     triggeredBy: 1,
+    childRunIds: 1,
     usage: 1,
   };
 
@@ -476,15 +497,6 @@ export class MongoRunRepository implements IRunRepository {
         { $limit: limit },
         {
           $lookup: {
-            from: 'runs',
-            localField: '_id',
-            foreignField: 'parentRunId',
-            pipeline: [{ $project: { _id: 1 } }],
-            as: 'childRuns',
-          },
-        },
-        {
-          $lookup: {
             from: 'agents',
             localField: 'agentId',
             foreignField: '_id',
@@ -497,13 +509,10 @@ export class MongoRunRepository implements IRunRepository {
       RunModel.countDocuments(match),
     ]);
 
-    const runs = results.map((doc) => {
-      const childIds = (doc.childRuns as { _id: mongoose.Types.ObjectId }[]).map((c) => c._id.toString());
-      delete doc.childRuns;
-      return this.toSummary(doc as RunDocument, childIds);
-    });
-
-    return { runs, total: countResult };
+    return {
+      runs: results.map((doc) => this.toSummary(doc as RunDocument)),
+      total: countResult,
+    };
   }
 
   async addUsage(id: string, provider: LLMProvider, usage: TokenUsage): Promise<Run | null> {
@@ -532,6 +541,26 @@ export class MongoRunRepository implements IRunRepository {
       { new: true }
     );
     return doc ? this.toEntity(doc) : null;
+  }
+
+  async rollUpChildRun(parentId: string, childRunIds: string[], usage?: RunUsage): Promise<void> {
+    const inc: Record<string, number> = {};
+    for (const [provider, tokens] of Object.entries(usage ?? {})) {
+      for (const [key, value] of Object.entries(tokens as TokenUsage)) {
+        if (value) {
+          inc[`usage.${provider}.${key}`] = value;
+        }
+      }
+    }
+
+    const update: Record<string, unknown> = {
+      $push: { childRunIds: { $each: childRunIds.map((childId) => new mongoose.Types.ObjectId(childId)) } },
+    };
+    if (Object.keys(inc).length > 0) {
+      update.$inc = inc;
+    }
+
+    await RunModel.updateOne({ _id: parentId }, update);
   }
 
   async deleteBy(options: { id?: string | string[]; agentId?: string | string[]; userId?: string }): Promise<number> {

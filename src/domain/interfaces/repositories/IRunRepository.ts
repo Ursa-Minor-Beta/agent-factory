@@ -1,5 +1,5 @@
 import type { Run, RunSummary, CreateRunDTO, RunStatus, RunTriggerType, NodeState } from '../../entities/Run.js';
-import type { LLMProvider, TokenUsage } from '../../../engine/nodes/llm/types.js';
+import type { LLMProvider, RunUsage, TokenUsage } from '../../../engine/nodes/llm/types.js';
 
 export interface RunQueryOptions {
   userId?: string;
@@ -89,6 +89,12 @@ export interface IRunRepository {
    * Uses $inc to safely handle concurrent updates.
    */
   addUsage(id: string, provider: LLMProvider, usage: TokenUsage): Promise<Run | null>;
+
+  /**
+   * Roll a finished child run up into its parent:
+   * appends the child + its descendants to childRunIds and adds the child's total usage.
+   */
+  rollUpChildRun(parentId: string, childRunIds: string[], usage?: RunUsage): Promise<void>;
 
   /**
    * Delete runs by ID(s), agentId(s), or userId.

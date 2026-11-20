@@ -7,6 +7,7 @@ import { topologicalSort, validateWorkflow, extractRequiredOutputPaths, extractT
 import { runNodesConcurrently } from './scheduler.js';
 import { getNode, type ProviderConfig, type ExecutionOptions } from './nodes/index.js';
 import type { SubAgentNodeEvent } from './nodes/base.js';
+import type { LLMProvider, TokenUsage } from './nodes/llm/types.js';
 import { NodeExecutionError } from '../utils/errors.js';
 import { stripBase64ForStorage } from '../utils/file-extractor.js';
 import { substituteVariables } from './nodes/interpolate.js';
@@ -164,14 +165,18 @@ export class WorkflowExecutor {
       else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
       }
-
-      return run;
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       run = (await this.runRepo.fail(run.id, errorMessage))!;
-      return run;
     }
+
+    // Roll this run (with its descendants and their usage) up into the parent
+    if (options.parentRunId) {
+      await this.runRepo.rollUpChildRun(options.parentRunId, [run.id, ...(run.childRunIds ?? [])], run.usage);
+    }
+
+    return run;
   }
 
   /**
@@ -319,6 +324,16 @@ export class WorkflowExecutor {
           files: result.files,
           completedAt: new Date(),
         });
+
+        // Accumulate LLM usage at run level
+        if (node.type === 'llm' && result.outputs) {
+          const outputs = result.outputs as { usage?: TokenUsage };
+          const nodeData = node.data as { provider?: LLMProvider };
+          if (outputs.usage && nodeData.provider) {
+            await this.runRepo.addUsage(runId, nodeData.provider, outputs.usage);
+          }
+        }
+
         emitNodeEvent(nodeId, node.type, 'completed');
       }
       catch (error) {

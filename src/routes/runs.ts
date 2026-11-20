@@ -56,6 +56,22 @@ const triggeredBySchema = {
   },
 };
 
+// Cumulative LLM usage by provider (includes all descendant runs)
+const usageSchema = {
+  type: 'object',
+  additionalProperties: {
+    type: 'object',
+    properties: {
+      inputTokens: { type: 'number' },
+      outputTokens: { type: 'number' },
+      cachedTokens: { type: 'number' },
+      reasoningTokens: { type: 'number' },
+      cacheCreationTokens: { type: 'number' },
+      cacheReadTokens: { type: 'number' },
+    },
+  },
+};
+
 // Lightweight schema for list views (no input, output, nodeStates)
 const runSummarySchema: Record<string, unknown> = {
   type: 'object',
@@ -73,6 +89,7 @@ const runSummarySchema: Record<string, unknown> = {
     parentRunId: { type: 'string' },
     triggeredBy: triggeredBySchema,
     childRunIds: { type: 'array', items: { type: 'string' } },
+    usage: usageSchema,
   },
 };
 
@@ -94,6 +111,8 @@ const runSchema: Record<string, unknown> = {
     parentRunId: { type: 'string' },
     triggeredBy: triggeredBySchema,
     childRuns: { type: 'array' }, // Recursive reference handled by Fastify
+    childRunIds: { type: 'array', items: { type: 'string' } },
+    usage: usageSchema,
   },
 };
 

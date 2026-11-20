@@ -72,7 +72,9 @@ export interface Run {
   triggeredBy?: RunTrigger;
   // Aggregated children (populated by queries, not stored)
   childRuns?: Run[];
-  // Cumulative LLM usage by provider
+  // All descendant IDs (children, grandchildren, ...)
+  childRunIds?: string[];
+  // Cumulative LLM usage by provider, including all descendants
   usage?: RunUsage;
 }
 
@@ -94,9 +96,9 @@ export interface RunSummary {
   // Parent-child relationship
   parentRunId?: string;
   triggeredBy?: RunTrigger;
-  // For parent runs in lists - just child IDs, not full data
+  // All descendant IDs (children, grandchildren, ...), not full data
   childRunIds?: string[];
-  // Cumulative LLM usage by provider
+  // Cumulative LLM usage by provider, including all descendants
   usage?: RunUsage;
 }
 
