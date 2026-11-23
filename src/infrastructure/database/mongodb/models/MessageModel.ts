@@ -9,6 +9,7 @@ export interface MessageDocument extends Document {
   content: string;
   toolCalls?: ToolCall[];
   files?: string[];
+  error?: boolean;
   createdAt: Date;
 }
 
@@ -47,6 +48,10 @@ const messageSchema = new Schema<MessageDocument>(
     },
     files: {
       type: [String],
+      default: undefined,
+    },
+    error: {
+      type: Boolean,
       default: undefined,
     },
   },

@@ -5,6 +5,7 @@ import { getBuiltinTool } from '../../tools/index.js';
 import { executeBuiltinTool } from './builtin-tools/index.js';
 import { executeSubAgent } from './sub-agent.js';
 import { TOOL_RESULT_TRUNCATE_LENGTH } from './constants.js';
+import { NodeExecutionError } from '../../../utils/errors.js';
 
 /**
  * Resolve tool definitions by looking up builtin tools from the registry.
@@ -175,4 +176,19 @@ export function buildToolErrorSummary(toolCalls: ExecutedToolCall[]): string {
       return `- ${tc.name}: ${truncated}`;
     })
     .join('\n');
+}
+
+/**
+ * Attach tool calls executed so far to an error thrown mid tool loop, so they survive a failed node
+ */
+export function withToolCalls(error: unknown, toolCalls: ExecutedToolCall[]): Error {
+  if (toolCalls.length === 0) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  if (error instanceof NodeExecutionError) {
+    error.context.toolCalls ??= [...toolCalls];
+    return error;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return new NodeExecutionError(message, { toolCalls: [...toolCalls] }, error);
 }

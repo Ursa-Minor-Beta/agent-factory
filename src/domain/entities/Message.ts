@@ -14,6 +14,7 @@ export interface Message {
   content: string;
   toolCalls?: ToolCall[];
   files?: string[]; // Format: "inner:<fileId>:<fieldName>"
+  error?: boolean; // Assistant message for a failed run: content is the error message
   createdAt: Date;
 }
 
@@ -24,4 +25,5 @@ export interface CreateMessageDTO {
   content: string;
   toolCalls?: ToolCall[];
   files?: string[];
+  error?: boolean;
 }

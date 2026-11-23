@@ -66,7 +66,7 @@ export interface NodeErrorContext {
     statusText?: string;
     body?: string;
   };
-  toolCalls?: Array<{ name: string; result: unknown }>;
+  toolCalls?: Array<{ id: string; name: string; input: Record<string, unknown>; result: unknown }>;
 }
 
 export class NodeExecutionError extends Error {

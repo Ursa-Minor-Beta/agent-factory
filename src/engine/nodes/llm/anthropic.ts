@@ -10,7 +10,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { applyExtraParams, buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
+import { applyExtraParams, buildToolErrorSummary, withToolCalls, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
 import { mcpToolCallName, type McpServerConfig } from './mcp.js';
 
@@ -254,7 +254,10 @@ export async function callAnthropic(
     }
     iterations++;
 
-    const response = await makeApiCall(client, model, maxTokens, systemPrompt, messages, anthropicTools, data.extraParams, data.mcpServers);
+    const response = await makeApiCall(client, model, maxTokens, systemPrompt, messages, anthropicTools, data.extraParams, data.mcpServers)
+      .catch((error: unknown) => {
+        throw withToolCalls(error, executedToolCalls);
+      });
     totalUsage.inputTokens += response.usage.input_tokens;
     totalUsage.outputTokens += response.usage.output_tokens;
     // Anthropic-specific: cache tokens (may not be present in all responses)

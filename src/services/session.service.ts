@@ -216,7 +216,9 @@ export class SessionService {
 
     // Check if run failed and return error with runId for debugging
     if (result.status === 'failed' || finalRun.status === 'failed') {
-      throw new AgentExecutionError(finalRun.error ?? result.error ?? 'Agent execution failed', run.id);
+      const errorMessage = finalRun.error ?? result.error ?? 'Agent execution failed';
+      await this.saveFailedRunMessage(session, incognitoSession, finalRun, errorMessage);
+      throw new AgentExecutionError(errorMessage, run.id);
     }
 
     // Check if run was cancelled - return cancelled response instead of error
@@ -370,7 +372,9 @@ export class SessionService {
 
         // Handle failed
         if (finalRun.status === 'failed') {
-          throw new AgentExecutionError(finalRun.error ?? 'Agent execution failed', run.id);
+          const errorMessage = finalRun.error ?? 'Agent execution failed';
+          await this.saveFailedRunMessage(session, incognitoSession, finalRun, errorMessage);
+          throw new AgentExecutionError(errorMessage, run.id);
         }
 
         // Get response
@@ -682,19 +686,48 @@ export class SessionService {
 
   /**
    * Collect tool calls made by the run's top-level LLM nodes, in execution order.
+   * Failed nodes contribute the calls made before the error.
    * Sub-agent internals are not included - an agent tool shows up as a single call.
    */
   private collectToolCalls(run: Run): ToolCall[] | undefined {
     const toolCalls = Object.values(run.nodeStates ?? {})
       .filter((state) => state.nodeType === 'llm')
       .sort((a, b) => (a.startedAt?.getTime() ?? 0) - (b.startedAt?.getTime() ?? 0))
-      .flatMap((state) => ((state.output as { toolCalls?: ExecutedToolCall[] } | null)?.toolCalls ?? []))
+      .flatMap((state) => (
+        (state.output as { toolCalls?: ExecutedToolCall[] } | null)?.toolCalls
+        ?? state.errorDetails?.toolCalls
+        ?? []
+      ))
       .map((tc) => ({
         id: tc.id,
         name: tc.name,
         status: typeof tc.result === 'object' && tc.result !== null && 'error' in tc.result ? 'failed' as const : 'completed' as const,
       }));
     return toolCalls.length > 0 ? toolCalls : undefined;
+  }
+
+  /**
+   * Save the assistant message for a failed run: error as content, plus tool calls made before the failure
+   */
+  private async saveFailedRunMessage(
+    session: Session | null,
+    incognitoSession: IncognitoSession | null,
+    run: Run,
+    errorMessage: string
+  ): Promise<void> {
+    if (incognitoSession) {
+      incognitoSession.messages.push({ role: 'assistant', content: `[previous turn failed: ${errorMessage}]` });
+    }
+    if (session) {
+      await this.messageRepo.create({
+        sessionId: session.id,
+        runId: run.id,
+        role: 'assistant',
+        content: errorMessage,
+        toolCalls: this.collectToolCalls(run),
+        error: true,
+      });
+    }
   }
 
   /**

@@ -13,6 +13,7 @@ export class MongoMessageRepository implements IMessageRepository {
       content: doc.content,
       toolCalls: doc.toolCalls,
       files: doc.files,
+      error: doc.error,
       createdAt: doc.createdAt,
     };
   }
@@ -71,6 +72,7 @@ export class MongoMessageRepository implements IMessageRepository {
       content: data.content,
       toolCalls: data.toolCalls,
       files: data.files,
+      error: data.error,
     });
     return this.toEntity(doc);
   }
@@ -84,6 +86,7 @@ export class MongoMessageRepository implements IMessageRepository {
         content: d.content,
         toolCalls: d.toolCalls,
         files: d.files,
+        error: d.error,
       }))
     );
     return docs.map((doc) => this.toEntity(doc as unknown as MessageDocument));

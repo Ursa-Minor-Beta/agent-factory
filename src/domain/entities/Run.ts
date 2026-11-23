@@ -18,6 +18,8 @@ export interface NodeErrorDetails {
     body?: string;
   };
   cause?: string;
+  // Tool calls executed by an LLM node before it failed
+  toolCalls?: Array<{ id: string; name: string; input: Record<string, unknown>; result: unknown }>;
 }
 
 export interface NodeState {

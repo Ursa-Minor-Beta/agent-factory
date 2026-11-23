@@ -382,6 +382,7 @@ export class WorkflowExecutor {
             request: error.context.request,
             response: error.context.response,
             cause: error.originalError?.message,
+            toolCalls: error.context.toolCalls?.length ? error.context.toolCalls : undefined,
           };
         }
         else if (error instanceof Error) {

@@ -11,7 +11,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { applyExtraParams, callWithUnsupportedParamRetry, buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
+import { applyExtraParams, callWithUnsupportedParamRetry, buildToolErrorSummary, withToolCalls, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
 import { mcpToolCallName, type McpServerConfig } from './mcp.js';
 
@@ -234,14 +234,16 @@ export async function callOpenAIResponses(
     }
     iterations++;
 
-    const response = await makeApiCall(apiParams);
+    const response = await makeApiCall(apiParams).catch((error: unknown) => {
+      throw withToolCalls(error, executedToolCalls);
+    });
     totalUsage.inputTokens += response.usage?.input_tokens ?? 0;
     totalUsage.outputTokens += response.usage?.output_tokens ?? 0;
     totalUsage.cachedTokens += response.usage?.input_tokens_details?.cached_tokens ?? 0;
     totalUsage.reasoningTokens += response.usage?.output_tokens_details?.reasoning_tokens ?? 0;
 
     if (response.error) {
-      throw new NodeExecutionError(`OpenAI API error: ${response.error.code} ${response.error.message}`, {});
+      throw new NodeExecutionError(`OpenAI API error: ${response.error.code} ${response.error.message}`, { toolCalls: executedToolCalls });
     }
 
     // MCP calls are executed by OpenAI; record them for the node output

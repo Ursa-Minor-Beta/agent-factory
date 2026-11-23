@@ -11,7 +11,7 @@ import {
   DEFAULT_MAX_TOOL_CALLS,
   DEFAULT_TOOL_EXECUTION_MODE,
 } from './constants.js';
-import { applyExtraParams, callWithUnsupportedParamRetry, buildToolErrorSummary, resolveTools, executeClientTool, executeServerTool } from './utils.js';
+import { applyExtraParams, callWithUnsupportedParamRetry, buildToolErrorSummary, withToolCalls, resolveTools, executeClientTool, executeServerTool } from './utils.js';
 import { config } from '../../../config/index.js';
 
 type ToolCallResult = {
@@ -227,7 +227,9 @@ export async function callOpenAI(
     }
     iterations++;
 
-    const completion = await makeApiCall(apiParams);
+    const completion = await makeApiCall(apiParams).catch((error: unknown) => {
+      throw withToolCalls(error, executedToolCalls);
+    });
     totalUsage.inputTokens += completion.usage?.prompt_tokens ?? 0;
     totalUsage.outputTokens += completion.usage?.completion_tokens ?? 0;
     // OpenAI-specific: cached and reasoning tokens
@@ -240,7 +242,7 @@ export async function callOpenAI(
 
     const choice = completion.choices[0];
     if (!choice) {
-      throw new NodeExecutionError('OpenAI returned no choices', {});
+      throw new NodeExecutionError('OpenAI returned no choices', { toolCalls: executedToolCalls });
     }
 
     const assistantMessage = choice.message;
