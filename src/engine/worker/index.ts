@@ -1,4 +1,4 @@
-export { RunManager, type RunManagerConfig, type StartRunOptions, type RunCompletionResult, type ProviderConfig } from './run-manager.js';
+export { RunManager, withCompletionResult, type RunManagerConfig, type StartRunOptions, type RunCompletionResult, type ProviderConfig } from './run-manager.js';
 export type {
   ParentMessage,
   WorkerMessage,

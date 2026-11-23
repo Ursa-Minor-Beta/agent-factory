@@ -312,6 +312,7 @@ export async function pullAgent(
           description: exportedAgent.description,
           nodes: remappedNodes,
           editorData: exportedAgent.editorData,
+          settings: exportedAgent.settings,
         });
         newMap[exportedAgent.refId] = existingLocalId;
       } 
@@ -324,6 +325,7 @@ export async function pullAgent(
           description: exportedAgent.description,
           nodes: remappedNodes,
           editorData: exportedAgent.editorData,
+          settings: exportedAgent.settings,
           workspaceId,
         });
         newMap[exportedAgent.refId] = created.id;

@@ -15,7 +15,8 @@ import type { Run, RunTrigger } from '../domain/entities/Run.js';
 import type { ExecutedToolCall } from '../engine/nodes/llm/types.js';
 import { resolveRunOutput } from '../utils/node-ref.js';
 import type { ProviderConfig } from '../engine/nodes/base.js';
-import type { RunManager } from '../engine/worker/index.js';
+import { withCompletionResult, type RunManager } from '../engine/worker/index.js';
+import { runRepoForAgent } from '../engine/minimal-run-repository.js';
 import type { ClientToolDefinition } from '../engine/tools/types.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
@@ -175,7 +176,7 @@ export class SessionService {
     const resolvedVariables = await this.userVariableService.buildVariablesMap(userId, agent.workspaceId);
 
     // Create run record
-    let run = await this.runRepo.create({
+    let run = await runRepoForAgent(agent, this.runRepo).create({
       agentId: agent.id,
       userId,
       input,
@@ -207,10 +208,11 @@ export class SessionService {
     });
 
     // Fetch final run state from DB
-    const finalRun = await this.runRepo.findById(run.id);
-    if (!finalRun) {
+    const storedRun = await this.runRepo.findById(run.id);
+    if (!storedRun) {
       throw new Error('Run not found after execution');
     }
+    const finalRun = withCompletionResult(storedRun, result);
 
     // Check if run failed and return error with runId for debugging
     if (result.status === 'failed' || finalRun.status === 'failed') {
@@ -311,7 +313,7 @@ export class SessionService {
     // Create and start run (don't wait, use workspace-scoped secrets)
     const resolvedSecrets = await this.userSecretService.buildSecretsMap(userId, agent.workspaceId);
     const resolvedVariables = await this.userVariableService.buildVariablesMap(userId, agent.workspaceId);
-    let run = await this.runRepo.create({
+    let run = await runRepoForAgent(agent, this.runRepo).create({
       agentId: agent.id,
       userId,
       input,
@@ -323,6 +325,9 @@ export class SessionService {
     const sessionContext = effectiveSessionId
       ? { sessionId: effectiveSessionId, messages: messagesHistory, notes: sessionNotes ?? undefined, maxNotesLength: options.maxNotesLength }
       : undefined;
+
+    // Subscribe before starting - minimal run logging returns output only via the completion result
+    const completion = this.runManager.waitForCompletion(run.id);
 
     // Start execution (non-blocking)
     this.runManager.startRun(run.id, {
@@ -345,10 +350,11 @@ export class SessionService {
         isNewSession,
       },
       finalize: async (): Promise<ChatResult> => {
-        const finalRun = await this.runRepo.findById(run.id);
-        if (!finalRun) {
+        const storedRun = await this.runRepo.findById(run.id);
+        if (!storedRun) {
           throw new Error('Run not found');
         }
+        const finalRun = withCompletionResult(storedRun, await completion);
 
         // Handle cancelled
         if (finalRun.status === 'cancelled') {

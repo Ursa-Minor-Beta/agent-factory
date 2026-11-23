@@ -1,4 +1,4 @@
-import type { Agent, EditorData, WorkflowNode } from './Agent.js';
+import type { Agent, AgentSettings, EditorData, WorkflowNode } from './Agent.js';
 import type { MemorySchemaField } from './Memory.js';
 import type { ProviderType } from './ProviderConfig.js';
 
@@ -22,6 +22,7 @@ export interface ExportedAgent {
   nodes: WorkflowNode[];
   /** Editor UI state (node positions, etc.) */
   editorData?: EditorData;
+  settings?: AgentSettings;
   /** Stable reference ID based on name (for reference mapping during import) */
   refId: string;
 }

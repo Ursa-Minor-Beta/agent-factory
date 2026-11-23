@@ -81,6 +81,13 @@ const editorDataSchema = {
   additionalProperties: true,
 };
 
+const settingsSchema = {
+  type: 'object',
+  properties: {
+    minimalRunLogging: { type: 'boolean', description: 'Store only statuses in run records (no inputs/outputs/state, errors as "error"); applies to child runs too' },
+  },
+};
+
 const githubInfoSchema = {
   type: 'object',
   nullable: true,
@@ -100,6 +107,7 @@ const agentListItemSchema = {
     name: { type: 'string' },
     description: { type: 'string' },
     editorData: editorDataSchema,
+    settings: settingsSchema,
     workspaceId: { type: 'string', nullable: true },
     workspaceName: { type: 'string', nullable: true },
     systemName: { type: 'string', nullable: true },
@@ -120,6 +128,7 @@ const agentSchema = {
     description: { type: 'string' },
     nodes: { type: 'array', items: nodeSchema },
     editorData: editorDataSchema,
+    settings: settingsSchema,
     workspaceId: { type: 'string', nullable: true },
     workspaceName: { type: 'string', nullable: true },
     systemName: { type: 'string', nullable: true },
@@ -249,6 +258,7 @@ export async function agentRoutes(app: FastifyInstance) {
           description: { type: 'string' },
           nodes: { type: 'array', items: nodeSchema },
           editorData: editorDataSchema,
+          settings: settingsSchema,
           workspaceId: { type: 'string', nullable: true },
         },
       },
@@ -272,6 +282,7 @@ export async function agentRoutes(app: FastifyInstance) {
       description?: string;
       nodes?: any[];
       editorData?: Record<string, unknown>;
+      settings?: { minimalRunLogging?: boolean };
       workspaceId?: string;
     };
 
@@ -664,6 +675,7 @@ export async function agentRoutes(app: FastifyInstance) {
           description: { type: 'string' },
           nodes: { type: 'array', items: nodeSchema },
           editorData: editorDataSchema,
+          settings: settingsSchema,
           workspaceId: { type: 'string', nullable: true },
         },
       },
@@ -690,6 +702,7 @@ export async function agentRoutes(app: FastifyInstance) {
       description?: string;
       nodes?: any[];
       editorData?: Record<string, unknown>;
+      settings?: { minimalRunLogging?: boolean };
       workspaceId?: string | null;
     };
 

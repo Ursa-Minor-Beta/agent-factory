@@ -135,6 +135,7 @@ async function createAgents(
       description: exportedAgent.description,
       nodes: remappedNodes,
       editorData: exportedAgent.editorData,
+      settings: exportedAgent.settings,
       workspaceId,
     });
 

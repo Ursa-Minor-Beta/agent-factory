@@ -37,6 +37,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Webhooks** - Public URLs (`POST /hooks/:id/:token`) that start an agent run asynchronously; optional sandboxed JS handler for signature checks, filtering, input shaping and custom responses, with Slack / GitHub / Telegram templates
 - **GitHub Sync** - Link agents to GitHub repos with push/pull support
 - **Agent Snapshots** - Version history with restore capability
+- **Minimal Run Logging** - `settings.minimalRunLogging: true` on an agent stores only statuses, timestamps and usage in its run records (and in all child runs): no inputs, outputs, node state or files, and errors are stored as `"error"`. The result is still returned to the caller (API, chat, parent agent) but is not saved in the database
 - **Swagger Docs** - Full API documentation at `/docs`
 
 ## Quick Start

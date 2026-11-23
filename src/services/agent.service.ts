@@ -177,6 +177,7 @@ export class AgentService {
       description: version.description,
       nodes: version.nodes,
       editorData: version.editorData,
+      settings: version.settings,
       workspaceId: version.workspaceId ?? null,
     });
 

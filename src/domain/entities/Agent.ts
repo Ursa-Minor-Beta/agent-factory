@@ -11,6 +11,14 @@ export interface WorkflowNode {
   disabled?: boolean;
 }
 
+export interface AgentSettings {
+  /**
+   * Store only statuses in run records: no input/output/state/files/error details,
+   * errors are recorded as 'error'. Applies to this agent's runs and all child runs.
+   */
+  minimalRunLogging?: boolean;
+}
+
 export interface NodePosition {
   x: number;
   y: number;
@@ -51,6 +59,7 @@ export interface Agent {
   nodes: WorkflowNode[];
   /** UI editor metadata (node positions, viewport, etc.) */
   editorData?: EditorData;
+  settings?: AgentSettings;
   /** Workspace identifier - groups agents into workspaces */
   workspaceId?: string;
   /** Outgoing references to other agents / builtin tools, derived from nodes on save */
@@ -69,6 +78,7 @@ export interface CreateAgentDTO {
   description?: string;
   nodes?: WorkflowNode[];
   editorData?: EditorData;
+  settings?: AgentSettings;
   workspaceId?: string;
   systemName?: string;
   defaultName?: string;
@@ -79,6 +89,7 @@ export interface UpdateAgentDTO {
   description?: string;
   nodes?: WorkflowNode[];
   editorData?: EditorData;
+  settings?: AgentSettings;
   workspaceId?: string | null;
 }
 

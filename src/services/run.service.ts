@@ -4,7 +4,8 @@ import type { IProviderConfigRepository } from '../domain/interfaces/repositorie
 import type { IUserSecretRepository } from '../domain/interfaces/repositories/IUserSecretRepository.js';
 import type { IUserVariableRepository } from '../domain/interfaces/repositories/IUserVariableRepository.js';
 import type { Run, RunTrigger } from '../domain/entities/Run.js';
-import type { RunManager } from '../engine/worker/index.js';
+import { withCompletionResult, type RunManager } from '../engine/worker/index.js';
+import { runRepoForAgent } from '../engine/minimal-run-repository.js';
 import { ProviderConfigService } from './provider-config.service.js';
 import { UserSecretService } from './user-secret.service.js';
 import { UserVariableService } from './user-variable.service.js';
@@ -42,7 +43,7 @@ export class RunService {
     const { run, options } = await this.prepare(userId, agentId, input);
 
     // Execute in worker and wait for completion
-    await this.runManager.executeAndWait(run.id, options);
+    const result = await this.runManager.executeAndWait(run.id, options);
 
     // Fetch final run state from DB
     const finalRun = await this.runRepo.findById(run.id);
@@ -50,7 +51,7 @@ export class RunService {
       throw new Error('Run not found after execution');
     }
 
-    return finalRun;
+    return withCompletionResult(finalRun, result);
   }
 
   /**
@@ -66,7 +67,10 @@ export class RunService {
     const { run, options } = await this.prepare(userId, agentId, input, triggeredBy);
     const completion = this.runManager
       .waitForCompletion(run.id)
-      .then(() => this.runRepo.findById(run.id))
+      .then(async (result) => {
+        const finalRun = await this.runRepo.findById(run.id);
+        return finalRun ? withCompletionResult(finalRun, result) : null;
+      })
       .catch(() => null);
     await this.runManager.startRun(run.id, options);
     return { run, completion };
@@ -94,7 +98,7 @@ export class RunService {
     const resolvedVariables = await this.userVariableService.buildVariablesMap(userId, agent.workspaceId);
 
     // Create run record
-    let run = await this.runRepo.create({
+    let run = await runRepoForAgent(agent, this.runRepo).create({
       agentId: agent.id,
       userId,
       input,

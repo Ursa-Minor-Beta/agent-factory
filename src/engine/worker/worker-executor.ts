@@ -24,6 +24,8 @@ import { NodeExecutionError } from '../../utils/errors.js';
 import { stripBase64ForStorage } from '../../utils/file-extractor.js';
 import { substituteVariables } from '../nodes/interpolate.js';
 import { resolveWorkspaceId } from '../workspace-scope.js';
+import { MinimalRunRepository, runRepoForAgent } from '../minimal-run-repository.js';
+import { resolveNodeRef } from '../../utils/node-ref.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -161,6 +163,8 @@ export class WorkerExecutor {
       };
     }
 
+    this.runRepo = runRepoForAgent(agent, this.runRepo);
+
     // Initialize node states
     for (const node of agent.nodes) {
       await this.runRepo.updateNodeState(runId, node.id, {
@@ -189,6 +193,9 @@ export class WorkerExecutor {
   ): Promise<WorkerExecutionResult> {
     const context = new ExecutionContext();
     const executionOrder = topologicalSort(agent.nodes);
+    // Tracked in memory - run records may not store node outputs/files (minimal run logging)
+    const outputNodeStates: Record<string, NodeState> = {};
+    const allFiles: string[] = [];
 
     // Build execution options
     const execOptions: ExecutionOptions = {
@@ -306,6 +313,12 @@ export class WorkerExecutor {
           completedAt: new Date(),
         };
         await this.runRepo.updateNodeState(runId, nodeId, nodeState);
+        if (result.files) {
+          allFiles.push(...result.files);
+        }
+        if (node.type === 'output') {
+          outputNodeStates[nodeId] = { input: null, error: null, startedAt: null, ...nodeState } as NodeState;
+        }
 
         // Accumulate LLM usage at run level
         if (node.type === 'llm' && result.outputs) {
@@ -374,27 +387,24 @@ export class WorkerExecutor {
       const outputNodes = agent.nodes.filter((n) => n.type === 'output');
       const output: Record<string, unknown> = {};
 
+      const resolvedOutput: Record<string, unknown> = {};
+
       for (const outputNode of outputNodes) {
         const data = outputNode.data ?? {};
         // Each field in the output node's data becomes an output field
         for (const key of Object.keys(data)) {
           output[key] = `nodeRef:${outputNode.id}:${key}`;
-        }
-      }
-
-      // Collect all file refs from node states
-      const run = await this.runRepo.findById(runId);
-      const allFiles: string[] = [];
-      if (run?.nodeStates) {
-        for (const nodeState of Object.values(run.nodeStates)) {
-          if (nodeState.files && nodeState.files.length > 0) {
-            allFiles.push(...nodeState.files);
-          }
+          resolvedOutput[key] = resolveNodeRef(output[key] as string, outputNodeStates);
         }
       }
 
       await this.runRepo.complete(runId, output, allFiles.length > 0 ? allFiles : undefined);
-      return { output, status: 'completed', files: allFiles.length > 0 ? allFiles : undefined };
+      // Minimal run logging stores no output - return resolved values to the caller instead of nodeRefs
+      return {
+        output: this.runRepo instanceof MinimalRunRepository ? resolvedOutput : output,
+        status: 'completed',
+        files: allFiles.length > 0 ? allFiles : undefined,
+      };
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

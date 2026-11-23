@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { NODE_TYPES, type WorkflowNode, type EditorData, type AgentReference } from '../../../../domain/entities/Agent.js';
+import { NODE_TYPES, type WorkflowNode, type EditorData, type AgentSettings, type AgentReference } from '../../../../domain/entities/Agent.js';
 
 export interface AgentDocument extends Document {
   _id: mongoose.Types.ObjectId;
@@ -8,6 +8,7 @@ export interface AgentDocument extends Document {
   description: string;
   nodes: WorkflowNode[];
   editorData?: EditorData;
+  settings?: AgentSettings;
   workspaceId?: mongoose.Types.ObjectId;
   references?: AgentReference[];
   systemName?: string;
@@ -62,6 +63,9 @@ export const agentSchemaDefinition = {
     default: [],
   },
   editorData: {
+    type: Schema.Types.Mixed,
+  },
+  settings: {
     type: Schema.Types.Mixed,
   },
   workspaceId: {

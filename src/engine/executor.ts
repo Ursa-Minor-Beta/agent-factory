@@ -1,5 +1,5 @@
 import type { Agent } from '../domain/entities/Agent.js';
-import type { Run, NodeErrorDetails, RunTrigger } from '../domain/entities/Run.js';
+import type { Run, NodeState, NodeErrorDetails, RunTrigger } from '../domain/entities/Run.js';
 import type { IRunRepository } from '../domain/interfaces/repositories/IRunRepository.js';
 import type { IFileRepository } from '../domain/interfaces/repositories/IFileRepository.js';
 import { ExecutionContext } from './context.js';
@@ -12,6 +12,8 @@ import { NodeExecutionError } from '../utils/errors.js';
 import { stripBase64ForStorage } from '../utils/file-extractor.js';
 import { substituteVariables } from './nodes/interpolate.js';
 import { resolveWorkspaceId } from './workspace-scope.js';
+import { MinimalRunRepository, runRepoForAgent } from './minimal-run-repository.js';
+import { resolveNodeRef } from '../utils/node-ref.js';
 
 /**
  * Safely clone an object, replacing circular references with '[Circular]'
@@ -61,6 +63,8 @@ export interface InternalExecutionOptions extends ExecutionOptions {
 
 interface InternalResult {
   output: Record<string, unknown>;
+  /** Output with nodeRefs resolved from in-memory node outputs */
+  resolvedOutput?: Record<string, unknown>;
   status: 'completed' | 'failed';
   error?: string;
   files?: string[];
@@ -85,6 +89,11 @@ export class WorkflowExecutor {
     const validation = validateWorkflow(agent.nodes);
     if (!validation.valid) {
       throw new Error(`Invalid workflow: ${validation.errors.join(', ')}`);
+    }
+
+    const runRepo = runRepoForAgent(agent, this.runRepo);
+    if (runRepo !== this.runRepo) {
+      return new WorkflowExecutor(runRepo, this.fileRepo).execute(agent, input, userId, { ...options, runRepo });
     }
 
     // Create run record
@@ -114,7 +123,7 @@ export class WorkflowExecutor {
       const result = await this.executeWorkflow(agent, input, userId, run.id, options);
 
       if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output, result.files))!;
+        run = this.withResult((await this.runRepo.complete(run.id, result.output, result.files))!, result);
       }
       else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
@@ -145,6 +154,11 @@ export class WorkflowExecutor {
       throw new Error(`Invalid workflow: ${validation.errors.join(', ')}`);
     }
 
+    const runRepo = runRepoForAgent(agent, this.runRepo);
+    if (runRepo !== this.runRepo) {
+      return new WorkflowExecutor(runRepo, this.fileRepo).executeInternal(agent, input, userId, { ...options, runRepo });
+    }
+
     // Create a child run record linked to parent
     let run = await this.runRepo.create({
       agentId: agent.id,
@@ -160,7 +174,7 @@ export class WorkflowExecutor {
       const result = await this.executeWorkflow(agent, input, userId, run.id, options);
 
       if (result.status === 'completed') {
-        run = (await this.runRepo.complete(run.id, result.output, result.files))!;
+        run = this.withResult((await this.runRepo.complete(run.id, result.output, result.files))!, result);
       }
       else {
         run = (await this.runRepo.fail(run.id, result.error ?? 'Unknown error'))!;
@@ -180,6 +194,16 @@ export class WorkflowExecutor {
   }
 
   /**
+   * Minimal run logging stores no output/files - return them from memory to the caller
+   */
+  private withResult(run: Run, result: InternalResult): Run {
+    if (!(this.runRepo instanceof MinimalRunRepository)) {
+      return run;
+    }
+    return { ...run, output: result.resolvedOutput ?? {}, files: result.files };
+  }
+
+  /**
    * Core workflow execution logic
    */
   private async executeWorkflow(
@@ -191,6 +215,9 @@ export class WorkflowExecutor {
   ): Promise<InternalResult> {
     const context = new ExecutionContext();
     const executionOrder = topologicalSort(agent.nodes);
+    // Tracked in memory - run records may not store node outputs/files (minimal run logging)
+    const outputNodeStates: Record<string, NodeState> = {};
+    const allFiles: string[] = [];
 
     // Each agent runs with its own workspace secrets/variables (or global), not the caller's
     let resolvedSecrets = options.resolvedSecrets;
@@ -317,13 +344,20 @@ export class WorkflowExecutor {
 
         // Update node state to completed
         // Use safeClone to handle circular references before saving to MongoDB
+        const output = safeClone(outputForStorage);
         await this.runRepo.updateNodeState(runId, nodeId, {
           status: 'completed',
-          output: safeClone(outputForStorage),
+          output,
           state: safeClone(result.state),
           files: result.files,
           completedAt: new Date(),
         });
+        if (result.files) {
+          allFiles.push(...result.files);
+        }
+        if (node.type === 'output') {
+          outputNodeStates[nodeId] = { status: 'completed', input: null, output, error: null, startedAt: null, completedAt: null };
+        }
 
         // Accumulate LLM usage at run level
         if (node.type === 'llm' && result.outputs) {
@@ -383,27 +417,18 @@ export class WorkflowExecutor {
       // Get output from output nodes - store references instead of duplicating data
       const outputNodes = agent.nodes.filter((n) => n.type === 'output');
       const output: Record<string, unknown> = {};
+      const resolvedOutput: Record<string, unknown> = {};
 
       for (const outputNode of outputNodes) {
         const data = outputNode.data ?? {};
         // Each field in the output node's data becomes an output field
         for (const key of Object.keys(data)) {
           output[key] = `nodeRef:${outputNode.id}:${key}`;
+          resolvedOutput[key] = resolveNodeRef(output[key] as string, outputNodeStates);
         }
       }
 
-      // Collect all file refs from node states
-      const run = await this.runRepo.findById(runId);
-      const allFiles: string[] = [];
-      if (run?.nodeStates) {
-        for (const nodeState of Object.values(run.nodeStates)) {
-          if (nodeState.files && nodeState.files.length > 0) {
-            allFiles.push(...nodeState.files);
-          }
-        }
-      }
-
-      return { output, status: 'completed', files: allFiles.length > 0 ? allFiles : undefined };
+      return { output, resolvedOutput, status: 'completed', files: allFiles.length > 0 ? allFiles : undefined };
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

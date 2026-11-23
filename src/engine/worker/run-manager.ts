@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import type { Agent } from '../../domain/entities/Agent.js';
+import type { Run } from '../../domain/entities/Run.js';
 import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRepository.js';
 import type { ProviderConfig } from '../nodes/index.js';
 
@@ -42,6 +43,8 @@ interface ActiveRun {
   startedAt: Date;
   /** Client tool calls sent to the UI and not answered yet */
   pendingClientToolCalls: Set<string>;
+  /** Agent uses minimal run logging - store errors as 'error' */
+  minimalRunLogging: boolean;
   killTimer?: NodeJS.Timeout;
   completionPromise?: {
     resolve: (result: RunCompletionResult) => void;
@@ -54,6 +57,17 @@ export interface RunCompletionResult {
   output?: Record<string, unknown>;
   files?: string[];
   error?: string;
+}
+
+/**
+ * Apply the worker's completion result to the run read from DB.
+ * Runs with minimal run logging store no output/files - the worker reports them in memory.
+ */
+export function withCompletionResult(run: Run, result: RunCompletionResult): Run {
+  if (result.status !== 'completed' || !result.output) {
+    return run;
+  }
+  return { ...run, output: result.output, files: result.files ?? run.files };
 }
 
 export interface CancelRunResult {
@@ -105,6 +119,7 @@ export class RunManager extends EventEmitter {
       runId,
       startedAt: new Date(),
       pendingClientToolCalls: new Set(),
+      minimalRunLogging: options.agent.settings?.minimalRunLogging === true,
     };
     this.activeRuns.set(runId, activeRun);
 
@@ -384,7 +399,7 @@ export class RunManager extends EventEmitter {
         const errorMsg = signal
           ? `Worker killed by signal ${signal}`
           : `Worker exited with code ${code}`;
-        await this.runRepo.fail(runId, errorMsg);
+        await this.runRepo.fail(runId, activeRun?.minimalRunLogging ? 'error' : errorMsg);
         this.emit('run-failed', { runId, error: errorMsg });
       }
       else if (run && run.status === 'cancelling') {
