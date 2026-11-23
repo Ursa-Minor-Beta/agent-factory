@@ -11,6 +11,7 @@ interface AgentNodeData {
   // Field templates, e.g., { query: "{{node:http-1.response}}" },
   // or an array / template resolving to an array to run once per item
   inputs?: Record<string, unknown> | unknown[] | string;
+  continueOnError?: boolean;
 }
 
 interface InputFieldDef {
@@ -94,67 +95,95 @@ export class AgentNode extends BaseNode {
 
     // Execute the sub-agent for each item sequentially (pass all repositories and context)
     const executor = new WorkflowExecutor(options.runRepo, options.fileRepo);
-    const runs = [];
+    const runs: (Awaited<ReturnType<typeof executor.executeInternal>> | null)[] = [];
+    const errors: (string | null)[] = [];
     for (const [index, item] of items.entries()) {
       const subInput = item as Record<string, unknown>;
-      const run = await executor.executeInternal(
-        targetAgent,
-        subInput,
-        options.userId,
-        {
-          providers: options.providers,
-          workflowInput: subInput,
-          agentRepo: options.agentRepo,
-          runRepo: options.runRepo,
-          messageRepo: options.messageRepo,
-          memorySchemaRepo: options.memorySchemaRepo,
-          memoryStoreRepo: options.memoryStoreRepo,
-          scheduleService: options.scheduleService,
-          webhookService: options.webhookService,
-          fileRepo: options.fileRepo,
-          callStack: newCallStack,
-          userId: options.userId,
-          resolvedSecrets: options.resolvedSecrets,
-          resolvedVariables: options.resolvedVariables,
-          scopeWorkspaceId: options.scopeWorkspaceId,
-          resolveScope: options.resolveScope,
-          sessionId: options.sessionId,
-          messages: options.messages,
-          sessionNotes: options.sessionNotes,
-          onSessionNotesUpdate: options.onSessionNotesUpdate,
-          maxNotesLength: options.maxNotesLength,
-          onSubAgentNodeEvent: options.onSubAgentNodeEvent,
-          subAgentPath: [...(options.subAgentPath ?? []), node.id, targetAgent.name],
-          onToolCallEvent: options.onToolCallEvent,
-          parentRunId: options.currentRunId,
-          triggeredBy: { triggerType: 'agent_node', nodeId: node.id },
+      let run: Awaited<ReturnType<typeof executor.executeInternal>>;
+      try {
+        run = await executor.executeInternal(
+          targetAgent,
+          subInput,
+          options.userId,
+          {
+            providers: options.providers,
+            workflowInput: subInput,
+            agentRepo: options.agentRepo,
+            runRepo: options.runRepo,
+            messageRepo: options.messageRepo,
+            memorySchemaRepo: options.memorySchemaRepo,
+            memoryStoreRepo: options.memoryStoreRepo,
+            scheduleService: options.scheduleService,
+            webhookService: options.webhookService,
+            fileRepo: options.fileRepo,
+            callStack: newCallStack,
+            userId: options.userId,
+            resolvedSecrets: options.resolvedSecrets,
+            resolvedVariables: options.resolvedVariables,
+            scopeWorkspaceId: options.scopeWorkspaceId,
+            resolveScope: options.resolveScope,
+            sessionId: options.sessionId,
+            messages: options.messages,
+            sessionNotes: options.sessionNotes,
+            onSessionNotesUpdate: options.onSessionNotesUpdate,
+            maxNotesLength: options.maxNotesLength,
+            onSubAgentNodeEvent: options.onSubAgentNodeEvent,
+            subAgentPath: [...(options.subAgentPath ?? []), node.id, targetAgent.name],
+            onToolCallEvent: options.onToolCallEvent,
+            parentRunId: options.currentRunId,
+            triggeredBy: { triggerType: 'agent_node', nodeId: node.id },
+          }
+        );
+      }
+      catch (error) {
+        // Errors thrown before a run exists (e.g. invalid sub-agent workflow)
+        if (!data.continueOnError) {
+          throw error;
         }
-      );
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(`Sub-agent failed${isBatch ? ` on item ${index}` : ''}: ${message}`);
+        runs.push(null);
+        continue;
+      }
 
       if (run.status === 'failed') {
-        throw new Error(`Sub-agent failed${isBatch ? ` on item ${index}` : ''}: ${run.error}`);
+        const message = `Sub-agent failed${isBatch ? ` on item ${index}` : ''}: ${run.error}`;
+        // With continueOnError, record the failure and keep going instead of failing the workflow
+        if (!data.continueOnError) {
+          throw new Error(message);
+        }
+        errors.push(message);
+      }
+      else {
+        errors.push(null);
       }
       runs.push(run);
     }
 
-    // Resolve nodeRef references to actual values for downstream nodes
-    const resolvedOutputs = runs.map((run) => resolveRunOutput(run));
+    // Resolve nodeRef references to actual values for downstream nodes (null for failed runs)
+    const resolvedOutputs = runs.map((run) => (!run || run.status === 'failed' ? null : resolveRunOutput(run)));
     // Child runs are stored separately (linked via parentRunId); only expose a reference here
-    const runRefs = runs.map((run) => ({ id: run.id, status: run.status, error: run.error ?? null }));
-    const outputs = isBatch
+    const runRefs = runs.map((run) => (run ? { id: run.id, status: run.status, error: run.error ?? null } : null));
+    const outputs: Record<string, unknown> = isBatch
       ? { output: resolvedOutputs, run: runRefs }
       : { output: resolvedOutputs[0], run: runRefs[0] };
+    if (data.continueOnError) {
+      outputs['error'] = isBatch ? errors : errors[0];
+    }
 
     // Extract files from output, store in context with temp refs
     const { cleanedOutput, fileRefs } = extractAndStoreFiles(outputs, node.id, context);
 
     context.setOutput(node.id, 'output', (cleanedOutput as Record<string, unknown>).output);
     context.setOutput(node.id, 'run', (cleanedOutput as Record<string, unknown>).run);
+    if (data.continueOnError) {
+      context.setOutput(node.id, 'error', outputs['error']);
+    }
 
     // Propagate files from sub-agent runs
     const allFileRefs = [...fileRefs];
     for (const run of runs) {
-      if (run.files && run.files.length > 0) {
+      if (run && run.status !== 'failed' && run.files && run.files.length > 0) {
         allFileRefs.push(...run.files);
       }
     }

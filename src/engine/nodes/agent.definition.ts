@@ -5,7 +5,7 @@ export const AGENT_NODE_DEFINITION: NodeDefinitionRaw = {
   description: 'Sub-agent node. Executes another agent as part of the workflow.',
   statusText: 'Running agent...',
   inputs: ['input'],
-  outputs: ['output'],
+  outputs: ['output', 'run', 'error'],
   options: [
     {
       name: 'agentId',
@@ -18,6 +18,12 @@ export const AGENT_NODE_DEFINITION: NodeDefinitionRaw = {
       type: 'object',
       required: false,
       description: 'Values for the target agent\'s input schema (defined in its input node). Keys are schema field names, values are literals or templates with {{node:<id>.<output>}} interpolation. Missing required fields (without default) cause an error. Batch mode: if inputs is an array of such objects (or a template resolving to one, e.g. "{{node:js-1.items}}"), the agent runs once per item sequentially and output/run become arrays in item order.',
+    },
+    {
+      name: 'continueOnError',
+      type: 'boolean',
+      description: 'If true, a failed sub-agent run does not fail the workflow: its output is null and the message is returned in the error output (null on success). In batch mode remaining items still run and error is an array aligned with output.',
+      default: false,
     },
   ],
   examples: [

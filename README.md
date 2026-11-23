@@ -92,7 +92,7 @@ On startup, the server creates:
 | `llm` | LLM call (OpenAI, Anthropic, Ollama); `provider` and `model` accept templates (e.g. `{{var:MODEL}}`); `extraParams` deep-merges provider-specific fields into the request (e.g. `{"reasoning": {"effort": "high"}}`, `null` removes a field); `mcpServers` connects remote MCP servers called natively by the provider (anthropic, openai); `messages` passes an explicit `[{role, content}]` history (array or template like `{{node:id.messages}}`) instead of the session history |
 | `http` | HTTP/API requests with SSE streaming support |
 | `js` | JavaScript code execution |
-| `agent` | Execute sub-agent |
+| `agent` | Execute sub-agent; `continueOnError` returns sub-agent failures in the `error` output (output `null`) instead of failing the workflow |
 | `branch` | Conditional branching (if-else) |
 | `memory-store` | Store data in memory collection |
 | `memory-search` | Search/retrieve memory records |
