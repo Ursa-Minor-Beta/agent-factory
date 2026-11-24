@@ -61,12 +61,14 @@ Extract facts and call the update_session_notes tool.`;
     if (isPersistedSession && options.messageRepo) {
       const messages = await options.messageRepo.findBySessionId(
         options.sessionId!,
-        { order: 'desc', limit: maxMessages, roles: ['user', 'assistant'], fields: ['role', 'content', 'error'] }
+        { order: 'desc', limit: maxMessages, roles: ['user', 'assistant'], fields: ['role', 'content', 'status'] }
       );
-      // Failed turns are replayed as plain text so the model doesn't take the error for its own answer
+      // Failed/stopped turns are replayed as plain text so the model doesn't take them for its own answer
       return messages.reverse().map((msg) => ({
         role: msg.role,
-        content: msg.error ? `[previous turn failed: ${msg.content}]` : msg.content,
+        content: msg.status === 'failed'
+          ? `[previous turn failed: ${msg.content}]`
+          : msg.status === 'cancelled' ? `[${msg.content}]` : msg.content,
       })) as ChatMessage[];
     }
 

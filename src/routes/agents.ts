@@ -1274,12 +1274,15 @@ export async function agentRoutes(app: FastifyInstance) {
         if (e.runId !== runId) return;
         cleanupAll();
 
-        sendEvent('error', {
-          code: 'AGENT_EXECUTION_ERROR',
-          message: e.error,
-          runId,
+        // finalize() saves the failed-run message to the session, then rejects with the run error
+        ctx.finalize().catch(() => {}).finally(() => {
+          sendEvent('error', {
+            code: 'AGENT_EXECUTION_ERROR',
+            message: e.error,
+            runId,
+          });
+          reply.raw.end();
         });
-        reply.raw.end();
       };
 
       const onCancel: RunEventHandler = (e) => {

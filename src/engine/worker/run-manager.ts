@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import type { Agent } from '../../domain/entities/Agent.js';
 import type { Run } from '../../domain/entities/Run.js';
+import type { ToolCall } from '../../domain/entities/Message.js';
+import type { ToolCallEvent } from '../nodes/base.js';
 import type { IRunRepository } from '../../domain/interfaces/repositories/IRunRepository.js';
 import type { ProviderConfig } from '../nodes/index.js';
 
@@ -57,6 +59,8 @@ export interface RunCompletionResult {
   output?: Record<string, unknown>;
   files?: string[];
   error?: string;
+  // Top-level tool calls seen before cancellation (the killed worker can't report node outputs)
+  toolCalls?: ToolCall[];
 }
 
 /**
@@ -189,7 +193,11 @@ export class RunManager extends EventEmitter {
     return new Promise<RunCompletionResult>((resolve) => {
       let resolved = false;
 
+      // Top-level tool calls by id, in start order; unfinished calls count as failed
+      const toolCalls = new Map<string, ToolCall>();
+
       const cleanup = () => {
+        this.removeListener('tool-call', onToolCall);
         this.removeListener('run-completed', onComplete);
         this.removeListener('run-failed', onFail);
         this.removeListener('run-cancelled', onCancel);
@@ -217,7 +225,14 @@ export class RunManager extends EventEmitter {
 
       const onCancel = (event: { runId: string }) => {
         if (event.runId === runId) {
-          safeResolve({ status: 'cancelled' });
+          safeResolve({ status: 'cancelled', toolCalls: toolCalls.size > 0 ? [...toolCalls.values()] : undefined });
+        }
+      };
+
+      const onToolCall = (event: { runId: string; event: ToolCallEvent }) => {
+        if (event.runId === runId && event.event.path.length === 1) {
+          const { toolCallId, name, status } = event.event;
+          toolCalls.set(toolCallId, { id: toolCallId, name, status: status === 'completed' ? 'completed' : 'failed' });
         }
       };
 
@@ -231,6 +246,7 @@ export class RunManager extends EventEmitter {
         }
       };
 
+      this.on('tool-call', onToolCall);
       this.on('run-completed', onComplete);
       this.on('run-failed', onFail);
       this.on('run-cancelled', onCancel);

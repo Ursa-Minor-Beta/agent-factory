@@ -23,6 +23,8 @@ import { UserSecretService } from './user-secret.service.js';
 import { UserVariableService } from './user-variable.service.js';
 import { NotFoundError, ForbiddenError, AgentExecutionError } from '../utils/errors.js';
 
+const CANCELLED_RUN_MESSAGE = 'previous turn was stopped by the user';
+
 /**
  * Result of session initialization
  */
@@ -223,6 +225,7 @@ export class SessionService {
 
     // Check if run was cancelled - return cancelled response instead of error
     if (result.status === 'cancelled' || finalRun.status === 'cancelled') {
+      await this.saveCancelledRunMessage(session, incognitoSession, run.id, result.toolCalls);
       return {
         sessionId: effectiveSessionId,
         response: '',
@@ -254,6 +257,7 @@ export class SessionService {
         content: responseText,
         toolCalls: this.collectToolCalls(finalRun),
         files: fileRefs.length > 0 ? fileRefs : undefined,
+        status: 'completed',
       });
     }
 
@@ -356,10 +360,12 @@ export class SessionService {
         if (!storedRun) {
           throw new Error('Run not found');
         }
-        const finalRun = withCompletionResult(storedRun, await completion);
+        const completionResult = await completion;
+        const finalRun = withCompletionResult(storedRun, completionResult);
 
         // Handle cancelled
-        if (finalRun.status === 'cancelled') {
+        if (completionResult.status === 'cancelled' || finalRun.status === 'cancelled') {
+          await this.saveCancelledRunMessage(session, incognitoSession, run.id, completionResult.toolCalls);
           return {
             sessionId: effectiveSessionId,
             response: '',
@@ -371,8 +377,8 @@ export class SessionService {
         }
 
         // Handle failed
-        if (finalRun.status === 'failed') {
-          const errorMessage = finalRun.error ?? 'Agent execution failed';
+        if (completionResult.status === 'failed' || finalRun.status === 'failed') {
+          const errorMessage = finalRun.error ?? completionResult.error ?? 'Agent execution failed';
           await this.saveFailedRunMessage(session, incognitoSession, finalRun, errorMessage);
           throw new AgentExecutionError(errorMessage, run.id);
         }
@@ -394,6 +400,7 @@ export class SessionService {
             content: responseText,
             toolCalls: this.collectToolCalls(finalRun),
             files: fileRefs.length > 0 ? fileRefs : undefined,
+            status: 'completed',
           });
         }
 
@@ -725,7 +732,31 @@ export class SessionService {
         role: 'assistant',
         content: errorMessage,
         toolCalls: this.collectToolCalls(run),
-        error: true,
+        status: 'failed',
+      });
+    }
+  }
+
+  /**
+   * Save the assistant message for a run stopped via cancel, with tool calls made before it was stopped
+   */
+  private async saveCancelledRunMessage(
+    session: Session | null,
+    incognitoSession: IncognitoSession | null,
+    runId: string,
+    toolCalls: ToolCall[] | undefined
+  ): Promise<void> {
+    if (incognitoSession) {
+      incognitoSession.messages.push({ role: 'assistant', content: `[${CANCELLED_RUN_MESSAGE}]` });
+    }
+    if (session) {
+      await this.messageRepo.create({
+        sessionId: session.id,
+        runId,
+        role: 'assistant',
+        content: CANCELLED_RUN_MESSAGE,
+        toolCalls,
+        status: 'cancelled',
       });
     }
   }

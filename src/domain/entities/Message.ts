@@ -1,4 +1,6 @@
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
+// Outcome of the run behind an assistant message; 'failed' - content is the error message
+export type MessageStatus = 'completed' | 'failed' | 'cancelled';
 
 export interface ToolCall {
   id: string;
@@ -14,7 +16,7 @@ export interface Message {
   content: string;
   toolCalls?: ToolCall[];
   files?: string[]; // Format: "inner:<fileId>:<fieldName>"
-  error?: boolean; // Assistant message for a failed run: content is the error message
+  status?: MessageStatus; // Assistant messages only
   createdAt: Date;
 }
 
@@ -25,5 +27,5 @@ export interface CreateMessageDTO {
   content: string;
   toolCalls?: ToolCall[];
   files?: string[];
-  error?: boolean;
+  status?: MessageStatus;
 }

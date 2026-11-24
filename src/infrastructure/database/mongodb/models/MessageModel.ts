@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import type { MessageRole, ToolCall } from '../../../../domain/entities/Message.js';
+import type { MessageRole, MessageStatus, ToolCall } from '../../../../domain/entities/Message.js';
 
 export interface MessageDocument extends Document {
   _id: mongoose.Types.ObjectId;
@@ -9,7 +9,7 @@ export interface MessageDocument extends Document {
   content: string;
   toolCalls?: ToolCall[];
   files?: string[];
-  error?: boolean;
+  status?: MessageStatus;
   createdAt: Date;
 }
 
@@ -50,8 +50,9 @@ const messageSchema = new Schema<MessageDocument>(
       type: [String],
       default: undefined,
     },
-    error: {
-      type: Boolean,
+    status: {
+      type: String,
+      enum: ['completed', 'failed', 'cancelled'],
       default: undefined,
     },
   },

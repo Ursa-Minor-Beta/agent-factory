@@ -58,7 +58,12 @@ const messageSchema = {
       nullable: true,
       description: 'File references in format "inner:<fileId>:<fieldName>"',
     },
-    error: { type: 'boolean', nullable: true, description: 'True when the run failed - content is the error message' },
+    status: {
+      type: 'string',
+      enum: ['completed', 'failed', 'cancelled'],
+      nullable: true,
+      description: 'Run outcome for assistant messages; on "failed" content is the error message',
+    },
     createdAt: { type: 'string', format: 'date-time' },
   },
 };
