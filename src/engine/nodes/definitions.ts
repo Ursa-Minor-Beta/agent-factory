@@ -65,15 +65,14 @@ export function generateNodeDocsForPrompt(): string {
       }
     }
 
-    const firstExample = node.examples?.[0];
-    if (firstExample) {
-      lines.push('- Example:');
+    for (const example of node.examples ?? []) {
+      lines.push(`- Example: ${example.name}${example.description ? ` - ${example.description}` : ''}`);
       lines.push('```json');
       lines.push(JSON.stringify({
-        id: firstExample.id,
-        type: firstExample.type,
-        data: firstExample.data,
-        ...(firstExample.runAfter && { runAfter: firstExample.runAfter }),
+        id: example.id,
+        type: example.type,
+        data: example.data,
+        ...(example.runAfter && { runAfter: example.runAfter }),
       }, null, 2));
       lines.push('```');
     }
