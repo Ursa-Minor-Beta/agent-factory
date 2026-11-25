@@ -583,7 +583,8 @@ export class SessionService {
 
     // Get text response from common output fields
     if (typeof output.response === 'string') {
-      return output.response;
+      // Empty text (e.g. LLM ended its turn with tool calls only) would fail the required `content` validation
+      return output.response.trim() !== '' ? output.response : 'No response generated.';
     }
     if (typeof output.value === 'string') {
       return output.value;
