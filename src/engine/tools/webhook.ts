@@ -104,7 +104,7 @@ Returns { response, runs (the inputs the agent would receive), logs, error }.`,
     type: 'object',
     properties: {
       webhookId: { type: 'string', description: 'Webhook id' },
-      method: { type: 'string', description: 'HTTP method (default: POST)' },
+      method: { type: 'string', description: 'HTTP method: GET or POST (default: POST)' },
       headers: { type: 'object', description: 'Request headers (lower-case names)' },
       query: { type: 'object', description: 'Query parameters' },
       body: { type: 'object', description: 'Parsed JSON body' },

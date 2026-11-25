@@ -153,13 +153,14 @@ export const handleDeleteWebhook: ToolHandler = async (args, options) => {
 export const handleTestWebhook: ToolHandler = async (args, options) => {
   const { webhookService, userId } = requireService('test_webhook', options);
   try {
-    const body = args.body ?? {};
+    const method = String(args.method ?? 'POST').toUpperCase();
+    const body = method === 'GET' ? null : args.body ?? {};
     const result = await webhookService.test(userId, String(args.webhookId ?? ''), {
-      method: String(args.method ?? 'POST'),
+      method,
       headers: (args.headers as Record<string, string> | undefined) ?? {},
       query: (args.query as Record<string, string> | undefined) ?? {},
       body,
-      rawBody: JSON.stringify(body),
+      rawBody: body === null ? '' : JSON.stringify(body),
     });
     return { success: !result.error, ...result };
   }

@@ -32,7 +32,7 @@ Backend API for building and executing AI agent workflows using a node-graph sys
 - **Variables** - Plain-text, user-defined values (global or per workspace) usable in any node input as `{{var:KEY}}`
 - **File Storage** - Built-in file storage for agent artifacts
 - **Export/Import** - Export agents or whole workspaces to JSON (agents called from other workspaces are bundled in), import from file
-- **Webhooks** - Public URLs (`POST /hooks/:id/:token`) that start an agent run asynchronously; optional sandboxed JS handler for signature checks, filtering, input shaping and custom responses, with Slack / GitHub / Telegram templates
+- **Webhooks** - Public URLs (`GET|POST /hooks/:id/:token`) that start an agent run asynchronously; optional sandboxed JS handler for signature checks, filtering, input shaping and custom responses, with Slack / GitHub / Telegram templates
 - **GitHub Sync** - Link agents to GitHub repos with push/pull support
 - **Agent Snapshots** - Version history with restore capability
 - **Minimal Run Logging** - `settings.minimalRunLogging: true` on an agent stores only statuses, timestamps and usage in its run records (and in all child runs): no inputs, outputs, node state or files, and errors are stored as `"error"`. The result is still returned to the caller (API, chat, parent agent) but is not saved in the database
@@ -231,6 +231,8 @@ curl -X POST http://localhost:3000/api/webhooks \
 
 # Call it from anywhere - returns 202 { runId } by default
 curl -X POST "<url>" -H "Content-Type: application/json" -d '{"event": "paid"}'
+# GET works too (no body; pass data in the query string)
+curl "<url>?event=paid"
 ```
 
 Without a handler the agent receives `{ body, headers, query }` (`Authorization`/`Cookie` headers are stripped).
@@ -254,7 +256,7 @@ async function handle(request, { runAgent, isDuplicate }) {
 Handler time limit excludes time spent waiting on `runAgent()`; a wait longer than `WEBHOOK_RUN_WAIT_TIMEOUT_MS` returns `status: 'running'`. Max 10 runs per request.
 
 - `GET /api/webhooks/templates` - Slack, GitHub, Telegram handlers (signature check, URL verification/ping, bot/retry filtering) and the secrets they need
-- `POST /api/webhooks/:id/test` - dry-run the handler with `{ headers, query, body }`, returns `{ response, runs, logs, error }` (no runs are started)
+- `POST /api/webhooks/:id/test` - dry-run the handler with `{ method, headers, query, body }`, returns `{ response, runs, logs, error }` (no runs are started)
 - `POST /api/webhooks/:id/rotate` - new URL token
 
 See http://localhost:3000/docs for full API documentation.

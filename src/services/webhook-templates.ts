@@ -35,7 +35,7 @@ const custom = `/**
  * (time spent awaiting ctx.runAgent / ctx.isDuplicate is not counted).
  *
  * ─── request ───────────────────────────────────────────────────────────────
- * request.method   string                  'POST'
+ * request.method   string                  'GET' | 'POST' (GET has no body)
  * request.headers  Record<string, string>  lower-case names; Authorization/Cookie are stripped
  * request.query    Record<string, string>  URL query parameters
  * request.body     any                     parsed by Content-Type:
@@ -87,7 +87,7 @@ async function handle(request, ctx) {
   //    if (Math.abs(now() - Number(request.headers['x-timestamp'])) > 300) return { status: 401 };
 
   // 2. Filter - acknowledge with 200 but don't run the agent
-  if (request.method !== 'POST') return { status: 405 };
+  if (request.method !== 'POST') return { status: 405 }; // drop this line to accept GET (e.g. verification pings)
   // if (request.body?.type !== 'order.paid') return { status: 200 };
 
   // 3. Deduplicate redeliveries by a unique id from the sender

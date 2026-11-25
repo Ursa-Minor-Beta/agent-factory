@@ -401,7 +401,9 @@ export async function webhookRoutes(app: FastifyInstance) {
       done(null, body);
     });
 
-    hooks.post('/hooks/:id/:token', {
+    hooks.route({
+      method: ['GET', 'POST'],
+      url: '/hooks/:id/:token',
       bodyLimit: config.webhooks.maxBodyBytes,
       schema: {
         tags: ['webhooks'],
@@ -414,17 +416,18 @@ export async function webhookRoutes(app: FastifyInstance) {
           },
         },
       },
-    }, async (request, reply) => {
-      const { id, token } = request.params as { id: string; token: string };
-      const rawBody = typeof request.body === 'string' ? request.body : '';
-      const result = await webhookService.trigger(id, token, {
-        method: request.method,
-        headers: toStringRecord(request.headers, STRIPPED_HEADERS),
-        query: toStringRecord(request.query as Record<string, unknown>),
-        body: parseBody(rawBody, request.headers['content-type']),
-        rawBody,
-      });
-      return reply.status(result.status).headers(result.headers).send(result.body ?? '');
+      handler: async (request, reply) => {
+        const { id, token } = request.params as { id: string; token: string };
+        const rawBody = typeof request.body === 'string' ? request.body : '';
+        const result = await webhookService.trigger(id, token, {
+          method: request.method,
+          headers: toStringRecord(request.headers, STRIPPED_HEADERS),
+          query: toStringRecord(request.query as Record<string, unknown>),
+          body: parseBody(rawBody, request.headers['content-type']),
+          rawBody,
+        });
+        return reply.status(result.status).headers(result.headers).send(result.body ?? '');
+      },
     });
   });
 }
