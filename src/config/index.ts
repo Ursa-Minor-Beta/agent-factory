@@ -76,10 +76,10 @@ export const config = {
     /** Max triggers per webhook per minute */
     rateLimitPerMinute: parseInt(process.env['WEBHOOK_RATE_LIMIT_PER_MINUTE'] ?? '60', 10),
     /** Custom handler execution limits */
-    handlerTimeoutMs: parseInt(process.env['WEBHOOK_HANDLER_TIMEOUT_MS'] ?? '1000', 10),
+    handlerTimeoutMs: parseInt(process.env['WEBHOOK_HANDLER_TIMEOUT_MS'] ?? '1000', 60),
     handlerMemoryMb: parseInt(process.env['WEBHOOK_HANDLER_MEMORY_MB'] ?? '32', 10),
     /** Max time `await ctx.runAgent()` waits for a run before returning status 'running' */
-    runWaitTimeoutMs: parseInt(process.env['WEBHOOK_RUN_WAIT_TIMEOUT_MS'] ?? '30000', 10),
+    runWaitTimeoutMs: parseInt(process.env['WEBHOOK_RUN_WAIT_TIMEOUT_MS'] ?? '30000', 60),
   },
 } as const;
 

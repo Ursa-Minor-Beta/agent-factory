@@ -305,9 +305,9 @@ LLM_CLIENT_TOOL_TIMEOUT_MS=60000  # How long a run waits for the UI to answer a 
 WEBHOOK_PUBLIC_BASE_URL=https://api.example.com  # Base URL used to build webhook trigger URLs
 WEBHOOK_MAX_BODY_BYTES=1048576  # Max webhook request body size (default: 1 MB)
 WEBHOOK_RATE_LIMIT_PER_MINUTE=60  # Max triggers per webhook per minute (default: 60)
-WEBHOOK_HANDLER_TIMEOUT_MS=1000  # Custom webhook handler time limit (default: 1000)
+WEBHOOK_HANDLER_TIMEOUT_MS=60000  # Custom webhook handler time limit (default: 60000)
 WEBHOOK_HANDLER_MEMORY_MB=32  # Custom webhook handler memory limit (default: 32)
-WEBHOOK_RUN_WAIT_TIMEOUT_MS=30000  # Max time `await ctx.runAgent()` waits for the agent (default: 30000)
+WEBHOOK_RUN_WAIT_TIMEOUT_MS=60000  # Max time `await ctx.runAgent()` waits for the agent (default: 30000)
 
 # Agent Scheduler (optional)
 SCHEDULER_POLL_INTERVAL_MS=15000    # Max delay between checks for due schedules (default: 15000)
