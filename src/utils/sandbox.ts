@@ -12,6 +12,9 @@ export class SandboxError extends Error {
   }
 }
 
+/** Sandbox execution exceeded its time budget */
+export class SandboxTimeoutError extends SandboxError {}
+
 /**
  * Globals available to sandboxed code (for documentation)
  */
@@ -295,7 +298,7 @@ export function runInSandbox(options: SandboxOptions): Promise<SandboxResult> {
     const startTimer = () => {
       timerStartedAt = Date.now();
       timer = setTimeout(() => {
-        finish(() => reject(new Error(`${label} execution timed out after ${timeout}ms`)));
+        finish(() => reject(new SandboxTimeoutError(`${label} execution timed out after ${timeout}ms`)));
       }, remaining);
     };
     const pauseTimer = () => {

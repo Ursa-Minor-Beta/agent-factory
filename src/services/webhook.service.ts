@@ -11,7 +11,7 @@ import { UserSecretService } from './user-secret.service.js';
 import { UserVariableService } from './user-variable.service.js';
 import { WEBHOOK_TEMPLATES } from './webhook-templates.js';
 import { encrypt, decrypt } from '../utils/crypto.js';
-import { runInSandbox, SandboxError, type SandboxLogEntry } from '../utils/sandbox.js';
+import { runInSandbox, SandboxError, SandboxTimeoutError, type SandboxLogEntry } from '../utils/sandbox.js';
 import { resolveRunOutput } from '../utils/node-ref.js';
 import { config } from '../config/index.js';
 import { NotFoundError, ForbiddenError, ValidationError, AppError } from '../utils/errors.js';
@@ -405,6 +405,13 @@ export class WebhookService {
         if (error instanceof AppError) throw error;
         const logs = error instanceof SandboxError ? error.logs : [];
         console.error(`[Webhook:${webhook.id}] handler failed:`, error instanceof Error ? error.message : error, logs);
+        if (error instanceof SandboxTimeoutError) {
+          throw new AppError(
+            `Webhook handler timed out after ${config.webhooks.handlerTimeoutMs}ms`,
+            504,
+            'WEBHOOK_HANDLER_TIMEOUT'
+          );
+        }
         throw new AppError('Webhook handler failed', 500, 'WEBHOOK_HANDLER_FAILED');
       }
     }
