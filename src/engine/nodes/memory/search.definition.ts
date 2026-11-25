@@ -1,4 +1,5 @@
 import type { NodeDefinitionRaw } from '../definition.types.js';
+import { MEMORY_FILTER_OPERATORS } from '../../../domain/entities/Memory.js';
 
 export const MEMORY_SEARCH_NODE_DEFINITION: NodeDefinitionRaw = {
   type: 'memory-search',
@@ -16,7 +17,7 @@ export const MEMORY_SEARCH_NODE_DEFINITION: NodeDefinitionRaw = {
     {
       name: 'filters',
       type: 'object',
-      description: 'Filter by field values. Supports {{node:id.path}} syntax.',
+      description: `Filter by field values. Supports {{node:id.path}} syntax and MongoDB query operators (${MEMORY_FILTER_OPERATORS.join(', ')}).`,
     },
     {
       name: 'sort',
@@ -44,13 +45,54 @@ export const MEMORY_SEARCH_NODE_DEFINITION: NodeDefinitionRaw = {
   examples: [
     {
       name: 'Search by page',
-      description: 'Find memories for a specific page',
+      description: 'Find memories by name',
       id: 'memory-search-1',
       type: 'memory-search',
       data: {
         collection: 'learned_steps',
-        filters: { page: '{{node:input.url}}' },
+        filters: { name: '{{node:input.name}}' },
         limit: 5,
+      },
+    },
+    {
+      name: 'Search with comparison operators',
+      description: 'Find active adult customers, newest first',
+      id: 'memory-search-2',
+      type: 'memory-search',
+      data: {
+        collection: 'customers',
+        filters: { age: { $gte: 18 }, status: { $in: ['active', 'trial'] } },
+        sort: { field: 'createdAt', direction: 'desc' },
+        limit: 20,
+      },
+    },
+    {
+      name: 'Search with $or and $regex',
+      description: 'Find records whose name starts with input text or that are tagged urgent',
+      id: 'memory-search-3',
+      type: 'memory-search',
+      data: {
+        collection: 'tickets',
+        filters: {
+          $or: [
+            { title: { $regex: '^{{node:input.query}}', $options: 'i' } },
+            { tags: 'urgent' },
+          ],
+        },
+        fields: ['title', 'tags'],
+        limit: 10,
+      },
+    },
+    {
+      name: 'Search recent records with pagination',
+      description: 'Get the second page of records created after a date that have an email',
+      id: 'memory-search-4',
+      type: 'memory-search',
+      data: {
+        collection: 'leads',
+        filters: { createdAt: { $gte: '{{node:input.since}}' }, email: { $exists: true } },
+        limit: 10,
+        offset: 10,
       },
     },
   ],

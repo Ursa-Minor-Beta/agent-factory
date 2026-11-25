@@ -81,6 +81,13 @@ export const MEMORY_RESERVED_FIELDS: readonly (keyof MemoryRecordReserved)[] = [
 
 export type MemoryReservedField = typeof MEMORY_RESERVED_FIELDS[number];
 
+/** MongoDB query operators allowed in memory search filters */
+export const MEMORY_FILTER_OPERATORS = [
+  '$eq', '$ne', '$gt', '$gte', '$lt', '$lte', '$in', '$nin',
+  '$exists', '$regex', '$options', '$and', '$or', '$nor', '$not',
+  '$all', '$elemMatch', '$size',
+] as const;
+
 /**
  * Memory Record - a single entry in a memory collection
  * User-defined schema fields are stored directly at the root level

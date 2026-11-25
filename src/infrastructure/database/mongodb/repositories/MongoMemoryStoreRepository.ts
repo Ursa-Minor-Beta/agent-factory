@@ -8,6 +8,29 @@ import type {
   MemorySearchOptions,
   MemorySearchResult,
 } from '../../../../domain/entities/Memory.js';
+import { MEMORY_FILTER_OPERATORS } from '../../../../domain/entities/Memory.js';
+
+const ALLOWED_FILTER_OPERATORS = new Set<string>(MEMORY_FILTER_OPERATORS);
+
+function assertSafeFilter(value: unknown): void {
+  if (Array.isArray(value)) {
+    value.forEach(assertSafeFilter);
+    return;
+  }
+  if (value === null || typeof value !== 'object' || value instanceof Date) return;
+  for (const [key, nested] of Object.entries(value)) {
+    if (key.startsWith('$') && !ALLOWED_FILTER_OPERATORS.has(key)) {
+      throw new Error(`Unsupported filter operator: ${key}`);
+    }
+    assertSafeFilter(nested);
+  }
+}
+
+/** Build a query scoped to schemaId; schemaId is applied last so filters cannot override it */
+function buildScopedQuery(schemaId: string, filters?: Record<string, unknown>): Record<string, unknown> {
+  assertSafeFilter(filters);
+  return { ...(filters ?? {}), schemaId };
+}
 
 export class MongoMemoryStoreRepository implements IMemoryStoreRepository {
   private toEntity(doc: MemoryRecordDocument): MemoryRecord {
@@ -40,7 +63,7 @@ export class MongoMemoryStoreRepository implements IMemoryStoreRepository {
     const sortField = options?.sort?.field ?? 'createdAt';
     const sortDirection = options?.sort?.direction === 'asc' ? 1 : -1;
 
-    const docs = await MemoryRecordModel.find({ ...(options?.filters ?? {}), schemaId })
+    const docs = await MemoryRecordModel.find(buildScopedQuery(schemaId, options?.filters))
       .sort({ [sortField]: sortDirection })
       .skip(options?.offset ?? 0)
       .limit(options?.limit ?? 50);
@@ -49,14 +72,7 @@ export class MongoMemoryStoreRepository implements IMemoryStoreRepository {
   }
 
   async search(options: MemorySearchOptions): Promise<MemorySearchResult[]> {
-    const query: Record<string, unknown> = { schemaId: options.schemaId };
-
-    // Apply filters on schema fields (now at root level)
-    if (options.filters) {
-      for (const [key, value] of Object.entries(options.filters)) {
-        query[key] = value;
-      }
-    }
+    const query = buildScopedQuery(options.schemaId, options.filters);
 
     // Build sort
     const sortField = options.sort?.field ?? 'createdAt';
@@ -120,14 +136,14 @@ export class MongoMemoryStoreRepository implements IMemoryStoreRepository {
   }
 
   async deleteMany(schemaId: string, filters: Record<string, unknown>): Promise<number> {
-    const query: Record<string, unknown> = { schemaId, ...filters };
+    const query = buildScopedQuery(schemaId, filters);
 
     const result = await MemoryRecordModel.deleteMany(query);
     return result.deletedCount;
   }
 
   async count(schemaId: string, filters?: Record<string, unknown>): Promise<number> {
-    const query: Record<string, unknown> = { schemaId, ...(filters ?? {}) };
+    const query = buildScopedQuery(schemaId, filters);
 
     return MemoryRecordModel.countDocuments(query);
   }
