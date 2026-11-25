@@ -12,7 +12,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
     {
       name: 'input',
       type: 'object',
-      description: 'Template for input value. Supports {{node:id.path}} syntax.',
+      description: 'Template for input value. Supports {{node:id.path}}, {{var:KEY}} and {{secret:KEY}} syntax.',
     },
     {
       name: 'code',
@@ -44,6 +44,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
     'Memory and timeout limits enforced',
     'console.log/warn/error output is captured into run state as "logs" (also on failure)',
     `Available globals: ${JS_NODE_AVAILABLE_GLOBALS.join(', ')}`,
+    'Crypto helpers: hmacSha256(secret, value) → hex, safeEqual(a, b) (timing-safe), now() → unix seconds',
   ],
   examples: [
     {

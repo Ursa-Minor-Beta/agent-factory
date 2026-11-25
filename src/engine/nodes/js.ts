@@ -2,7 +2,7 @@ import type { WorkflowNode } from '../../domain/entities/Agent.js';
 import type { ExecutionContext } from '../context.js';
 import { BaseNode, type NodeExecutionResult, type ExecutionOptions } from './base.js';
 import { config } from '../../config/index.js';
-import { interpolateDeep, NODE_PATTERN, resolveNodeRef } from './interpolate.js';
+import { interpolateDeep, NODE_PATTERN, SECRET_PATTERN, resolveNodeRef } from './interpolate.js';
 import { NodeExecutionError } from '../../utils/errors.js';
 import { extractAndStoreFiles } from './file-helper.js';
 import { runInSandbox, SandboxError, SANDBOX_AVAILABLE_GLOBALS, type SandboxLogEntry } from '../../utils/sandbox.js';
@@ -49,7 +49,7 @@ export class JsNode extends BaseNode {
   async execute(
     node: WorkflowNode,
     context: ExecutionContext,
-    _options: ExecutionOptions
+    options: ExecutionOptions
   ): Promise<NodeExecutionResult> {
     const data = node.data as unknown as JsNodeData;
     const code = data.code ?? 'output = input;';
@@ -57,7 +57,9 @@ export class JsNode extends BaseNode {
     const timeout = Math.min(data.timeout ?? defaultTimeoutMs, maxTimeoutMs);
     const memoryMb = Math.min(data.memoryMb ?? defaultMemoryMb, maxMemoryMb);
 
-    const input = this.resolveInput(data, context);
+    const input = this.resolveInput(data, context, options.resolvedSecrets ?? {});
+    // Persisted debug state keeps {{secret:KEY}} refs instead of secret values
+    const persistedInput = data.persistedFields?.includes('input') ? this.resolveInput(data, context, {}) : undefined;
 
     try {
       const { result, logs } = await runInSandbox({
@@ -65,11 +67,12 @@ export class JsNode extends BaseNode {
         data: { input, output: undefined },
         timeout,
         memoryMb,
+        cryptoHelpers: true,
         label: 'JS node',
       });
       // Normalize undefined to null so {{node:id.output}} refs resolve downstream
       const output = result ?? null;
-      const state = this.buildState(data, input, logs);
+      const state = this.buildState(data, persistedInput, logs);
 
       const outputs = { output };
 
@@ -90,13 +93,13 @@ export class JsNode extends BaseNode {
         error instanceof Error ? error.message : String(error),
         {},
         error,
-        this.buildState(data, input, logs)
+        this.buildState(data, persistedInput, logs)
       );
     }
   }
 
-  private resolveInput(data: JsNodeData, context: ExecutionContext): unknown {
-    return interpolateDeep(this.nullifyUnresolvedRefs(data.input, context), { context });
+  private resolveInput(data: JsNodeData, context: ExecutionContext, secrets: Record<string, string>): unknown {
+    return interpolateDeep(this.nullifyUnresolvedRefs(data.input, context, secrets), { context });
   }
 
   /**
@@ -107,15 +110,22 @@ export class JsNode extends BaseNode {
    *   - a quoted ref that is the whole string literal ("{{node:x}}") is treated as a bare ref
    *   - refs embedded in a longer string literal are escaped without extra quotes
    *     (unresolved ones become an empty string)
+   *   - {{secret:KEY}} refs are substituted the same way (unknown keys are left as-is)
    */
-  private nullifyUnresolvedRefs(value: unknown, context: ExecutionContext): unknown {
+  private nullifyUnresolvedRefs(value: unknown, context: ExecutionContext, secrets: Record<string, string>): unknown {
     if (typeof value === 'string') {
       const toJson = (nodeId: string, path: string | undefined): string => {
         const resolved = resolveNodeRef(nodeId, path, context);
         return resolved === undefined ? 'null' : JSON.stringify(resolved);
       };
 
+      // Secrets first, so {{secret:...}} text inside node outputs is never expanded
       return value
+        .replace(SECRET_PATTERN, (match: string, key: string, offset: number, template: string) => {
+          const secret = secrets[key];
+          if (secret === undefined) return match;
+          return isInsideJsonString(template, offset) ? JSON.stringify(secret).slice(1, -1) : JSON.stringify(secret);
+        })
         .replace(QUOTED_NODE_PATTERN, (_match, nodeId: string, path: string | undefined) => toJson(nodeId, path))
         .replace(NODE_PATTERN, (_match, nodeId: string, path: string | undefined, offset: number, template: string) => {
           if (!isInsideJsonString(template, offset)) return toJson(nodeId, path);
@@ -127,11 +137,11 @@ export class JsNode extends BaseNode {
         });
     }
     if (Array.isArray(value)) {
-      return value.map((item) => this.nullifyUnresolvedRefs(item, context));
+      return value.map((item) => this.nullifyUnresolvedRefs(item, context, secrets));
     }
     if (value !== null && typeof value === 'object') {
       return Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [k, this.nullifyUnresolvedRefs(v, context)])
+        Object.entries(value).map(([k, v]) => [k, this.nullifyUnresolvedRefs(v, context, secrets)])
       );
     }
     return value;
