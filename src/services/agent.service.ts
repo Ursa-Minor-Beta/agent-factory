@@ -71,7 +71,8 @@ export class AgentService {
       this.versionRepo.createSnapshot(agent);
     }
 
-    return updated;
+    // Re-fetch to include joined details (workspaceName, etc.)
+    return (await this.agentRepo.findById(agentId)) ?? updated;
   }
 
   async delete(userId: string, agentId: string): Promise<void> {
