@@ -17,6 +17,7 @@ import { config } from '../../../config/index.js';
 type ToolCallResult = {
   toolCallId: string;
   name: string;
+  input: Record<string, unknown>;
   result: unknown;
   isError: boolean;
 };
@@ -33,24 +34,27 @@ async function executeSingleToolCall(
   const toolName = toolCall.function.name;
   const toolDef = toolMap.get(toolName);
 
-  if (!toolDef) {
+  let toolArgs: Record<string, unknown>;
+  try {
+    toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+  }
+  catch {
+    // Often caused by output truncated at maxTokens - let the model retry with smaller arguments
     return {
       toolCallId: toolCall.id,
       name: toolName,
-      result: { error: `Unknown tool: ${toolName}` },
+      input: {},
+      result: { error: 'Invalid JSON in tool arguments (possibly truncated). Retry with valid, shorter arguments.' },
       isError: true,
     };
   }
 
-  let toolArgs: Record<string, unknown>;
-  try {
-    toolArgs = JSON.parse(toolCall.function.arguments);
-  }
-  catch {
+  if (!toolDef) {
     return {
       toolCallId: toolCall.id,
       name: toolName,
-      result: { error: 'Invalid JSON in tool arguments' },
+      input: toolArgs,
+      result: { error: `Unknown tool: ${toolName}` },
       isError: true,
     };
   }
@@ -60,13 +64,14 @@ async function executeSingleToolCall(
       ? await executeClientTool(toolCall.id, toolName, toolArgs, options)
       : await executeServerTool(toolCall.id, toolDef, toolArgs, options, nodeId);
 
-    return { toolCallId: toolCall.id, name: toolName, result, isError: false };
+    return { toolCallId: toolCall.id, name: toolName, input: toolArgs, result, isError: false };
   }
   catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       toolCallId: toolCall.id,
       name: toolName,
+      input: toolArgs,
       result: { error: errorMessage },
       isError: true,
     };
@@ -276,8 +281,7 @@ export async function callOpenAI(
       // Execute tools one by one
       for (const toolCall of toolCalls) {
         const callResult = await executeSingleToolCall(toolCall, toolMap, options, nodeId);
-        const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
-        executedToolCalls.push({ id: toolCall.id, name: callResult.name, input: toolArgs, result: callResult.result });
+        executedToolCalls.push({ id: toolCall.id, name: callResult.name, input: callResult.input, result: callResult.result });
         messages.push({
           role: 'tool',
           tool_call_id: callResult.toolCallId,
@@ -294,8 +298,7 @@ export async function callOpenAI(
       for (let i = 0; i < toolCalls.length; i++) {
         const toolCall = toolCalls[i]!;
         const callResult = callResults[i]!;
-        const toolArgs = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
-        executedToolCalls.push({ id: toolCall.id, name: callResult.name, input: toolArgs, result: callResult.result });
+        executedToolCalls.push({ id: toolCall.id, name: callResult.name, input: callResult.input, result: callResult.result });
         messages.push({
           role: 'tool',
           tool_call_id: callResult.toolCallId,
