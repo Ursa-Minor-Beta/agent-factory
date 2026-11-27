@@ -982,6 +982,7 @@ export async function agentRoutes(app: FastifyInstance) {
           input: { type: 'object', additionalProperties: true, description: 'Input object matching agent schema (e.g., { "message": "hello" } or { "text": "hello", "count": 3 })' },
           sessionId: { type: 'string', description: 'Continue an existing session (or incognito_* for incognito sessions)' },
           incognito: { type: 'boolean', default: false, description: 'Start incognito session (messages stored in memory, not persisted)' },
+          sessionName: { type: 'string', minLength: 1, maxLength: 200, description: 'Name for the session if a new one is created (ignored when continuing an existing session)' },
           maxParallelNodes: { type: 'integer', minimum: 1, maximum: 20, default: config.engine.defaultParallelNodes, description: 'Max workflow nodes executed in parallel (1 = sequential)' },
         },
       },
@@ -1025,10 +1026,11 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id: agentId } = request.params as { id: string };
-    const { input, sessionId, incognito, maxParallelNodes } = request.body as {
+    const { input, sessionId, incognito, maxParallelNodes, sessionName } = request.body as {
       input: Record<string, unknown>;
       sessionId?: string;
       incognito?: boolean;
+      sessionName?: string;
       maxParallelNodes?: number;
     };
 
@@ -1037,6 +1039,7 @@ export async function agentRoutes(app: FastifyInstance) {
         sessionId,
         incognito,
         maxParallelNodes,
+        title: sessionName,
       });
 
       return reply.send({
@@ -1079,6 +1082,7 @@ export async function agentRoutes(app: FastifyInstance) {
           input: { type: 'object', additionalProperties: true },
           sessionId: { type: 'string' },
           incognito: { type: 'boolean', default: false },
+          sessionName: { type: 'string', minLength: 1, maxLength: 200, description: 'Name for the session if a new one is created (ignored when continuing an existing session)' },
           maxParallelNodes: { type: 'integer', minimum: 1, maximum: 20, default: config.engine.defaultParallelNodes, description: 'Max workflow nodes executed in parallel (1 = sequential)' },
           clientTools: {
             type: 'array',
@@ -1101,10 +1105,11 @@ export async function agentRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { userId } = request.user as { userId: string };
     const { id: agentId } = request.params as { id: string };
-    const { input, sessionId, incognito, maxParallelNodes, clientTools: rawClientTools } = request.body as {
+    const { input, sessionId, incognito, maxParallelNodes, sessionName, clientTools: rawClientTools } = request.body as {
       input: Record<string, unknown>;
       sessionId?: string;
       incognito?: boolean;
+      sessionName?: string;
       maxParallelNodes?: number;
       clientTools?: Array<{ name: string; description: string; parameters: ToolParameters; nodeIds?: string[] }>;
     };
@@ -1195,6 +1200,7 @@ export async function agentRoutes(app: FastifyInstance) {
         sessionId,
         incognito,
         maxParallelNodes,
+        title: sessionName,
         clientTools,
       });
       activeRunId = ctx.init.runId;
