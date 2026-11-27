@@ -54,7 +54,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
       type: 'js',
       data: {
         input: '{{node:llm-1.response}}',
-        code: 'output = { result: input.toUpperCase() };',
+        code: 'return { result: input.toUpperCase() };',
       },
     },
     {
@@ -64,7 +64,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
       type: 'js',
       data: {
         input: ['{{node:llm-1.response}}', '{{node:llm-2.response}}'],
-        code: 'output = { resultA: input[0].toUpperCase(), resultB: input[1].toUpperCase() };',
+        code: 'return { resultA: input[0].toUpperCase(), resultB: input[1].toUpperCase() };',
       },
     },
     {
@@ -74,7 +74,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
       type: 'js',
       data: {
         input: { "a": '{{node:llm-1.response}}', "b": '{{node:llm-2.response}}' },
-        code: 'output = { resultA: input.a.toUpperCase(), resultB: input.b.toUpperCase() };',
+        code: 'return { resultA: input.a.toUpperCase(), resultB: input.b.toUpperCase() };',
       },
     },
     {
@@ -84,7 +84,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
       type: 'js',
       data: {
         input: '{{node:llm-1.response}}',
-        code: 'output = JSON.parse(input);',
+        code: 'return JSON.parse(input);',
       },
     },
     {
@@ -94,7 +94,7 @@ export const JS_NODE_DEFINITION: NodeDefinitionRaw = {
       type: 'js',
       data: {
         input: '{{node:http-1.response.data}}',
-        code: 'output = input.map(x => x * 2);',
+        code: 'return input.map(x => x * 2);',
         timeout: 10000,
         memoryMb: 128,
       },
